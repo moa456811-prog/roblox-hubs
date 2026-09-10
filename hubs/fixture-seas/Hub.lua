@@ -10,6 +10,7 @@ local FeatureDefinitions = {{["available"]=true,["category"]="bosses",["confiden
 
 
 -- ===== theme =====
+local HubBrand = "a7med_hub"
 local InitialTheme = "blue"
 
 
@@ -403,11 +404,11 @@ local UI = {
 	NoticeUntil = 0,
 }
 local function accent()
-	return Settings.Theme == "purple" and Color3.fromRGB(100, 71, 255) or Color3.fromRGB(38, 151, 255)
+	return Settings.Theme == "purple" and Color3.fromRGB(155, 111, 255) or Color3.fromRGB(41, 218, 200)
 end
 local colors = {
-	background = Color3.fromRGB(10, 14, 20),
-	card = Color3.fromRGB(29, 34, 44),
+	background = Color3.fromRGB(9, 13, 22),
+	card = Color3.fromRGB(22, 30, 43),
 	text = Color3.fromRGB(238, 242, 250),
 	muted = Color3.fromRGB(157, 171, 190),
 }
@@ -423,22 +424,18 @@ local function round(object, radius)
 	create("UICorner", { CornerRadius = UDim.new(0, radius or 12) }, object)
 end
 local function label(text, height, parent)
-	return create(
-		"TextLabel",
-		{
-			Size = UDim2.new(1, 0, 0, height),
-			BackgroundTransparency = 1,
-			Text = text,
-			TextColor3 = colors.text,
-			TextSize = Settings.FontSize,
-			Font = Enum.Font.Gotham,
-			TextWrapped = true,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextYAlignment = Enum.TextYAlignment.Top,
-			RichText = false,
-		},
-		parent or UI.Content
-	)
+	return create("TextLabel", {
+		Size = UDim2.new(1, 0, 0, height),
+		BackgroundTransparency = 1,
+		Text = text,
+		TextColor3 = colors.text,
+		TextSize = Settings.FontSize,
+		Font = Enum.Font.Gotham,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		RichText = false,
+	}, parent or UI.Content)
 end
 function UI.Notify(text)
 	UI.Notice.Text = tostring(text)
@@ -446,19 +443,15 @@ function UI.Notify(text)
 	UI.NoticeUntil = os.clock() + 5
 end
 local function button(text, callback, parent, list, tooltip)
-	local object = create(
-		"TextButton",
-		{
-			Size = UDim2.new(1, 0, 0, 46),
-			BackgroundColor3 = colors.card,
-			BorderSizePixel = 0,
-			Text = text,
-			TextColor3 = colors.text,
-			TextSize = Settings.FontSize,
-			Font = Enum.Font.GothamMedium,
-		},
-		parent or UI.Content
-	)
+	local object = create("TextButton", {
+		Size = UDim2.new(1, 0, 0, 46),
+		BackgroundColor3 = colors.card,
+		BorderSizePixel = 0,
+		Text = text,
+		TextColor3 = colors.text,
+		TextSize = Settings.FontSize,
+		Font = Enum.Font.GothamMedium,
+	}, parent or UI.Content)
 	round(object)
 	Core.Connect(object.Activated, function()
 		local ok, err = pcall(callback)
@@ -517,23 +510,19 @@ local function toggle(feature)
 	table.insert(UI.Toggles, { button = switch, id = feature.Id })
 end
 local function textbox(text, parent, multiline)
-	local object = create(
-		"TextBox",
-		{
-			Size = UDim2.new(1, 0, 0, multiline and 110 or 40),
-			BackgroundColor3 = colors.card,
-			BorderSizePixel = 0,
-			Text = text,
-			PlaceholderText = "Search…",
-			TextColor3 = colors.text,
-			TextSize = 14,
-			Font = Enum.Font.Code,
-			ClearTextOnFocus = false,
-			MultiLine = multiline or false,
-			TextWrapped = multiline or false,
-		},
-		parent or UI.Content
-	)
+	local object = create("TextBox", {
+		Size = UDim2.new(1, 0, 0, multiline and 110 or 40),
+		BackgroundColor3 = colors.card,
+		BorderSizePixel = 0,
+		Text = text,
+		PlaceholderText = "Search…",
+		TextColor3 = colors.text,
+		TextSize = 14,
+		Font = Enum.Font.Code,
+		ClearTextOnFocus = false,
+		MultiLine = multiline or false,
+		TextWrapped = multiline or false,
+	}, parent or UI.Content)
 	round(object, 8)
 	return object
 end
@@ -557,7 +546,7 @@ function UI.Render()
 	UI.Clear()
 	if UI.Page == "HOME" then
 		card(
-			Profile.game.name .. " Hub",
+			HubBrand .. " / " .. Profile.game.name,
 			"Creator: "
 				.. tostring(Profile.game.creator or "unknown")
 				.. "\nProfile v"
@@ -629,15 +618,11 @@ function UI.Render()
 			UI.Content
 		)
 		round(slider, 8)
-		local fill = create(
-			"Frame",
-			{
-				Size = UDim2.new((Settings.FontSize - 12) / 10, 0, 1, 0),
-				BackgroundColor3 = accent(),
-				BorderSizePixel = 0,
-			},
-			slider
-		)
+		local fill = create("Frame", {
+			Size = UDim2.new((Settings.FontSize - 12) / 10, 0, 1, 0),
+			BackgroundColor3 = accent(),
+			BorderSizePixel = 0,
+		}, slider)
 		round(fill, 8)
 		Core.Connect(slider.InputBegan, function(input)
 			if
@@ -715,15 +700,11 @@ function UI.Navigation()
 	for _, child in ipairs(UI.Nav:GetChildren()) do
 		child:Destroy()
 	end
-	create(
-		"UIListLayout",
-		{
-			FillDirection = Settings.Theme == "blue" and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical,
-			Padding = UDim.new(0, 6),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-		},
-		UI.Nav
-	)
+	create("UIListLayout", {
+		FillDirection = Settings.Theme == "blue" and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical,
+		Padding = UDim.new(0, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, UI.Nav)
 	local names = { "HOME" }
 	for _, definition in ipairs(FeatureDefinitions) do
 		table.insert(names, string.upper(definition.category))
@@ -744,16 +725,12 @@ function UI.Navigation()
 			if Settings.Theme == "purple" then
 				b.BackgroundColor3 = accent()
 			else
-				create(
-					"Frame",
-					{
-						Size = UDim2.new(1, -8, 0, 3),
-						Position = UDim2.new(0, 4, 1, -3),
-						BackgroundColor3 = accent(),
-						BorderSizePixel = 0,
-					},
-					b
-				)
+				create("Frame", {
+					Size = UDim2.new(1, -8, 0, 3),
+					Position = UDim2.new(0, 4, 1, -3),
+					BackgroundColor3 = accent(),
+					BorderSizePixel = 0,
+				}, b)
 			end
 		end
 	end
@@ -792,6 +769,13 @@ function UI.Layout()
 		UI.Content.Size = UDim2.new(1, -side - 40, 1, -145)
 	end
 	UI.Title.TextSize = width < 600 and 17 or 25
+	local titleLeft = width < 500 and 12 or 62
+	UI.Badge.Visible = width >= 500
+	UI.Badge.BackgroundColor3 = accent()
+	UI.Title.Position = UDim2.fromOffset(titleLeft, 9)
+	UI.GameTitle.Position = UDim2.fromOffset(titleLeft, 39)
+	UI.Title.Size = UDim2.new(1, -titleLeft - 208, 0, 28)
+	UI.GameTitle.Size = UDim2.new(1, -titleLeft - 208, 0, 18)
 end
 Core.Gui = create(
 	"ScreenGui",
@@ -799,16 +783,12 @@ Core.Gui = create(
 	Core.PlayerGui
 )
 local shutdown = create("BindableEvent", { Name = "Shutdown" }, Core.Gui)
-UI.Window = create(
-	"Frame",
-	{
-		Size = UDim2.fromOffset(850, 610),
-		Position = UDim2.fromOffset(30, 30),
-		BackgroundColor3 = colors.background,
-		BorderSizePixel = 0,
-	},
-	Core.Gui
-)
+UI.Window = create("Frame", {
+	Size = UDim2.fromOffset(850, 610),
+	Position = UDim2.fromOffset(30, 30),
+	BackgroundColor3 = colors.background,
+	BorderSizePixel = 0,
+}, Core.Gui)
 round(UI.Window, 16)
 UI.Stroke = create("UIStroke", { Thickness = 2, Color = accent() }, UI.Window)
 local header = create(
@@ -816,10 +796,24 @@ local header = create(
 	{ Name = "Header", Size = UDim2.new(1, 0, 0, 68), BackgroundTransparency = 1, Active = true },
 	UI.Window
 )
-UI.Title = label(Profile.game.name .. " Hub", 38, header)
-UI.Title.Position = UDim2.fromOffset(18, 15)
-UI.Title.Size = UDim2.new(1, -224, 0, 42)
+UI.Title = label(HubBrand, 38, header)
+UI.Title.Position = UDim2.fromOffset(62, 9)
+UI.Title.Size = UDim2.new(1, -275, 0, 28)
+UI.Title.TextScaled = true
 UI.Title.Font = Enum.Font.GothamBold
+UI.Badge = label("a7", 32, header)
+UI.Badge.Position = UDim2.fromOffset(16, 16)
+UI.Badge.Size = UDim2.fromOffset(36, 36)
+UI.Badge.BackgroundTransparency = 0
+UI.Badge.BackgroundColor3 = accent()
+UI.Badge.TextColor3 = colors.background
+UI.Badge.Font = Enum.Font.GothamBold
+round(UI.Badge, 10)
+UI.GameTitle = label(Profile.game.name, 16, header)
+UI.GameTitle.Position = UDim2.fromOffset(62, 39)
+UI.GameTitle.Size = UDim2.new(1, -275, 0, 18)
+UI.GameTitle.TextScaled = true
+UI.GameTitle.TextColor3 = colors.muted
 UI.Stop = button("STOP ALL", function()
 	TaskManager:StopAll()
 	UI.Notify("All tasks stopped")
@@ -845,54 +839,42 @@ UI.Nav = create(
 	UI.Window
 )
 UI.Search = textbox("", UI.Window)
-UI.Content = create(
-	"ScrollingFrame",
-	{
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	},
-	UI.Window
-)
+UI.Content = create("ScrollingFrame", {
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 4,
+	CanvasSize = UDim2.new(),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, UI.Window)
 create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, UI.Content)
 create("UIPadding", { PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 12) }, UI.Content)
 UI.Resize = button("◢", function() end, UI.Window, Core.Connections)
 UI.Resize.Position = UDim2.new(1, -24, 1, -24)
 UI.Resize.Size = UDim2.fromOffset(24, 24)
 UI.Resize.BackgroundTransparency = 1
-UI.Notice = create(
-	"TextLabel",
-	{
-		Position = UDim2.new(0.5, -140, 1, -65),
-		Size = UDim2.fromOffset(280, 52),
-		BackgroundColor3 = colors.card,
-		TextColor3 = colors.text,
-		TextWrapped = true,
-		TextSize = 14,
-		Font = Enum.Font.Gotham,
-		Visible = false,
-		ZIndex = 15,
-	},
-	Core.Gui
-)
+UI.Notice = create("TextLabel", {
+	Position = UDim2.new(0.5, -140, 1, -65),
+	Size = UDim2.fromOffset(280, 52),
+	BackgroundColor3 = colors.card,
+	TextColor3 = colors.text,
+	TextWrapped = true,
+	TextSize = 14,
+	Font = Enum.Font.Gotham,
+	Visible = false,
+	ZIndex = 15,
+}, Core.Gui)
 round(UI.Notice)
-UI.Tooltip = create(
-	"TextLabel",
-	{
-		Position = UDim2.new(0, 10, 1, -38),
-		Size = UDim2.new(1, -20, 0, 30),
-		BackgroundColor3 = colors.card,
-		TextColor3 = colors.muted,
-		TextWrapped = true,
-		TextSize = 12,
-		Font = Enum.Font.Gotham,
-		Visible = false,
-		ZIndex = 20,
-	},
-	Core.Gui
-)
+UI.Tooltip = create("TextLabel", {
+	Position = UDim2.new(0, 10, 1, -38),
+	Size = UDim2.new(1, -20, 0, 30),
+	BackgroundColor3 = colors.card,
+	TextColor3 = colors.muted,
+	TextWrapped = true,
+	TextSize = 12,
+	Font = Enum.Font.Gotham,
+	Visible = false,
+	ZIndex = 20,
+}, Core.Gui)
 UI.DesiredSize = Vector2.new(850, 610)
 local gesture, startPoint, startPosition, startSize, resizing
 local function begin(input, resize)
@@ -997,5 +979,8 @@ end
 UI.Layout()
 UI.Navigation()
 UI.Render()
-Logger.Write("SUCCESS", Profile.game.name .. " Hub ready · " .. #Profile.entities .. " public records")
+Logger.Write(
+	"SUCCESS",
+	HubBrand .. " / " .. Profile.game.name .. " ready · " .. #Profile.entities .. " public records"
+)
 
