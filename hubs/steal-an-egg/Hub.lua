@@ -2,7 +2,7 @@
 -- Roblox Hub Factory: public profile and authorized client tools.
 
 -- ===== profile =====
-local Profile = {["confidence"]=0,["entities"]={},["game"]={["created_date"]="2026-07-25T07:50:51.492Z",["creator"]="and Collect Rare Pets",["creator_id"]=825735094,["description"]="\240\159\165\154 Welcome to Steal An Egg!\010\010How to Play:\010\240\159\165\154 Steal eggs from pets\010\240\159\144\163 Hatch eggs to collect rare pets\010\240\159\146\176 Earn money from your pets\010\226\172\134\239\184\143 Upgrade your treadmill and base\010\240\159\143\131 Train on the treadmill to gain Speed\010\240\159\165\183 Steal eggs from other players\010\226\156\168 Discover rarer eggs, pets, sizes, and mutations!\010\010\240\159\142\174 Supports Desktop, Console, Mobile, and Tablet players",["fixture"]=false,["genre"]="All",["icon"]="https://tr.rbxcdn.com/180DAY-856231c847a8d9709e23979c56c38c3a/150/150/Image/Png/noFilter",["identification_confidence"]=0.99,["known_places"]={107778070777162},["name"]="Steal An Egg",["official_links"]={},["place_id"]=107778070777162,["thumbnail"]="https://tr.rbxcdn.com/180DAY-875b2a6dc156ce6dd64eb637e73238ce/768/432/Image/Png/noFilter",["universe_id"]=10563114921,["updated_date"]="2026-09-10T19:06:52.2807062Z",["visits"]=2498787796},["integration"]={["actions"]=0,["runtime"]="NOT_VERIFIED",["scripts"]=3},["research_date"]="2026-09-10T21:39:31.902974+00:00",["sources"]={{["confidence"]=0.345,["freshness"]="unknown",["id"]="f49847a106065ae0-9be593d913",["name"]="roblox-hubs",["source_type"]="public_code_reference",["url"]="https://api.github.com/repos/moa456811-prog/roblox-hubs/readme"},{["confidence"]=0.3,["freshness"]="unknown",["id"]="75f4bfd02171c69e-944debdf0a",["name"]="StealAnEgg",["source_type"]="public_code_reference",["url"]="https://api.github.com/repos/ShortcakeMaker/StealAnEgg/readme"},{["confidence"]=0.345,["freshness"]="unknown",["id"]="041585a85e0c80a2-b143138906",["name"]="roblox-steal-an-egg",["source_type"]="public_code_reference",["url"]="https://api.github.com/repos/sw4gi/roblox-steal-an-egg/readme"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="20aa6e6d15caad86",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://apis.roblox.com/universes/v1/places/107778070777162/universe"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="3ad7afeab0bf53b3",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://games.roblox.com/v1/games?universeIds=10563114921"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="f733c9b1bd1d430a",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://thumbnails.roblox.com/v1/games/icons?universeIds=10563114921&returnPolicy=PlaceHolder&size=150x150&format=Png&isCircular=false"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="e40a946b9232b9a2",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=10563114921&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false"}},["version"]=2}
+local Profile = {["confidence"]=0,["entities"]={},["game"]={["created_date"]="2026-07-25T07:50:51.492Z",["creator"]="and Collect Rare Pets",["creator_id"]=825735094,["description"]="\240\159\165\154 Welcome to Steal An Egg!\010\010How to Play:\010\240\159\165\154 Steal eggs from pets\010\240\159\144\163 Hatch eggs to collect rare pets\010\240\159\146\176 Earn money from your pets\010\226\172\134\239\184\143 Upgrade your treadmill and base\010\240\159\143\131 Train on the treadmill to gain Speed\010\240\159\165\183 Steal eggs from other players\010\226\156\168 Discover rarer eggs, pets, sizes, and mutations!\010\010\240\159\142\174 Supports Desktop, Console, Mobile, and Tablet players",["fixture"]=false,["genre"]="All",["icon"]="https://tr.rbxcdn.com/180DAY-856231c847a8d9709e23979c56c38c3a/150/150/Image/Png/noFilter",["identification_confidence"]=0.99,["known_places"]={107778070777162},["name"]="Steal An Egg",["official_links"]={},["place_id"]=107778070777162,["thumbnail"]="https://tr.rbxcdn.com/180DAY-875b2a6dc156ce6dd64eb637e73238ce/768/432/Image/Png/noFilter",["universe_id"]=10563114921,["updated_date"]="2026-09-10T19:06:52.2807062Z",["visits"]=2498787796},["integration"]={["actions"]=4,["runtime"]="NOT_VERIFIED",["scripts"]=3},["research_date"]="2026-09-10T21:39:31.902974+00:00",["sources"]={{["confidence"]=0.345,["freshness"]="unknown",["id"]="f49847a106065ae0-9be593d913",["name"]="roblox-hubs",["source_type"]="public_code_reference",["url"]="https://api.github.com/repos/moa456811-prog/roblox-hubs/readme"},{["confidence"]=0.3,["freshness"]="unknown",["id"]="75f4bfd02171c69e-944debdf0a",["name"]="StealAnEgg",["source_type"]="public_code_reference",["url"]="https://api.github.com/repos/ShortcakeMaker/StealAnEgg/readme"},{["confidence"]=0.345,["freshness"]="unknown",["id"]="041585a85e0c80a2-b143138906",["name"]="roblox-steal-an-egg",["source_type"]="public_code_reference",["url"]="https://api.github.com/repos/sw4gi/roblox-steal-an-egg/readme"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="20aa6e6d15caad86",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://apis.roblox.com/universes/v1/places/107778070777162/universe"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="3ad7afeab0bf53b3",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://games.roblox.com/v1/games?universeIds=10563114921"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="f733c9b1bd1d430a",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://thumbnails.roblox.com/v1/games/icons?universeIds=10563114921&returnPolicy=PlaceHolder&size=150x150&format=Png&isCircular=false"},{["confidence"]=0.821,["freshness"]="unknown",["id"]="e40a946b9232b9a2",["name"]="Roblox public metadata",["source_type"]="official_roblox",["url"]="https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=10563114921&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false"}},["version"]=2}
 
 
 -- ===== features =====
@@ -391,6 +391,232 @@ function FeatureRegistry:Timer(entity)
 		Logger.Write("SUCCESS", entity.name .. ": reference interval elapsed; actual spawn is not observed")
 	end, seconds + 1)
 end
+
+
+-- ===== NativeAdapter =====
+local NativeManifest = {["code_sha256"]="13008eac0642fc4d77230635928a75581d5cbcf21d3d77b4aecbc9b3e478362e",["evidence"]={{["basis"]="Previously recovered local source; protocol observations only. Runtime equivalence of reconstruction is unverified.",["local_reference"]="zeroin-steal-an-egg.reconstructed.lua",["observed_endpoints"]={"Treadmill.AskRenderSnapshot","Treadmill.AskWearStill","Treadmill.AskDoff"},["observed_module"]="ReplicatedStorage.Shared.Remotes",["reference_lines"]={1762,1776,1957},["reference_sha256"]="da8a8a951de7246d7fe120dc4490caec634628c1122926689b230eff84fee04f",["source_url"]="https://zeroinhub.com/api/script"},{["implementation_note"]="Own placed eggs only; readiness required; no rift logic; bounded retries. CompleteHatch return semantics unknown, so logs report request only.",["local_reference"]="zeroin-steal-an-egg.reconstructed.lua",["observed_methods"]={"GetOwnerRuntimeRecords","IsReadyToHatch","RequestHatchEgg","RequestCompleteHatchEgg"},["observed_module"]="ReplicatedStorage.Client.EggState",["reference_lines"]={10255,10256,10261,10281,10286,10288}}},["features"]={"auto_hatch","auto_training","training_status","leave_training"},["implementation"]="Independently authored training controller; no copied functions or decoy mechanics.",["review_status"]="locally_reviewed",["runtime_status"]="NOT_VERIFIED",["universe_id"]=10563114921}
+local Native = { Manifest = NativeManifest, Registered = {} }
+-- Run yielding module/network operations with cancellation and a local deadline.
+function Native.Request(context, callback, timeout)
+	local done, result = false, nil
+	local worker = coroutine.create(function()
+		result = table.pack(pcall(callback))
+		done = true
+	end)
+	context.Cleanup(function()
+		if not done then
+			pcall(task.cancel, worker)
+		end
+	end)
+	task.spawn(worker)
+	local deadline = os.clock() + math.clamp(timeout or 8, 1, 15)
+	while not done and os.clock() < deadline do
+		context.Wait(0.05)
+	end
+	if not done then
+		pcall(task.cancel, worker)
+		error("Game request timed out", 0)
+	end
+	if not result[1] then
+		error(tostring(result[2]), 0)
+	end
+	return table.unpack(result, 2, result.n)
+end
+-- Server release operations may yield; don't block STOP ALL on their response.
+function Native.Release(callback)
+	local done = false
+	local worker = coroutine.create(function()
+		local ok, err = pcall(callback)
+		if not ok then
+			Logger.Write("WARNING", "Release: " .. tostring(err))
+		end
+		done = true
+	end)
+	task.spawn(worker)
+	task.spawn(function()
+		for _ = 1, 200 do
+			if done then
+				return
+			end
+			task.wait(0.05)
+		end
+		pcall(task.cancel, worker)
+		Logger.Write("WARNING", "Server release response timed out")
+	end)
+end
+function Native:Register(definition)
+	assert(table.find(self.Manifest.features, definition.Id), "Undeclared adapter feature")
+	assert(not self.Registered[definition.Id], "Duplicate adapter feature")
+	self.Registered[definition.Id] = true
+	local id = "native:" .. tostring(self.Manifest.universe_id) .. ":" .. definition.Id
+	FeatureRegistry:Register({
+		Id = id,
+		Name = definition.Name .. " [runtime unverified]",
+		Category = "automation",
+		Available = game.GameId == self.Manifest.universe_id,
+		Confidence = 0,
+		Kind = "automation",
+		Start = function()
+			if game.GameId ~= self.Manifest.universe_id then
+				Logger.Write("ERROR", "Adapter belongs to another experience")
+				return
+			end
+			TaskManager:Start(id, definition.Run, definition.Timeout or 600)
+		end,
+		Stop = function()
+			TaskManager:Stop(id)
+		end,
+	})
+end
+
+
+-- ===== GameImplementation =====
+local installAdapter = (function()
+-- Independently authored adapter based on observed public protocol names.
+-- No foreign functions, decoy movement, hooks or downloaded UI are included.
+return function(api)
+	api:Register({
+		Id = "auto_hatch",
+		Name = "Auto hatch — owned ready eggs",
+		Timeout = 610,
+		Run = function(context)
+			local eggState = api.Request(context, function()
+				local client = game:GetService("ReplicatedStorage"):FindFirstChild("Client")
+				local module = client and client:FindFirstChild("EggState")
+				assert(module and module:IsA("ModuleScript"), "Client.EggState unavailable")
+				return require(module)
+			end)
+			for _, key in ipairs({ "GetOwnerRuntimeRecords", "RequestHatchEgg", "RequestCompleteHatchEgg" }) do
+				assert(type(eggState[key]) == "function", "Missing egg operation: " .. key)
+			end
+			local retryAt = {}
+			for _ = 1, 300 do
+				context.Wait(2)
+				local records = api.Request(context, function()
+					return eggState.GetOwnerRuntimeRecords(Core.Player.UserId)
+				end)
+				assert(type(records) == "table", "Unexpected owned egg records")
+				for uid in pairs(retryAt) do
+					if records[uid] == nil then
+						retryAt[uid] = nil
+					end
+				end
+				local scanned, attempted = 0, 0
+				for uid, record in pairs(records) do
+					scanned += 1
+					if scanned > 1000 or attempted >= 10 or not context.Active() then
+						break
+					end
+					if type(record) == "table" and record.Placement ~= nil and os.clock() >= (retryAt[uid] or 0) then
+						local ready = record.Ready == true
+						if not ready and type(eggState.IsReadyToHatch) == "function" then
+							ready = api.Request(context, function()
+								return eggState.IsReadyToHatch(uid)
+							end) == true
+						end
+						if ready then
+							attempted += 1
+							retryAt[uid] = os.clock() + 10
+							local accepted = api.Request(context, function()
+								return eggState.RequestHatchEgg(uid)
+							end)
+							if accepted and context.Active() then
+								api.Request(context, function()
+									return eggState.RequestCompleteHatchEgg(uid)
+								end)
+								Logger.Write("INFO", "Hatch requested for owned egg " .. tostring(uid))
+							end
+							context.Wait(0.15)
+						end
+					end
+				end
+			end
+		end,
+	})
+	local function endpoints(context)
+		local remotes = api.Request(context, function()
+			local shared = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+			local module = shared and shared:FindFirstChild("Remotes")
+			assert(module and module:IsA("ModuleScript"), "Shared.Remotes module unavailable")
+			return require(module)
+		end)
+		assert(type(remotes) == "table" and type(remotes.Treadmill) == "table", "Treadmill protocol unavailable")
+		local treadmill = remotes.Treadmill
+		for _, key in ipairs({ "AskRenderSnapshot", "AskWearStill", "AskDoff" }) do
+			assert(treadmill[key] and type(treadmill[key].InvokeServer) == "function", "Missing endpoint: " .. key)
+		end
+		return treadmill
+	end
+	local function mounted(context, treadmill)
+		local snapshot = api.Request(context, function()
+			return treadmill.AskRenderSnapshot:InvokeServer()
+		end)
+		assert(type(snapshot) == "table", "Unexpected training snapshot")
+		return table.find(snapshot, Core.Player.UserId) ~= nil
+	end
+	api:Register({
+		Id = "auto_training",
+		Name = "Auto training — treadmill",
+		Timeout = 610,
+		Run = function(context)
+			local treadmill = endpoints(context)
+			local requestedMount = false
+			context.Cleanup(function()
+				if requestedMount then
+					api.Release(function()
+						local accepted, reason = treadmill.AskDoff:InvokeServer()
+						assert(accepted == true, tostring(reason or "Dismount rejected"))
+					end)
+				end
+			end)
+			for _ = 1, 120 do
+				if not context.Active() then
+					return
+				end
+				if not mounted(context, treadmill) then
+					requestedMount = true
+					local accepted, reason = api.Request(context, function()
+						return treadmill.AskWearStill:InvokeServer()
+					end)
+					assert(accepted ~= false, tostring(reason or "Mount rejected"))
+					context.Wait(0.5)
+					assert(mounted(context, treadmill), "Server did not confirm treadmill mount")
+					Logger.Write("SUCCESS", "Server confirms treadmill mount")
+				end
+				context.Wait(5)
+			end
+		end,
+	})
+	api:Register({
+		Id = "training_status",
+		Name = "Check treadmill status",
+		Timeout = 20,
+		Run = function(context)
+			local treadmill = endpoints(context)
+			local active = mounted(context, treadmill)
+			Logger.Write("INFO", active and "Server reports: mounted" or "Server reports: not mounted")
+		end,
+	})
+	api:Register({
+		Id = "leave_training",
+		Name = "Leave treadmill",
+		Timeout = 20,
+		Run = function(context)
+			TaskManager:Stop("native:" .. tostring(api.Manifest.universe_id) .. ":auto_training")
+			local treadmill = endpoints(context)
+			local accepted, reason = api.Request(context, function()
+				return treadmill.AskDoff:InvokeServer()
+			end)
+			assert(accepted == true, tostring(reason or "Dismount rejected"))
+			assert(not mounted(context, treadmill), "Server still reports mounted")
+			Logger.Write("SUCCESS", "Server confirms dismount")
+		end,
+	})
+end
+
+end)()
+installAdapter(Native)
+for _, id in ipairs(NativeManifest.features) do assert(Native.Registered[id], "Adapter feature missing") end
 
 
 -- ===== UI =====
