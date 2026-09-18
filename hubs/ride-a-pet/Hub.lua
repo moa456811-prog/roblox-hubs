@@ -1445,7 +1445,7 @@ local function addCycle(parent, label, values, getter, setter)
     b.Activated:Connect(function()
         local current = getter()
         local idx = table.find(values, current) or 0
-        idx += 1
+        idx = idx + 1
         if idx > #values then idx = 1 end
         setter(values[idx])
         redraw()
