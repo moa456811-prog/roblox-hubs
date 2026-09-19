@@ -11,10 +11,20 @@ end
 local __A7KeyHttp = game:GetService("HttpService")
 local __A7KeyPlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
+-- Public monetized unlock link used by the A7DEV key gate.
+local UnlockLink = "https://work.ink/2Z5U/a7dev-key-system"
+local UnlockDestination = "https://work.ink/token"
+
+do
+    local env = (getgenv and getgenv()) or _G
+    env.A7DEV_UnlockLink = UnlockLink
+end
+
 local __A7KeyConfig = {
     Enabled = true,
-    Link = "https://work.ink/2Z5U/a7dev-key-system",
-    Destination = "https://work.ink/token",
+    UnlockLink = UnlockLink,
+    Link = UnlockLink,
+    Destination = UnlockDestination,
     UseDestinationOverride = true,
     -- Set this to the real numeric Work.ink linkId once known.
     -- 0 = validate valid + expiry only (source-link binding pending).
@@ -147,8 +157,8 @@ local function __a7ResolveWorkInkLink()
         return __A7ResolvedWorkInkLink, true
     end
 
-    local baseLink = tostring(__A7KeyConfig.Link or "")
-    local destination = tostring(__A7KeyConfig.Destination or "https://work.ink/token")
+    local baseLink = tostring(__A7KeyConfig.UnlockLink or __A7KeyConfig.Link or UnlockLink or "")
+    local destination = tostring(__A7KeyConfig.Destination or UnlockDestination or "https://work.ink/token")
 
     if __A7KeyConfig.UseDestinationOverride ~= true then
         return baseLink, false
