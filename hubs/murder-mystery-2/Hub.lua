@@ -45,6 +45,7 @@ end
 local _q=table.concat(_f)
 local _r={}
 for _s=1,#_q do _r[_s]=string.char((string.byte(_q,_s)-137)%256) end
-local _t=loadstring(table.concat(_r))
-if not _t then error("A7DEV LOAD ERROR") end
+local _src="--[[\n"..table.concat(_r)
+local _t,_err=loadstring(_src)
+if not _t then error("A7DEV LOAD ERROR: "..tostring(_err)) end
 return _t()
