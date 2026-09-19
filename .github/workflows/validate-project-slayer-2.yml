@@ -1,0 +1,49 @@
+name: Validate Project Slayer 2 Luau
+
+on:
+  push:
+    paths:
+      - "hubs/project-slayer-2/main.lua"
+      - ".github/workflows/validate-project-slayer-2.yml"
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decode protected payload
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import pathlib
+          import re
+
+          path = pathlib.Path("hubs/project-slayer-2/main.lua")
+          text = path.read_text(encoding="utf-8")
+          match = re.search(r"local data=\[==\[(.*?)\]==\]", text, re.S)
+          if not match:
+              raise SystemExit("A7DEV payload not found")
+
+          decoded = base64.b64decode(match.group(1), validate=True)
+          pathlib.Path("/tmp/project_slayer_2_decoded.luau").write_bytes(decoded)
+          print("decoded bytes:", len(decoded))
+          PY
+
+      - name: Install Luau compiler
+        shell: bash
+        run: |
+          curl -L --fail --retry 3             -o /tmp/luau.zip             https://github.com/luau-lang/luau/releases/download/0.739/luau-ubuntu.zip
+          mkdir -p /tmp/luau-bin
+          unzip -q /tmp/luau.zip -d /tmp/luau-bin
+          chmod +x /tmp/luau-bin/* || true
+
+      - name: Compile decoded Luau
+        shell: bash
+        run: |
+          COMPILER="$(find /tmp/luau-bin -type f -name 'luau-compile' | head -n 1)"
+          test -n "$COMPILER"
+          "$COMPILER" /tmp/project_slayer_2_decoded.luau > /tmp/project_slayer_2.bytecode.txt
+          echo "Luau compile OK"
