@@ -555,9 +555,8 @@ if camera then
 end
 
 -- OUTER BRAND
-Text(canvas, "A7DEV", UDim2.fromOffset(30, 18), UDim2.fromOffset(172, 47), Enum.Font.GothamBlack, 42, C.white, 2)
-Text(canvas, "HUB", UDim2.fromOffset(201, 18), UDim2.fromOffset(105, 47), Enum.Font.GothamBlack, 42, C.red, 2)
-Text(canvas, "P R E M I U M   L O A D E R", UDim2.fromOffset(33, 63), UDim2.fromOffset(360, 20), Enum.Font.GothamMedium, 10, Color3.fromRGB(142,147,158), 2)
+Text(canvas, "A7DEV", UDim2.fromOffset(30, 22), UDim2.fromOffset(138, 40), Enum.Font.GothamBlack, 34, C.white, 2)
+Text(canvas, "HUB", UDim2.fromOffset(160, 22), UDim2.fromOffset(82, 40), Enum.Font.GothamBlack, 34, C.red, 2)
 
 local outerRight = Text(canvas, "CREATED BY\na7med_hub", UDim2.fromOffset(1262, 24), UDim2.fromOffset(142, 50), Enum.Font.GothamMedium, 10, Color3.fromRGB(153,158,169), 2)
 outerRight.TextXAlignment = Enum.TextXAlignment.Right
@@ -576,13 +575,13 @@ local panel = New("Frame", canvas, {
     Position = UDim2.fromOffset(120, 103),
     Size = UDim2.fromOffset(1200, 700),
     BackgroundColor3 = C.panel,
-    BackgroundTransparency = .02,
+    BackgroundTransparency = 0,
     BorderSizePixel = 0,
     ClipsDescendants = true,
     ZIndex = 2,
 })
 Corner(panel, 28)
-Stroke(panel, Color3.fromRGB(180, 25, 37), .12, 1.4)
+Stroke(panel, Color3.fromRGB(128, 28, 38), .05, 1)
 
 New("UIGradient", panel, {
     Rotation = 90,
@@ -598,7 +597,7 @@ local logoMark = Text(panel, "◆", UDim2.fromOffset(34, 22), UDim2.fromOffset(4
 logoMark.TextXAlignment = Enum.TextXAlignment.Center
 Text(panel, "A7DEV", UDim2.fromOffset(88, 23), UDim2.fromOffset(92, 26), Enum.Font.GothamBlack, 20, C.white, 7)
 Text(panel, "HUB", UDim2.fromOffset(175, 23), UDim2.fromOffset(60, 26), Enum.Font.GothamBlack, 20, C.red, 7)
-Text(panel, "PLAY SMARTER", UDim2.fromOffset(90, 49), UDim2.fromOffset(150, 14), Enum.Font.GothamMedium, 8, C.faint, 7)
+Text(panel, "a7med_hub", UDim2.fromOffset(90, 49), UDim2.fromOffset(150, 14), Enum.Font.GothamMedium, 9, C.faint, 7)
 
 local navHost = New("Frame", panel, {
     Position = UDim2.fromOffset(405, 20),
@@ -648,6 +647,13 @@ local topDivider = New("Frame", panel, {
     BackgroundColor3 = Color3.fromRGB(36, 40, 47),
     BorderSizePixel = 0,
     ZIndex = 5,
+})
+New("Frame", panel, {
+    Position = UDim2.fromOffset(30, 81),
+    Size = UDim2.fromOffset(92, 2),
+    BackgroundColor3 = C.red,
+    BorderSizePixel = 0,
+    ZIndex = 6,
 })
 
 -- SHARED TOAST
@@ -818,12 +824,11 @@ local gamesPage = New("Frame", panel, {
 })
 pages.Games = gamesPage
 
-Text(gamesPage, "Choose Your", UDim2.fromOffset(34, 24), UDim2.fromOffset(235, 38), Enum.Font.GothamBold, 28, C.white, 5)
-Text(gamesPage, "Game", UDim2.fromOffset(252, 24), UDim2.fromOffset(105, 38), Enum.Font.GothamBold, 28, C.red, 5)
+Text(gamesPage, "Games", UDim2.fromOffset(34, 24), UDim2.fromOffset(180, 38), Enum.Font.GothamBold, 28, C.white, 5)
 
 local supportText = Text(
     gamesPage,
-    tostring(#GAMES) .. " supported games • protected delivery",
+    tostring(#GAMES) .. " games  •  select one to launch",
     UDim2.fromOffset(35, 62),
     UDim2.fromOffset(390, 20),
     Enum.Font.Gotham,
@@ -948,9 +953,11 @@ local function LaunchGame(info, launchButton)
         busy = true
 
         local original = launchButton.Text
-        launchButton.Text = "Secure loading..."
+        launchButton.Text = "Starting..."
         launchButton.BackgroundColor3 = Color3.fromRGB(160, 24, 34)
-        Notify("Securely loading " .. info.name)
+        Notify("Starting " .. info.name)
+
+        local loaderHidden = false
 
         local ok, err = pcall(function()
             assert(type(loadstring) == "function", "loadstring is not supported by this executor")
@@ -968,6 +975,14 @@ local function LaunchGame(info, launchButton)
             local fn, compileError = loadstring(source)
             assert(fn, "Compile error: " .. tostring(compileError))
 
+            -- Hide immediately after the script compiles. Some game hubs keep
+            -- their main thread alive, so waiting for fn() to return could leave
+            -- the loader visible forever even though the game hub already opened.
+            if state.closeAfterLaunch and gui.Parent then
+                gui.Enabled = false
+                loaderHidden = true
+            end
+
             local function traceError(runErr)
                 if debug and type(debug.traceback) == "function" then
                     return debug.traceback(tostring(runErr), 2)
@@ -976,7 +991,13 @@ local function LaunchGame(info, launchButton)
             end
 
             local runOk, runError = xpcall(fn, traceError)
-            assert(runOk, runError)
+            if not runOk then
+                if loaderHidden and gui.Parent then
+                    gui.Enabled = true
+                    loaderHidden = false
+                end
+                error(runError)
+            end
 
             if state.closeAfterLaunch and gui.Parent then
                 gui:Destroy()
@@ -985,6 +1006,11 @@ local function LaunchGame(info, launchButton)
 
         if not ok then
             busy = false
+
+            if loaderHidden and gui.Parent then
+                gui.Enabled = true
+            end
+
             if launchButton and launchButton.Parent then
                 launchButton.Text = "Retry   →"
                 launchButton.BackgroundColor3 = C.red
@@ -1314,7 +1340,7 @@ pages.About = aboutPage
 
 Text(aboutPage, "A7DEV", UDim2.fromOffset(38, 32), UDim2.fromOffset(115, 42), Enum.Font.GothamBlack, 28, C.white, 5)
 Text(aboutPage, "HUB", UDim2.fromOffset(151, 32), UDim2.fromOffset(75, 42), Enum.Font.GothamBlack, 28, C.red, 5)
-Text(aboutPage, "Premium Roblox script launcher", UDim2.fromOffset(39, 78), UDim2.fromOffset(450, 22), Enum.Font.Gotham, 12, C.muted, 5)
+Text(aboutPage, "Roblox script hub", UDim2.fromOffset(39, 78), UDim2.fromOffset(450, 22), Enum.Font.Gotham, 12, C.muted, 5)
 
 local aboutCard = New("Frame", aboutPage, {
     Position = UDim2.fromOffset(38, 125),
@@ -1332,7 +1358,7 @@ Text(aboutCard, "a7med_hub", UDim2.fromOffset(24, 46), UDim2.fromOffset(280, 33)
 Text(aboutCard, "Supported games", UDim2.fromOffset(24, 102), UDim2.fromOffset(150, 20), Enum.Font.Gotham, 10, C.faint, 6)
 Text(aboutCard, tostring(#GAMES), UDim2.fromOffset(24, 123), UDim2.fromOffset(80, 32), Enum.Font.GothamBold, 20, C.red2, 6)
 
-Text(aboutCard, "A7DEV HUB only downloads and starts the selected existing script.\nIt does not rewrite the game scripts when the loader launches them.", UDim2.fromOffset(300, 34), UDim2.fromOffset(530, 70), Enum.Font.Gotham, 11, C.muted, 6)
+Text(aboutCard, "A7DEV HUB launches the selected script through the secure A7DEV session.", UDim2.fromOffset(300, 34), UDim2.fromOffset(610, 54), Enum.Font.Gotham, 11, C.muted, 6)
 
 local aboutDiscord = Button(aboutCard, "Copy Discord Invite", UDim2.fromOffset(300, 133), UDim2.fromOffset(180, 42), C.red, Enum.Font.GothamBold, 11, C.white, 7)
 Corner(aboutDiscord, 11)
@@ -1392,8 +1418,7 @@ restore.Activated:Connect(function()
 end)
 
 -- OUTER FOOTER
-Text(canvas, "QUALITY SCRIPTS • BETTER GAMEPLAY", UDim2.fromOffset(34, 840), UDim2.fromOffset(370, 22), Enum.Font.GothamMedium, 9, Color3.fromRGB(124,130,142), 2)
-local footerRight = Text(canvas, "DISCORD  •  A7DEV HUB  •  2026", UDim2.fromOffset(1045, 840), UDim2.fromOffset(360, 22), Enum.Font.GothamMedium, 9, Color3.fromRGB(124,130,142), 2)
+local footerRight = Text(canvas, "A7DEV HUB  •  a7med_hub", UDim2.fromOffset(1045, 840), UDim2.fromOffset(360, 22), Enum.Font.GothamMedium, 9, Color3.fromRGB(124,130,142), 2)
 footerRight.TextXAlignment = Enum.TextXAlignment.Right
 
 -- LEGACY LOADSTRING COMPATIBILITY
