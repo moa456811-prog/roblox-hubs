@@ -1183,6 +1183,7 @@ for i, info in ipairs(GAMES) do
         frame = card,
         info = info,
         name = string.lower(info.name),
+        launch = launch,
     }
 
     ResolveIcon(info, image)
@@ -1396,6 +1397,25 @@ end)
 Text(canvas, "QUALITY SCRIPTS • BETTER GAMEPLAY", UDim2.fromOffset(34, 840), UDim2.fromOffset(370, 22), Enum.Font.GothamMedium, 9, Color3.fromRGB(124,130,142), 2)
 local footerRight = Text(canvas, "DISCORD  •  A7DEV HUB  •  2026", UDim2.fromOffset(1045, 840), UDim2.fromOffset(360, 22), Enum.Font.GothamMedium, 9, Color3.fromRGB(124,130,142), 2)
 footerRight.TextXAlignment = Enum.TextXAlignment.Right
+
+-- LEGACY LOADSTRING COMPATIBILITY
+do
+    local env = (getgenv and getgenv()) or _G
+    local legacyGame = tostring(env.A7DEV_COMPAT_GAME or "")
+    env.A7DEV_COMPAT_GAME = nil
+
+    if legacyGame ~= "" then
+        task.defer(function()
+            for _, item in ipairs(cards) do
+                if item.info and item.info.key == legacyGame then
+                    LaunchGame(item.info, item.launch)
+                    return
+                end
+            end
+            Notify("Legacy game route not found")
+        end)
+    end
+end
 
 -- OPENING ANIMATION
 if not state.reduceMotion then
