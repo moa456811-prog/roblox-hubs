@@ -78,6 +78,14 @@ local GAMES = {
         placeIds = {1730877806, 3978370137, 7465136166},
         fallbackUniverseId = 648454481,
     },
+    {
+        name = "+1 Loot To Forge",
+        short = "LTF",
+        subtitle = "Dungeon • Loot • Upgrades",
+        key = "loot-to-forge",
+        placeIds = {118805555015549},
+        fallbackUniverseId = 118805555015549,
+    },
 }
 
 local C = {
