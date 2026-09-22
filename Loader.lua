@@ -181,9 +181,6 @@ local function LoadState()
         return HttpService:JSONDecode(readfile(SETTINGS_FILE))
     end)
     if ok and type(result) == "table" then
-        if type(result.closeAfterLaunch) == "boolean" then
-            state.closeAfterLaunch = result.closeAfterLaunch
-        end
         if type(result.reduceMotion) == "boolean" then
             state.reduceMotion = result.reduceMotion
         end
@@ -197,7 +194,6 @@ local function SaveState()
     if not writefile then return end
     pcall(function()
         writefile(SETTINGS_FILE, HttpService:JSONEncode({
-            closeAfterLaunch = state.closeAfterLaunch,
             reduceMotion = state.reduceMotion,
             favorites = state.favorites,
         }))
@@ -205,6 +201,7 @@ local function SaveState()
 end
 
 LoadState()
+state.closeAfterLaunch = true
 
 local secureSession = nil
 
@@ -1261,7 +1258,7 @@ local settingsPage = New("Frame", panel, {
 pages.Settings = settingsPage
 
 Text(settingsPage, "Settings", UDim2.fromOffset(36, 30), UDim2.fromOffset(320, 42), Enum.Font.GothamBold, 29, C.white, 5)
-Text(settingsPage, "Only real loader settings are shown here.", UDim2.fromOffset(37, 70), UDim2.fromOffset(500, 22), Enum.Font.Gotham, 11, C.muted, 5)
+Text(settingsPage, "Simple loader preferences.", UDim2.fromOffset(37, 70), UDim2.fromOffset(500, 22), Enum.Font.Gotham, 11, C.muted, 5)
 
 local function MakeSettingCard(y, title, subtitle)
     local card = New("Frame", settingsPage, {
@@ -1278,30 +1275,7 @@ local function MakeSettingCard(y, title, subtitle)
     return card
 end
 
-local closeCard = MakeSettingCard(118, "Close loader after launch", "Automatically close A7DEV HUB when the selected script starts.")
-local closeToggle = Button(closeCard, "", UDim2.fromOffset(1044, 28), UDim2.fromOffset(60, 34), state.closeAfterLaunch and C.red or Color3.fromRGB(48,51,58), Enum.Font.Gotham, 1, C.white, 7)
-Corner(closeToggle, 18)
-local closeKnob = New("Frame", closeToggle, {
-    Position = state.closeAfterLaunch and UDim2.fromOffset(30,4) or UDim2.fromOffset(4,4),
-    Size = UDim2.fromOffset(26,26),
-    BackgroundColor3 = C.white,
-    BorderSizePixel = 0,
-    ZIndex = 8,
-})
-Corner(closeKnob, 99)
-
-closeToggle.Activated:Connect(function()
-    state.closeAfterLaunch = not state.closeAfterLaunch
-    SaveState()
-    TweenService:Create(closeKnob, TweenInfo.new(.12), {
-        Position = state.closeAfterLaunch and UDim2.fromOffset(30,4) or UDim2.fromOffset(4,4),
-    }):Play()
-    TweenService:Create(closeToggle, TweenInfo.new(.12), {
-        BackgroundColor3 = state.closeAfterLaunch and C.red or Color3.fromRGB(48,51,58),
-    }):Play()
-end)
-
-local motionCard = MakeSettingCard(222, "Reduce motion", "Disable most hover and transition animations for a lighter interface.")
+local motionCard = MakeSettingCard(118, "Reduce motion", "Disable most hover and transition animations.")
 local motionToggle = Button(motionCard, "", UDim2.fromOffset(1044, 28), UDim2.fromOffset(60, 34), state.reduceMotion and C.red or Color3.fromRGB(48,51,58), Enum.Font.Gotham, 1, C.white, 7)
 Corner(motionToggle, 18)
 local motionKnob = New("Frame", motionToggle, {
@@ -1324,7 +1298,7 @@ motionToggle.Activated:Connect(function()
     }):Play()
 end)
 
-local favCard = MakeSettingCard(326, "Favorites persistence", writefile and "Favorites are saved locally by your executor." or "This executor has no file API, so favorites last for this session only.")
+local favCard = MakeSettingCard(222, "Favorites", writefile and "Saved locally on this executor." or "Available for this session only.")
 local favStatus = Text(favCard, writefile and "AVAILABLE" or "SESSION ONLY", UDim2.fromOffset(930, 28), UDim2.fromOffset(174, 34), Enum.Font.GothamBold, 10, writefile and C.green or C.muted, 7)
 favStatus.TextXAlignment = Enum.TextXAlignment.Right
 
