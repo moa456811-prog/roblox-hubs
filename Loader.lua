@@ -952,66 +952,64 @@ local function LaunchGame(info, launchButton)
         launchButton.BackgroundColor3 = Color3.fromRGB(160, 24, 34)
         Notify("Securely loading " .. info.name)
 
-        task.spawn(function()
-            local ok, err = pcall(function()
-                assert(type(loadstring) == "function", "loadstring is not supported by this executor")
+        local ok, err = pcall(function()
+            assert(type(loadstring) == "function", "loadstring is not supported by this executor")
 
-                local fetched, source, status = FetchSecureScript(info.key)
-                if not fetched then
-                    if status == 401 then
-                        error("A7DEV secure session expired")
-                    end
-                    error("Secure delivery failed: " .. tostring(source))
+            local fetched, source, status = FetchSecureScript(info.key)
+            if not fetched then
+                if status == 401 then
+                    error("A7DEV secure session expired")
                 end
-
-                assert(type(source) == "string" and #source > 0, "empty protected script response")
-
-                local fn, compileError = loadstring(source)
-                assert(fn, "Compile error: " .. tostring(compileError))
-
-                local function traceError(runErr)
-                    if debug and type(debug.traceback) == "function" then
-                        return debug.traceback(tostring(runErr), 2)
-                    end
-                    return tostring(runErr)
-                end
-
-                local runOk, runError = xpcall(fn, traceError)
-                assert(runOk, runError)
-
-                if state.closeAfterLaunch and gui.Parent then
-                    gui:Destroy()
-                end
-            end)
-
-            if not ok then
-                busy = false
-                if launchButton and launchButton.Parent then
-                    launchButton.Text = "Retry   →"
-                    launchButton.BackgroundColor3 = C.red
-                end
-
-                warn("[A7DEV HUB] " .. tostring(err))
-
-                if gui.Parent then
-                    if string.find(tostring(err), "session expired", 1, true) then
-                        Notify("Session expired — unlock again")
-                        ShowAuthModal(function()
-                            LaunchGame(info, launchButton)
-                        end)
-                    else
-                        Notify("Launch failed — check console")
-                    end
-                end
-                return
+                error("Secure delivery failed: " .. tostring(source))
             end
 
-            if gui.Parent and launchButton and launchButton.Parent then
-                busy = false
-                launchButton.Text = original
-                launchButton.BackgroundColor3 = C.red
+            assert(type(source) == "string" and #source > 0, "empty protected script response")
+
+            local fn, compileError = loadstring(source)
+            assert(fn, "Compile error: " .. tostring(compileError))
+
+            local function traceError(runErr)
+                if debug and type(debug.traceback) == "function" then
+                    return debug.traceback(tostring(runErr), 2)
+                end
+                return tostring(runErr)
+            end
+
+            local runOk, runError = xpcall(fn, traceError)
+            assert(runOk, runError)
+
+            if state.closeAfterLaunch and gui.Parent then
+                gui:Destroy()
             end
         end)
+
+        if not ok then
+            busy = false
+            if launchButton and launchButton.Parent then
+                launchButton.Text = "Retry   →"
+                launchButton.BackgroundColor3 = C.red
+            end
+
+            warn("[A7DEV HUB] " .. tostring(err))
+
+            if gui.Parent then
+                if string.find(tostring(err), "session expired", 1, true) then
+                    Notify("Session expired — unlock again")
+                    ShowAuthModal(function()
+                        LaunchGame(info, launchButton)
+                    end)
+                else
+                    Notify("Launch failed — check console")
+                end
+            end
+            return
+        end
+
+        if gui.Parent and launchButton and launchButton.Parent then
+            busy = false
+            launchButton.Text = original
+            launchButton.BackgroundColor3 = C.red
+        end
     end
 
     if secureSession then
