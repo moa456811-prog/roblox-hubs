@@ -355,6 +355,32 @@ local function AuthorizeSecure(key)
     return true, "Access granted", status
 end
 
+local function ClaimManualGrant()
+    local ok, body, status = RequestSecure({
+        action = "manual_grant",
+        user_id = LocalPlayer.UserId,
+    })
+
+    if not ok then
+        return false, nil, status
+    end
+
+    local decodedOk, data = pcall(function()
+        return HttpService:JSONDecode(body)
+    end)
+    if not decodedOk or type(data) ~= "table" or data.ok ~= true or type(data.session) ~= "string" then
+        return false, nil, status
+    end
+
+    secureSession = {
+        session = data.session,
+        expires_at = data.expires_at,
+    }
+    SaveSecureSession()
+    SetAuthEnvironment()
+    return true, data, status
+end
+
 local function FetchSecureScript(gameKey)
     if not secureSession or type(secureSession.session) ~= "string" then
         return false, "AUTH_REQUIRED", 401
@@ -375,6 +401,9 @@ local function FetchSecureScript(gameKey)
 end
 
 LoadSecureSession()
+if not secureSession then
+    pcall(ClaimManualGrant)
+end
 SetAuthEnvironment()
 
 local host
