@@ -81,7 +81,7 @@ local GAMES = {
     {
         name = "+1 Loot To Forge",
         short = "LTF",
-        subtitle = "Tower • Loot • Upgrades",
+        subtitle = "Dungeon • Loot • Upgrades",
         key = "loot-to-forge",
         placeIds = {118805555015549},
         fallbackUniverseId = 118805555015549,
