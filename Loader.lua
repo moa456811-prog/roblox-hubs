@@ -53,14 +53,6 @@ local GAMES = {
         fallbackUniverseId = 10035204815,
     },
     {
-        name = "Steal an Egg",
-        short = "SAE",
-        subtitle = "Steal • Hatch • Tycoon",
-        key = "steal-an-egg",
-        placeIds = {107778070777162},
-        fallbackUniverseId = 10563114921,
-    },
-    {
         name = "Steal and Hatch Anime Eggs",
         short = "SHAE",
         subtitle = "Anime • Hatch • Tycoon",
