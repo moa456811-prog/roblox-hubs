@@ -1,1 +1,1 @@
-return loadstring(game:HttpGet("https://rbhasxhkhvldbbsvbmqj.supabase.co/functions/v1/a7dev-loader"))()
+return loadstring(game:HttpGet("https://rbhasxhkhvldbbsvbmqj.supabase.co/functions/v1/a7dev-loader?game=steal-and-hatch-anime-eggs"))()
