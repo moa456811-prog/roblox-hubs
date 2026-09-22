@@ -949,12 +949,9 @@ local function LaunchGame(info, launchButton)
         if busy then return end
         busy = true
 
-        local original = launchButton.Text
         launchButton.Text = "Starting..."
         launchButton.BackgroundColor3 = Color3.fromRGB(160, 24, 34)
         Notify("Starting " .. info.name)
-
-        local loaderHidden = false
 
         local ok, err = pcall(function()
             assert(type(loadstring) == "function", "loadstring is not supported by this executor")
@@ -972,12 +969,12 @@ local function LaunchGame(info, launchButton)
             local fn, compileError = loadstring(source)
             assert(fn, "Compile error: " .. tostring(compileError))
 
-            -- Hide immediately after the script compiles. Some game hubs keep
-            -- their main thread alive, so waiting for fn() to return could leave
-            -- the loader visible forever even though the game hub already opened.
-            if state.closeAfterLaunch and gui.Parent then
-                gui.Enabled = false
-                loaderHidden = true
+            -- IMPORTANT: some executors lower the current thread capability after
+            -- entering another loaded chunk. Any Instance access after fn() may then
+            -- fail with "lacking capability Plugin". Destroy the loader BEFORE the
+            -- protected chunk starts and never touch loader Instances afterwards.
+            if gui and gui.Parent then
+                gui:Destroy()
             end
 
             local function traceError(runErr)
@@ -989,49 +986,17 @@ local function LaunchGame(info, launchButton)
 
             local runOk, runError = xpcall(fn, traceError)
             if not runOk then
-                if loaderHidden and gui.Parent then
-                    gui.Enabled = true
-                    loaderHidden = false
-                end
                 error(runError)
-            end
-
-            if state.closeAfterLaunch and gui.Parent then
-                gui:Destroy()
             end
         end)
 
+        busy = false
+
         if not ok then
-            busy = false
-
-            if loaderHidden and gui.Parent then
-                gui.Enabled = true
-            end
-
-            if launchButton and launchButton.Parent then
-                launchButton.Text = "Retry   →"
-                launchButton.BackgroundColor3 = C.red
-            end
-
+            -- Do not access gui/launchButton here. The loaded chunk may have changed
+            -- the current thread capability. Warn only; rerunning the loader is safe.
             warn("[A7DEV HUB] " .. tostring(err))
-
-            if gui.Parent then
-                if string.find(tostring(err), "session expired", 1, true) then
-                    Notify("Session expired — unlock again")
-                    ShowAuthModal(function()
-                        LaunchGame(info, launchButton)
-                    end)
-                else
-                    Notify("Launch failed — check console")
-                end
-            end
             return
-        end
-
-        if gui.Parent and launchButton and launchButton.Parent then
-            busy = false
-            launchButton.Text = original
-            launchButton.BackgroundColor3 = C.red
         end
     end
 
