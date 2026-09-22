@@ -214,6 +214,7 @@ local function LoadSecureSession()
             secureSession = {
                 session = data.session,
                 expires_at = data.expires_at,
+                permanent = data.permanent == true,
             }
         end
     end
@@ -235,6 +236,7 @@ local function ClearSecureSession()
         env.A7DEV_HUB_SESSION = nil
         env.A7DEV_HUB_EXPIRES_AT = nil
         env.A7DEV_HUB_SECONDS_LEFT = 0
+        env.A7DEV_HUB_PERMANENT = false
     end)
 
     if delfile and isfile then
@@ -289,6 +291,7 @@ local function SetAuthEnvironment()
         env.A7DEV_HUB_AUTH = true
         env.A7DEV_HUB_SESSION = secureSession.session
         env.A7DEV_HUB_EXPIRES_AT = secureSession.expires_at
+        env.A7DEV_HUB_PERMANENT = secureSession.permanent == true
     end)
 end
 
@@ -343,6 +346,7 @@ local function AuthorizeSecure(key)
     secureSession = {
         session = data.session,
         expires_at = data.expires_at,
+        permanent = data.permanent == true,
     }
     SaveSecureSession()
     SetAuthEnvironment()
@@ -369,6 +373,7 @@ local function ClaimManualGrant()
     secureSession = {
         session = data.session,
         expires_at = data.expires_at,
+        permanent = data.permanent == true,
     }
     SaveSecureSession()
     SetAuthEnvironment()
@@ -395,9 +400,7 @@ local function FetchSecureScript(gameKey)
 end
 
 LoadSecureSession()
-if not secureSession then
-    pcall(ClaimManualGrant)
-end
+pcall(ClaimManualGrant)
 SetAuthEnvironment()
 
 local host
@@ -465,22 +468,30 @@ task.spawn(function()
             sessionDot.BackgroundColor3 = C.red2
             sessionStroke.Color = C.redDark
         else
-            sessionText.Text = "A7DEV KEY  •  " .. FormatSessionRemaining(remaining)
-
-            if remaining <= 15 * 60 then
-                sessionText.TextColor3 = C.red2
-                sessionDot.BackgroundColor3 = C.red2
-                sessionStroke.Color = C.redDark
-            else
+            if secureSession.permanent == true then
+                sessionText.Text = "A7DEV KEY  •  PERM KEY"
                 sessionText.TextColor3 = Color3.fromRGB(156, 224, 180)
                 sessionDot.BackgroundColor3 = C.green
                 sessionStroke.Color = Color3.fromRGB(45, 105, 70)
+            else
+                sessionText.Text = "A7DEV KEY  •  " .. FormatSessionRemaining(remaining)
+
+                if remaining <= 15 * 60 then
+                    sessionText.TextColor3 = C.red2
+                    sessionDot.BackgroundColor3 = C.red2
+                    sessionStroke.Color = C.redDark
+                else
+                    sessionText.TextColor3 = Color3.fromRGB(156, 224, 180)
+                    sessionDot.BackgroundColor3 = C.green
+                    sessionStroke.Color = Color3.fromRGB(45, 105, 70)
+                end
             end
 
             pcall(function()
                 local env = (getgenv and getgenv()) or _G
                 env.A7DEV_HUB_SECONDS_LEFT = remaining
                 env.A7DEV_HUB_EXPIRES_AT = secureSession.expires_at
+                env.A7DEV_HUB_PERMANENT = secureSession.permanent == true
             end)
         end
 
