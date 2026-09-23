@@ -28,7 +28,7 @@ local players = attempt(function() return game:GetService("Players") end)
 local me = players and players.LocalPlayer
 local world = workspace
 local report = {
-    schema = "A7DEV_Slayer2_readonly_20260923_1",
+    schema = "A7DEV_Slayer2_readonly_20260923_2",
     placeId = attempt(function() return game.PlaceId end),
     loaded = state ~= nil,
     snapshots = {}, world = {}, limits = {}, errors = {},
@@ -129,6 +129,12 @@ local function snapshot()
         end
     end
     out.player.pending=type(p.pending)=="table"
+    out.player.lastTeleport=fields(p.lastTeleport,{"state","reason","at","age","distance","epoch","missingFor"})
+    out.player.pendingState=fields(p.pending,{"epoch","createdAt","missingSince","untilAt"})
+    out.resolver.hasDestination=n.dest~=nil
+    out.resolver.hasInteraction=n.prompt~=nil
+    out.resolver.confirmationRemaining=math.max(0,(tonumber(n.confirmUntil) or 0)-os.clock())
+    out.yeti.lootRemaining=math.max(0,(tonumber(y.lootUntil) or 0)-os.clock())
     out.resolver.destination=position(n.dest)
     out.resolver.lastFailure=fields(n.lastFailure,{"time","attempts","hasDestination","hasInteraction"})
     out.localPlayerAttributes=me and attributes(me) or {}
@@ -166,6 +172,45 @@ local function interactionContext(object)
     end
     return table.concat(texts," ")
 end
+-- Locate the exact geometry container observed in the previous report.
+-- Bounds are diagnostic hints, never interpreted as a teleport destination.
+local function roofGeometry()
+    local map=world:FindFirstChild("Map")
+    map=map and map:FindFirstChild("Map")
+    local roof=map and map:FindFirstChild("YetiRoof")
+    if not roof then return {present=false} end
+    local out={present=true,path=path(roof),parts=0,visited=0,partial=false,samples={}}
+    local minx,miny,minz,maxx,maxy,maxz
+    local queue={roof}
+    local head=1
+    while head<=#queue and head<=1000 do
+        local object=queue[head]
+        head=head+1
+        out.visited=out.visited+1
+        if object:IsA("BasePart") then
+            local pos=position(object)
+            if pos and pos.x and pos.y and pos.z then
+                out.parts=out.parts+1
+                minx,miny,minz=math.min(minx or pos.x,pos.x),math.min(miny or pos.y,pos.y),math.min(minz or pos.z,pos.z)
+                maxx,maxy,maxz=math.max(maxx or pos.x,pos.x),math.max(maxy or pos.y,pos.y),math.max(maxz or pos.z,pos.z)
+                if #out.samples<5 then
+                    out.samples[#out.samples+1]={path=path(object),position=pos,anchored=object.Anchored,canCollide=object.CanCollide}
+                end
+            end
+        end
+        for _,child in ipairs(object:GetChildren()) do
+            if #queue<1000 then queue[#queue+1]=child else out.partial=true end
+        end
+        if head%200==0 then pause() end
+    end
+    if minx then
+        out.partCenterMin={x=minx,y=miny,z=minz}
+        out.partCenterMax={x=maxx,y=maxy,z=maxz}
+    end
+    return out
+end
+report.world.yetiRoof=attempt(roofGeometry,{unreadable=true})
+report.world.totalBossCatalogEntries=state and type(state.BossCatalog)=="table" and #state.BossCatalog or 0
 report.world.bossCatalog={}
 if state and type(state.BossCatalog)=="table" then
     for _, entry in ipairs(state.BossCatalog) do
@@ -268,6 +313,17 @@ report.logsAvailable=logsOK
 local remaining=0.7-(os.clock()-started)
 if remaining>0 and task and type(task.wait)=="function" then task.wait(remaining) else pause() end
 report.snapshots[2]=snapshot()
+for _=1,2 do
+    if task and type(task.wait)=="function" then task.wait(0.6) end
+    report.snapshots[#report.snapshots+1]=snapshot()
+end
+report.activeDuringCapture={yeti=false,lantern=false,player=false}
+for _,sample in ipairs(report.snapshots) do
+    local flags=sample.flags or {}
+    report.activeDuringCapture.yeti=report.activeDuringCapture.yeti or flags.AutoYeti==true or flags.AutoHeartYeti==true
+    report.activeDuringCapture.lantern=report.activeDuringCapture.lantern or flags.AutoLantern==true
+    report.activeDuringCapture.player=report.activeDuringCapture.player or flags.AutoFarmPlayers==true or sample.player.pending==true or sample.player.manualHold==true
+end
 report.elapsedSeconds=math.floor((os.clock()-started)*1000)/1000
 local encoder=attempt(function() return game:GetService("HttpService") end)
 local ok,payload=pcall(function() return encoder:JSONEncode(report) end)
