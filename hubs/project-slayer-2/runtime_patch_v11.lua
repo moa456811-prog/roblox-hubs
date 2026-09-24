@@ -188,8 +188,8 @@ local function cleanVisibleObject(o)
         changing=true
         local t=tostring(o.Text or "")
         local new=t
-        new=new:gsub(" • Premium","")
-        new=new:gsub("Premium UI","")
+        new=new:gsub(" • ","")
+        new=new:gsub(" UI","")
         new=new:gsub("premium UI","")
 
         local scanPos=string.find(new,"\nScan:",1,true)
@@ -531,7 +531,7 @@ end
 
 
 -- A7DEV PS2 PREMIUM LAYOUT V11
-local function installPremiumLayout(gui, State)
+local function installLayout(gui, State)
     local main = gui and gui:FindFirstChild("Main")
     if not main or main:FindFirstChild("A7DEV_REF3_V7_ROOT") then return end
 
@@ -1264,6 +1264,7 @@ local function installPremiumLayout(gui, State)
     end
 
     pcall(installBossSelector)
+    stylePage(pages.BOSS)
 
 
     local function homeCard(key,title,sub,x,y,w)
@@ -1966,6 +1967,8 @@ local function installTraining(State,gui)
                         end
                     end
                 end
+            else
+                State.TrainingPriorityActive=false
             end
         end
     end)
@@ -2162,11 +2165,31 @@ local function installCrowQuest(State,gui)
 
     local function useCrowTool()
         local tool=findCrowTool()
-        if not tool then return false end
-        local char=LocalPlayer.Character
-        local hum=char and char:FindFirstChildOfClass("Humanoid")
-        if hum and tool.Parent~=char then pcall(function() hum:EquipTool(tool) end) end
-        return pcall(function() tool:Activate() end)
+        if tool then
+            local char=LocalPlayer.Character
+            local hum=char and char:FindFirstChildOfClass("Humanoid")
+            if hum and tool.Parent~=char then pcall(function() hum:EquipTool(tool) end) end
+            if pcall(function() tool:Activate() end) then return true end
+        end
+
+        local pg=LocalPlayer:FindFirstChild("PlayerGui")
+        if pg then
+            for _,b in ipairs(pg:GetDescendants()) do
+                if b:IsA("GuiButton") and b.Visible and b.Active then
+                    local text=low((b:IsA("TextButton") and b.Text or "").." "..b.Name)
+                    if string.find(text,"kasugai",1,true) or string.find(text,"crow",1,true) then
+                        local ok=false
+                        if type(firesignal)=="function" then
+                            ok=pcall(firesignal,b.Activated)
+                            if not ok and b:IsA("TextButton") then ok=pcall(firesignal,b.MouseButton1Click) end
+                        end
+                        if not ok then pcall(function() b:Activate() end) end
+                        return true
+                    end
+                end
+            end
+        end
+        return false
     end
 
     local function crowModel()
@@ -2231,6 +2254,19 @@ local function installCrowQuest(State,gui)
                 end
             end
         end
+
+        table.sort(buttons,function(a,b)
+            local function score(x)
+                local t=low((x:IsA("TextButton") and x.Text or "").." "..x.Name)
+                if string.find(t,"accept",1,true) then return 100 end
+                if string.find(t,"take",1,true) then return 90 end
+                if string.find(t,"hunt",1,true) then return 80 end
+                if string.find(t,"quest",1,true) or string.find(t,"task",1,true) then return 70 end
+                if string.find(t,"next",1,true) then return 30 end
+                return 0
+            end
+            return score(a)>score(b)
+        end)
 
         for _,b in ipairs(buttons) do
             local ok=false
@@ -2436,7 +2472,7 @@ end
 if not gui then return end
 
 task.wait(.35)
-pcall(installPremiumLayout, gui, State)
+pcall(installLayout, gui, State)
 pcall(installRestoredFeatures, State, gui)
 native()
 for _,x in ipairs(gui:GetDescendants()) do
@@ -2452,7 +2488,8 @@ on(gui.DescendantAdded:Connect(function(x)
     task.defer(function()
         if not P.alive or not x.Parent then return end
         renameBoss(x)
-            if x:IsA("TextButton") then sellRow(x) end
+        cleanVisibleObject(x)
+        if x:IsA("TextButton") then sellRow(x) end
         if x.Name=="Section_Auto Sell" or (x.Parent and x.Parent.Name=="Section_Auto Sell") then sellActions(gui) end
     end)
 end))
@@ -2461,8 +2498,11 @@ task.delay(1.5,function()
     if P.alive and gui.Parent then
         for _,x in ipairs(gui:GetDescendants()) do
             renameBoss(x)
-                    if x:IsA("TextButton") then sellRow(x) end
+            cleanVisibleObject(x)
+            if x:IsA("TextButton") then sellRow(x) end
         end
-        sellActions(gui); installMuzan(State,gui)
+        sellActions(gui)
+        cleanUi(gui)
+        installMuzan(State,gui)
     end
 end)
