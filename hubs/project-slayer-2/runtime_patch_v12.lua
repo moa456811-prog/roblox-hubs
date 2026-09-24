@@ -392,11 +392,37 @@ local function findMuzanQuest()
         State.MuzanAcceptedQuestName=""
     end
 
+    local genericCandidates={}
     for _,q in ipairs(h:GetChildren()) do
         if questMentionsMuzan(q) then
             State.MuzanAcceptedQuestName=questObjectName(q)
             return q
         end
+
+        local tasks=q:FindFirstChild("Tasks")
+        if tasks then
+            for _,taskObj in ipairs(tasks:GetChildren()) do
+                local v=taskObj:FindFirstChild("Value")
+                local m=taskObj:FindFirstChild("Max")
+                if v and m and tonumber(v.Value) and tonumber(m.Value) and v.Value<m.Value then
+                    local n=low(taskObj.Name)
+                    if string.find(n,"kill",1,true)
+                        or string.find(n,"defeat",1,true)
+                        or string.find(n,"eliminate",1,true)
+                        or string.find(n,"slay",1,true)
+                        or string.find(n,"hunt",1,true) then
+                        genericCandidates[#genericCandidates+1]=q
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    if #genericCandidates==1 then
+        local q=genericCandidates[1]
+        State.MuzanAcceptedQuestName=questObjectName(q)
+        return q
     end
 end
 
@@ -749,8 +775,10 @@ local function drive(State,o)
     local targetName=markerTargetName(o.Marker)
     if not targetName or targetName=="" then targetName=taskMobName(o.Name) end
 
-    if objectiveLooksCombat(o,targetName) then
-        local target=findQuestMob(targetName)
+    local target=targetName and findQuestMob(targetName) or nil
+    local combatObjective=objectiveLooksCombat(o,nil) or target~=nil
+
+    if combatObjective then
         if target then
             State.MuzanQuestStatus="Farming "..tostring(target.Name)
             fxCombat(State,target,"MuzanQuest")
@@ -2773,8 +2801,8 @@ local function setNativeToggle(gui,label,wanted)
                 if current~=wanted then
                     local ok=false
                     if type(firesignal)=="function" then
-                        ok=pcall(firesignal,row.Activated)
-                        if not ok then ok=pcall(firesignal,row.MouseButton1Click) end
+                        ok=pcall(firesignal,row.MouseButton1Click)
+                        if not ok then ok=pcall(firesignal,row.Activated) end
                     end
                     if not ok then pcall(function() row:Activate() end) end
                 end
