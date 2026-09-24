@@ -392,6 +392,17 @@ local function findMuzanQuest()
         State.MuzanAcceptedQuestName=""
     end
 
+    local baseline=State.MuzanQuestBaseline
+    if type(baseline)=="table" then
+        for _,q in ipairs(h:GetChildren()) do
+            local qn=questObjectName(q)
+            if qn~="" and baseline[qn]~=true then
+                State.MuzanAcceptedQuestName=qn
+                return q
+            end
+        end
+    end
+
     local genericCandidates={}
     for _,q in ipairs(h:GetChildren()) do
         if questMentionsMuzan(q) then
@@ -541,7 +552,9 @@ local function clickMuzanAcceptGui()
                 if string.find(t,"accept",1,true) then score=100
                 elseif string.find(t,"take",1,true) then score=90
                 elseif string.find(t,"yes",1,true) then score=80
-                elseif string.find(t,"quest",1,true) then score=60 end
+                elseif string.find(t,"quest",1,true) then score=60
+                elseif string.find(t,"continue",1,true) then score=35
+                elseif string.find(t,"next",1,true) then score=30 end
                 if score>0 then buttons[#buttons+1]={Button=b,Score=score} end
             end
         end
@@ -627,13 +640,14 @@ local function take(State)
     end
 
     task.wait(.15)
-    clickMuzanAcceptGui()
-    task.wait(.10)
-    requestMuzanQuestNative()
-
-    local q=waitMuzanQuest(before,1.25)
-    if q then
-        return true,"Muzan Quest accepted"
+    for _=1,3 do
+        clickMuzanAcceptGui()
+        task.wait(.12)
+        requestMuzanQuestNative()
+        local q=waitMuzanQuest(before,.45)
+        if q then
+            return true,"Muzan Quest accepted"
+        end
     end
 
     return false,"Muzan reached | quest not accepted"
@@ -824,11 +838,21 @@ local function installMuzan(State,gui)
     local info=State.Runtime.makeLabel(sec,"Demon only | "..State.MuzanQuestStatus,UDim2.new(1,0,0,32),UDim2.new(),10,State.Runtime.Theme.Sub)
     info.TextWrapped=true
     State.Runtime.addToggle(sec,"Auto Muzan Quest",State.Flags.AutoMuzanQuest,function(v)
-        State.Flags.AutoMuzanQuest=v; State.MuzanQuestStatus=v and "Starting..." or "Disabled"
+        State.Flags.AutoMuzanQuest=v
+        if v then
+            State.MuzanQuestBaseline=questSnapshot()
+            State.MuzanQuestStatus="Starting..."
+        else
+            State.MuzanQuestBaseline=nil
+            State.MuzanPriorityActive=false
+            State.MuzanQuestStatus="Disabled"
+        end
     end)
     State.Runtime.addButton(sec,"Take Muzan Quest Now",function()
         State.Flags.AutoMuzanQuest=true
-        local _,msg=take(State); State.MuzanQuestStatus=tostring(msg)
+        State.MuzanQuestBaseline=questSnapshot()
+        local _,msg=take(State)
+        State.MuzanQuestStatus=tostring(msg)
     end)
 
     task.spawn(function()
@@ -839,8 +863,9 @@ local function installMuzan(State,gui)
             if State.Flags.AutoMuzanQuest then
                 local demon=isDemon()
                 local qState=demon and questState() or "None"
+                local currentQuest=demon and findMuzanQuest() or nil
                 local currentObjective=demon and objective() or nil
-                State.MuzanPriorityActive=demon and (currentObjective~=nil or qState=="Doing" or qState=="None")
+                State.MuzanPriorityActive=demon and (currentQuest~=nil or currentObjective~=nil or qState=="Doing" or qState=="None")
 
                 if not demon then
                     State.MuzanQuestStatus="Demon race required"
@@ -854,11 +879,17 @@ local function installMuzan(State,gui)
                         if currentObjective then
                             State.MuzanQuestStatus=string.format("%s | %d/%d",currentObjective.Name,currentObjective.Value,currentObjective.Max)
                             pcall(drive,State,currentObjective)
-                        elseif qState=="Doing" then
-                            State.MuzanQuestStatus="Returning Muzan Quest"
+                        elseif currentQuest then
+                            -- We resolved the actual quest instance and every task is complete.
+                            State.MuzanQuestStatus="Turning in Muzan Quest"
                             if State.GameOps and type(State.GameOps.verifiedNpcAction)=="function" then
                                 pcall(State.GameOps.verifiedNpcAction,"Muzan")
                             end
+                        elseif qState=="Doing" then
+                            -- The native quest system says the quest is active, but replication
+                            -- has not exposed its task object yet. Never teleport back to Muzan here.
+                            State.MuzanQuestStatus="Quest active | resolving objective"
+                            captureMuzanQuest(State.MuzanQuestBaseline)
                         else
                             local okTake,msg=take(State)
                             State.MuzanQuestStatus=(okTake and "Active" or tostring(msg))
