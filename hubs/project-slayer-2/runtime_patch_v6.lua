@@ -381,7 +381,7 @@ local function installMuzan(State,gui)
 end
 
 local State
-for _=1,240 do
+for _=1,1200 do
     if not P.alive then return end
     State=ENV.A7DEV_PROJECT_SLAYER_2
     if State and State.Runtime then break end
@@ -391,7 +391,7 @@ if not State then return end
 
 local gui
 local pg=LocalPlayer:WaitForChild("PlayerGui")
-for _=1,240 do
+for _=1,1200 do
     if not P.alive then return end
     gui=pg:FindFirstChild("A7DEV_ProjectSlayer2")
     if gui then break end
