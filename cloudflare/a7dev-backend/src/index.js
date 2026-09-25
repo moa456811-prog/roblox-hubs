@@ -1,3 +1,4 @@
+import { verifyCloudflareSession } from "./session-verifier.js";
 const SESSION_SECONDS = 24 * 60 * 60;
 const authRate = new Map();
 const scriptRate = new Map();
@@ -81,16 +82,10 @@ async function issueSession(env, userId, opts = {}) {
   const payloadPart = bytesToBase64Url(
     new TextEncoder().encode(JSON.stringify(payload)),
   );
-  const signature = new Uint8Array(
-    await crypto.subtle.sign(
-      "HMAC",
-      await sessionKey(env),
-      new TextEncoder().encode(payloadPart),
-    ),
-  );
-
+  const key = await crypto.subtle.importKey("pkcs8", base64UrlToBytes(env.SESSION_ED25519_PRIVATE), "Ed25519", false, ["sign"]);
+  const signature = new Uint8Array(await crypto.subtle.sign("Ed25519", key, new TextEncoder().encode("a7cf1." + payloadPart)));
   return {
-    session: "a7v2." + payloadPart + "." + bytesToBase64Url(signature),
+    session: "a7cf1." + payloadPart + "." + bytesToBase64Url(signature),
     expires_at: new Date(expiresAtMs).toISOString(),
     session_seconds: Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000)),
     permanent: payload.perm,
@@ -119,6 +114,7 @@ async function verifySignedSession(env, token, userId) {
     if (
       Number(payload?.v) !== 2 ||
       Number(payload?.uid) !== Number(userId) ||
+      !Number.isFinite(payload?.exp) ||
       Number(payload?.exp) <= Math.floor(Date.now() / 1000)
     ) {
       return null;
@@ -217,6 +213,8 @@ async function verifySupabaseSession(env, token, userId) {
 
 async function verifyAnySession(env, token, userId) {
   return (
+    await verifyCloudflareSession(token, userId, env.SESSION_ED25519_PUBLIC)
+  ) || (
     await verifySignedSession(env, token, userId)
   ) || (
     await verifyLegacySession(env, token, userId)

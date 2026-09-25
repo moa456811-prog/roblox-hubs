@@ -1,6 +1,6 @@
 # Cloudflare migration preparation
 
-Status: staging import and verification completed on 2026-09-25. No production cutover.
+Historical preparation record. Production cutover was subsequently authorized and completed on 2026-09-25; see CUTOVER.md. The gating details below describe the earlier staging deployment.
 
 ## Deployed resources
 
