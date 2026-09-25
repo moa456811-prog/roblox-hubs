@@ -1,0 +1,68 @@
+--- base-v36
++++ base-v37
+@@ -6568,13 +6568,14 @@
+ end
+ 
+ State.MobLockOps.owns = function(root)
+-    if not root or not root.Parent or not root:IsA("BasePart") then return false end
+-    if type(isnetworkowner)=="function" then
+-        local ok,owned=pcall(isnetworkowner,root)
+-        if ok then return owned==true end
+-    end
+-    local ok,age=pcall(function() return root.ReceiveAge end)
+-    return ok and tonumber(age)==0
++    if not root or not root.Parent or not root:IsA("BasePart") then return false,"invalid" end
++    if root.Anchored then return false,"anchored" end
++    -- Use the same capability resolution as the user-confirmed aura test.
++    local fn=ENV.isnetworkowner or isnetworkowner
++    if type(fn)~="function" then return nil,"unavailable" end
++    local ok,owned=pcall(fn,root)
++    if not ok or type(owned)~="boolean" then return nil,"unavailable" end
++    return owned,owned and "owned" or "not_owned"
+ end
+ 
+ State.MobLockOps.expectedName = function()
+@@ -6848,11 +6849,13 @@
+     local ownedCount=0
+     local serverOwnedCount=0
+     local ownershipPending=0
++    local unknownCount=0
+ 
+     for _,model in ipairs(candidates) do
+         local root=modelRoot(model)
+         if root then
+-            if State.MobLockOps.owns(root) then
++            local owned=State.MobLockOps.owns(root)
++            if owned==true then
+                 State.MobLockOwnershipLost[model]=nil
+                 local entry=State.MobLockCache[model]
+                 if not entry then
+@@ -6863,7 +6866,8 @@
+                     ownedCount=ownedCount+1
+                 end
+             else
+-                serverOwnedCount=serverOwnedCount+1
++                if owned==nil then unknownCount=unknownCount+1
++                else serverOwnedCount=serverOwnedCount+1 end
+                 local lostAt=State.MobLockOwnershipLost[model]
+                 if not lostAt then
+                     lostAt=now
+@@ -6892,13 +6896,15 @@
+     State.MobLockNetworkCount=ownedCount
+     if ownedCount>0 then
+         State.MobLockStatus=string.format(
+-            "Fixed %d | ownership pending %d | server-owned %d",
+-            ownedCount,ownershipPending,serverOwnedCount
++            "Fixed %d | pending %d | not owned %d | unknown %d",
++            ownedCount,ownershipPending,serverOwnedCount,unknownCount
+         )
+     elseif ownershipPending>0 then
+         State.MobLockStatus="Waiting for network ownership handoff"
++    elseif unknownCount>0 then
++        State.MobLockStatus="Ownership check unavailable - freeze not applied"
+     elseif #candidates>0 then
+-        State.MobLockStatus="Server-owned mobs cannot be hard-locked"
++        State.MobLockStatus="Mobs not locally owned - freeze not applied"
+     else
+         State.MobLockStatus="Waiting for matching mob"
+     end
