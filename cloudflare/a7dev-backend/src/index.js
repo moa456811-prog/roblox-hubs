@@ -204,8 +204,8 @@ async function verifySupabaseSession(env, token, userId) {
       method: "POST",
       headers: { "content-type": "application/json", authorization: "Bearer " + env.LEGACY_BRIDGE_TOKEN },
       body: JSON.stringify({ session: token, user_id: userId }),
-      signal: AbortSignal.timeout(5000),
-      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+      redirect: "manual",
     });
     if (!response.ok) return null;
     const data = await response.json();
