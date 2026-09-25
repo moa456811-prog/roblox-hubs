@@ -1,0 +1,211 @@
+--- base-v31
++++ base-v32
+@@ -66,7 +66,7 @@
+         AutoDungeonUnlock = true,
+         AutoDungeonCards = true,
+         AutoDungeonClear = false,
+-        DungeonSafeMode = true,
++        DungeonSafeMode = false,
+         ChestInterruptFarm = false,
+         IncludeLockedChests = false,
+         AutoClanSpin = false,
+@@ -8242,7 +8242,7 @@
+             local hum = model:FindFirstChildOfClass("Humanoid")
+             local root = hum and (hum.RootPart or model:FindFirstChild("HumanoidRootPart"))
+             if hum and root and root:IsA("BasePart") and hum.Health > 0
+-                and hum.MaxHealth > 0 and hum.Health / hum.MaxHealth <= 0.80
++                and hum.MaxHealth > 0 and hum.Health / hum.MaxHealth <= 0.95
+                 and not State.DungeonOps.killAuraAttempts[hum]
+                 and (root.Position - myRoot.Position).Magnitude <= 30 then
+                 local okOwner, owned = pcall(ownerCheck, root)
+@@ -8258,62 +8258,6 @@
+     end
+ end
+ 
+-
+-State.DungeonOps.safePosition=function(target)
+-    if State.Flags.DungeonSafeMode~=true or not State.DungeonOps.inRun() then
+-        State.DungeonSafeStatus="Idle"
+-        return false
+-    end
+-    if not target or not aliveModel(target) then
+-        State.DungeonSafeStatus="Waiting target"
+-        return false
+-    end
+-
+-    local character,hum,root=getCharacter()
+-    local targetRoot=modelRoot(target)
+-    if not character or not hum or hum.Health<=0 or not root or not targetRoot then
+-        State.DungeonSafeStatus="Waiting character/target"
+-        return false
+-    end
+-
+-    local height=tonumber(Config.DungeonSafeHeight) or 9
+-    if hasBossMarker(target) then
+-        height=height+(tonumber(Config.DungeonSafeBossBonus) or 2)
+-    end
+-
+-    local okSize,size=pcall(target.GetExtentsSize,target)
+-    if okSize and typeof(size)=="Vector3" then
+-        local dynamic=(size.Y*0.5)+(tonumber(Config.DungeonSafeClearance) or 4.5)
+-        height=math.max(height,math.min(dynamic,tonumber(Config.DungeonSafeMaxHeight) or 14))
+-    end
+-    height=math.min(height,tonumber(Config.DungeonSafeMaxHeight) or 14)
+-
+-    local look=targetRoot.CFrame.LookVector
+-    local flat=Vector3.new(look.X,0,look.Z)
+-    if flat.Magnitude<0.05 then flat=Vector3.new(0,0,1) else flat=flat.Unit end
+-
+-    local safePos=targetRoot.Position
+-        +Vector3.new(0,height,0)
+-        -(flat*(tonumber(Config.DungeonSafeBackOffset) or 1.5))
+-    local delta=(root.Position-safePos).Magnitude
+-
+-    applyNoclip()
+-
+-    local ok=pcall(function()
+-        root.AssemblyLinearVelocity=Vector3.zero
+-        root.AssemblyAngularVelocity=Vector3.zero
+-        if delta>(tonumber(Config.DungeonSafeTolerance) or 1.15) then
+-            character:PivotTo(CFrame.lookAt(safePos,targetRoot.Position))
+-        else
+-            root.CFrame=CFrame.lookAt(root.Position,targetRoot.Position)
+-        end
+-    end)
+-
+-    State.DungeonSafeStatus=ok
+-        and string.format("Safe above %s | %.1f studs",target.Name,height)
+-        or "Safe position retry"
+-    return ok
+-end
+ 
+ State.DungeonOps.unlockQuestName=function()
+     local mode=trim(State.DungeonMode)
+@@ -9155,35 +9099,66 @@
+     return true
+ end
+ State.Flags.AutoDungeonSkip=false
++-- V32: tolerate countdown/vote suffixes and compact names without accepting
++-- card skipping, purchases, leaving, or arbitrary generic buttons.
+ State.DungeonOps.isSkipButton=function(button)
++    local context=State.DungeonOps.context(button)
++    if string.find(context,"card",1,true) or string.find(context,"reward",1,true)
++        or string.find(context,"shop",1,true) then return false end
+     local action=State.DungeonOps.actionText(button)
+-    action=trim(action:gsub("%s*%(%d+%s*/%s*%d+%)", ""):gsub("%s*%[%d+%s*/%s*%d+%]", ""))
+-    local context=State.DungeonOps.context(button)
+-    if string.find(context,"card",1,true) or string.find(context,"reward",1,true) then return false end
+-    local named=action=="skip wave" or action=="next wave" or action=="start wave"
+-        or action=="skip intermission" or action=="vote skip" or action=="vote to skip"
+-        or action=="start next wave"
++    if string.find(action,"unready",1,true) or string.find(action,"cancel",1,true)
++        or string.find(action,"leave",1,true) or string.find(action,"buy",1,true) then return false end
++    local compact=action:gsub("[^%a]","")
++    local name=lower(button.Name):gsub("[^%a]","")
++    local actions={skipwave=true,nextwave=true,startwave=true,startnextwave=true,
++        skipintermission=true,voteskip=true,votetoskip=true,readyup=true}
++    if actions[compact] or actions[name] then return true end
+     local waveContext=string.find(context,"wave",1,true)
+         or string.find(context,"intermission",1,true) or string.find(context,"ouwigahara",1,true)
+-    return named or (waveContext~=nil and (action=="skip" or action=="ready"))
++        or string.find(context,"minigame",1,true)
++    return waveContext~=nil and (compact=="skip" or compact=="ready")
+ end
+ State.DungeonOps.skipWaveTick=function()
+     if State.Flags.AutoDungeonSkip~=true or not State.DungeonOps.inRun() then return end
+     local now=os.clock()
+-    if now-(State.DungeonLastSkip or 0)<1.25 then return end
++    if now-(State.DungeonLastSkip or 0)<1.5 then return end
+     State.DungeonLastSkip=now
+     local button,text=State.DungeonOps.findButton(function(obj)
+         return State.DungeonOps.isSkipButton(obj)
+     end,0)
+-    if not button then State.DungeonSkipButton=nil;State.DungeonSkipRetries=0;return end
++    if not button then
++        State.DungeonSkipButton=nil;State.DungeonSkipRetries=0
++        State.DungeonSkipStatus="Waiting for visible wave button"
++        return
++    end
+     if button~=State.DungeonSkipButton or text~=State.DungeonSkipSignature then
+-        State.DungeonSkipButton=button;State.DungeonSkipSignature=text;State.DungeonSkipRetries=0
+-    end
+-    if (State.DungeonSkipRetries or 0)>=3 then return end
++        State.DungeonSkipButton=button;State.DungeonSkipSignature=text
++        State.DungeonSkipRetries=0;State.DungeonSkipRetryAt=0
++        State.DungeonOps.clickAttempts[button]=0
++    end
++    if (State.DungeonSkipRetries or 0)>=3 then
++        if now<(State.DungeonSkipRetryAt or 0) then return end
++        State.DungeonSkipRetries=0
++    end
+     State.DungeonSkipRetries=(State.DungeonSkipRetries or 0)+1
+-    if State.DungeonOps.clickButton(button) then
+-        State.DungeonStatus="Ouwigahara | next wave vote requested"
+-    end
++    State.DungeonSkipRetryAt=now+12
++    -- Each retry uses a different event/input route; a connected Activated
++    -- handler does not prove that the game's wave handler uses that event.
++    local sent
++    if State.DungeonSkipRetries==1 then
++        sent=State.DungeonOps.clickButton(button)
++    elseif State.DungeonSkipRetries==2 and type(firesignal)=="function" then
++        sent=pcall(firesignal,button.MouseButton1Click)
++    else
++        sent=pcall(function()
++            local vim=game:GetService("VirtualInputManager")
++            local pos=button.AbsolutePosition+button.AbsoluteSize/2
++            vim:SendMouseButtonEvent(pos.X,pos.Y,0,true,game,0)
++            task.wait(0.04)
++            vim:SendMouseButtonEvent(pos.X,pos.Y,0,false,game,0)
++        end)
++    end
++    State.DungeonSkipStatus=sent and "Vote sent - waiting for game" or "Wave button input unavailable"
+ end
+ State.DungeonOps.tick=function()
+     if State.Destroyed then return end
+@@ -11081,9 +11056,7 @@
+         and State.MobLockOps
+         and State.MobLockOps.isPhysicallyLocked(target)
+ 
+-    if source=="Dungeon" and State.Flags.DungeonSafeMode==true and State.DungeonOps then
+-        State.DungeonOps.safePosition(target)
+-    elseif not physicallyLocked then
++    if not physicallyLocked then
+         moveToTarget(target)
+     end
+ 
+@@ -12634,16 +12607,6 @@
+             end
+         end)
+         State.Runtime.addInfo(dungeonSoul,"Auto Clear: locks one mob until death, then switches instantly")
+-        State.Runtime.addToggle(dungeonSoul,"Dungeon Safe Mode (above mobs)",State.Flags.DungeonSafeMode~=false,function(v)
+-            State.Flags.DungeonSafeMode=v
+-            State.DungeonSafeStatus=v and "Safe Mode enabled" or "Idle"
+-            if v then State.Flags.FarmNoclip=true end
+-        end)
+-        State.Runtime.addInput(dungeonSoul,"Dungeon safe height",Config.DungeonSafeHeight,function(text,box)
+-            local n=tonumber(text)
+-            if n then Config.DungeonSafeHeight=math.clamp(n,7,14) end
+-            box.Text=tostring(Config.DungeonSafeHeight)
+-        end,"7 - 14 studs")
+         State.Runtime.addToggle(dungeonSoul,"Auto Pick Dungeon Cards",State.Flags.AutoDungeonCards==true,function(v)
+             State.Flags.AutoDungeonCards=v
+             State.DungeonLastCardPick=0
+@@ -12678,7 +12641,7 @@
+                     .."\nUnlock: "..tostring(State.DungeonUnlockStatus or "Idle")
+                     .."\nAuto Clear: "..tostring(State.DungeonAutoClearStatus or "Idle")
+                     .." | switches="..tostring(State.DungeonAutoClearSwitches or 0)
+-                    .."\nSafe: "..tostring(State.DungeonSafeStatus or "Idle")
++                    .."\nSkip: "..tostring(State.DungeonSkipStatus or "Idle")
+                 soulInfo.Text="Souls: "..tostring(State.SoulStatus or "Idle").." | collected="..tostring(State.SoulCollected or 0)
+                 task.wait(0.4)
+             end
+@@ -13090,7 +13053,7 @@
+     State.Flags.AutoDungeonUnlock = State.Flags.AutoDungeonUnlock ~= false
+     State.Flags.AutoDungeonCards = State.Flags.AutoDungeonCards ~= false
+     State.Flags.AutoDungeonClear = State.Flags.AutoDungeonClear == true
+-    State.Flags.DungeonSafeMode = State.Flags.DungeonSafeMode ~= false
++    State.Flags.DungeonSafeMode = false
+     State.Flags.ChestInterruptFarm = false
+     State.Flags.IncludeLockedChests = false
+     State.Flags.AutoClanSpin = false
