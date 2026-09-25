@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "a7dev-backend",
-  "main": "src/index.js",
+  "main": "src/production.js",
   "compatibility_date": "2026-09-25",
   "workers_dev": true,
   "d1_databases": [
@@ -21,10 +21,14 @@
     "required": [
       "SESSION_SIGNING_KEY",
       "ADMIN_API_TOKEN",
-      "ADMIN_KEY_SHA256"
+      "ADMIN_KEY_SHA256",
+      "SESSION_ED25519_PRIVATE",
+      "LEGACY_BRIDGE_TOKEN"
     ]
   },
   "vars": {
-    "WORKINK_VERIFY_URL": "https://work.ink/_api/v2/token/isValid/"
+    "WORKINK_VERIFY_URL": "https://work.ink/_api/v2/token/isValid/",
+    "SESSION_ED25519_PUBLIC": "REPLACE_WITH_ED25519_PUBLIC_KEY",
+    "LEGACY_VERIFY_URL": "REPLACE_WITH_PRIVATE_DEPLOYMENT_URL"
   }
 }
