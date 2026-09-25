@@ -73,13 +73,18 @@ Invoke-Npx wrangler d1 execute a7dev-db --remote --file=schema.sql
 
 Write-Host ""
 Write-Host "Generating Worker-only secrets..."
-$sessionBytes = New-Object byte[] 48
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($sessionBytes)
-$sessionSecret = [Convert]::ToBase64String($sessionBytes)
+$rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
+try {
+    $sessionBytes = New-Object byte[] 48
+    $rng.GetBytes($sessionBytes)
+    $sessionSecret = [Convert]::ToBase64String($sessionBytes)
 
-$apiBytes = New-Object byte[] 32
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($apiBytes)
-$adminApiToken = ([Convert]::ToHexString($apiBytes)).ToLowerInvariant()
+    $apiBytes = New-Object byte[] 32
+    $rng.GetBytes($apiBytes)
+    $adminApiToken = -join ($apiBytes | ForEach-Object { $_.ToString("x2") })
+} finally {
+    $rng.Dispose()
+}
 
 $secureAdmin = Read-Host "Enter the existing A7DEV admin key locally (not sent to ChatGPT)" -AsSecureString
 $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdmin)
@@ -92,7 +97,7 @@ try {
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {
     $adminHashBytes = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($adminPlain))
-    $adminHash = ([Convert]::ToHexString($adminHashBytes)).ToLowerInvariant()
+    $adminHash = -join ($adminHashBytes | ForEach-Object { $_.ToString("x2") })
 } finally {
     $sha.Dispose()
     $adminPlain = $null
@@ -103,7 +108,7 @@ $secretFile = Join-Path $env:TEMP ("a7dev-cloudflare-secrets-" + [Guid]::NewGuid
     SESSION_SIGNING_KEY = $sessionSecret
     ADMIN_API_TOKEN = $adminApiToken
     ADMIN_KEY_SHA256 = $adminHash
-} | ConvertTo-Json | Set-Content -Path $secretFile -Encoding UTF8
+} | ConvertTo-Json | Set-Content -Path $secretFile -Encoding ASCII
 
 try {
     Write-Host ""
