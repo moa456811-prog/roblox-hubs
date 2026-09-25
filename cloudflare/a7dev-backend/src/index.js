@@ -197,11 +197,31 @@ async function verifyLegacySession(env, token, userId) {
   return null;
 }
 
+async function verifySupabaseSession(env, token, userId) {
+  if (!env.LEGACY_VERIFY_URL || !env.LEGACY_BRIDGE_TOKEN || !String(token).startsWith("a7v2.") || String(token).length > 4096) return null;
+  try {
+    const response = await fetch(env.LEGACY_VERIFY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + env.LEGACY_BRIDGE_TOKEN },
+      body: JSON.stringify({ session: token, user_id: userId }),
+      signal: AbortSignal.timeout(5000),
+      redirect: "error",
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const payload = data?.payload;
+    if (data?.ok !== true || payload?.v !== 2 || payload?.uid !== Number(userId) || !Number.isFinite(payload?.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch { return null; }
+}
+
 async function verifyAnySession(env, token, userId) {
   return (
     await verifySignedSession(env, token, userId)
   ) || (
     await verifyLegacySession(env, token, userId)
+  ) || (
+    await verifySupabaseSession(env, token, userId)
   );
 }
 
