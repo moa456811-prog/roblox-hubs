@@ -1,0 +1,60 @@
+--- base-v37
++++ base-v38
+@@ -477,6 +477,8 @@
+     DungeonTeleportRetry = 5.0,
+     DungeonCardPickDelay = 0.75,
+     DungeonAutoClearBossPriority = true,
++    DungeonAboveHeight = 7,
++    DungeonAboveMoveInterval = 0.08,
+     DungeonSafeHeight = 9,
+     DungeonSafeBossBonus = 2,
+     DungeonSafeBackOffset = 1.5,
+@@ -3183,8 +3185,29 @@
+         return false
+     end
+ 
++    -- Dungeon positioning shares the combat loop; no extra scan or connection.
++    local dungeonAbove = State.Flags.AutoBoss ~= true
++        and (State.Flags.AutoDungeon or State.Flags.AutoDungeonClear or State.Flags.DungeonKillAura)
++        and State.DungeonOps and State.DungeonOps.inRun()
++    local now = os.clock()
++    if dungeonAbove then
++        if State.DungeonAboveTarget == model and State.DungeonAboveRoot == root
++            and now < (State.DungeonAboveNextMove or 0) then
++            return true
++        end
++        State.DungeonAboveTarget = model
++        State.DungeonAboveRoot = root
++        State.DungeonAboveNextMove = now + Config.DungeonAboveMoveInterval
++    else
++        State.DungeonAboveTarget = nil
++        State.DungeonAboveRoot = nil
++        State.DungeonAboveNextMove = nil
++    end
++
+     local offset
+-    if State.FarmStyle == "Above" then
++    if dungeonAbove then
++        offset = Vector3.new(0, Config.DungeonAboveHeight, 0)
++    elseif State.FarmStyle == "Above" then
+         offset = Vector3.new(0, Config.FarmHeight, 0)
+     elseif State.FarmStyle == "Under" then
+         offset = Vector3.new(0, -math.abs(Config.FarmHeight), 0)
+@@ -11073,7 +11096,8 @@
+         and State.MobLockOps
+         and State.MobLockOps.isPhysicallyLocked(target)
+ 
+-    if not physicallyLocked then
++    -- A frozen dungeon mob must not prevent the player taking the above position.
++    if source == "Dungeon" or not physicallyLocked then
+         moveToTarget(target)
+     end
+ 
+@@ -12644,6 +12668,7 @@
+             end
+         end)
+         State.Runtime.addInfo(dungeonSoul,"Auto Clear: locks one mob until death, then switches instantly")
++        State.Runtime.addInfo(dungeonSoul,"Combat position: 7 studs above the target | automatic in dungeon")
+         State.Runtime.addToggle(dungeonSoul,"Auto Pick Dungeon Cards",State.Flags.AutoDungeonCards==true,function(v)
+             State.Flags.AutoDungeonCards=v
+             State.DungeonLastCardPick=0
