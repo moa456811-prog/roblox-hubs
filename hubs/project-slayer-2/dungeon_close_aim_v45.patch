@@ -1,0 +1,30 @@
+--- base-v44
++++ base-v45
+@@ -478,7 +478,7 @@
+     DungeonCardPickDelay = 0.75,
+     DungeonAutoClearBossPriority = true,
+     DungeonAboveHeight = 7,
+-    DungeonAboveBackOffset = 2.5,
++    DungeonAboveBackOffset = 0.5,
+     DungeonAboveMoveInterval = 0.08,
+     DungeonSafeHeight = 9,
+     DungeonSafeBossBonus = 2,
+@@ -3254,10 +3254,17 @@
+     end
+     local goal = targetRoot.Position + Vector3.new(0, Config.DungeonAboveHeight, 0)
+         + h.Approach * Config.DungeonAboveBackOffset
+-    local pose = CFrame.lookAt(goal, targetRoot.Position)
++    -- Aim at the upper body, not below it; keep the requested root height.
++    local aimPoint = targetRoot.Position + Vector3.new(0, 1.5, 0)
++    local pose = CFrame.lookAt(goal, aimPoint)
+     h.Position.MaxForce = math.max(10000, root.AssemblyMass * (workspace.Gravity + 500) * 10)
+     if changed or (h.Position.Position - goal).Magnitude > 0.25 then
+         h.Position.Position = goal
++    end
++    -- Refresh aim even for a stationary mob: the player can still be settling.
++    if (root.Position - aimPoint).Magnitude > 0.1 then
++        h.Orientation.CFrame = CFrame.lookAt(root.Position, aimPoint)
++    else
+         h.Orientation.CFrame = pose
+     end
+     -- Enter once; moving mobs are followed by the constraint, never a CFrame loop.
