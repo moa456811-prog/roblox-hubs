@@ -1,0 +1,60 @@
+--- base-v30
++++ base-v31
+@@ -6446,13 +6446,32 @@
+             State.BossOps.defeated()
+             return nil
+         end
+-        if locked.Parent and aliveModel(locked) then
++        if locked:IsDescendantOf(workspace) and aliveModel(locked) then
+             State.BossLock=locked
+             State.CurrentBoss=locked
+             State.BossMissingSince=nil
+             State.BossLastPosition=objectPosition(locked) or State.BossLastPosition
+             State.BossStatus="Locked: "..locked.Name
+             return locked
++        end
++        -- Streaming can recreate the same boss as a new Instance. Rebind
++        -- only the same name near its last position; never switch to another boss.
++        if now-(State.BossRebindAt or 0)>=1 then
++            State.BossRebindAt=now
++            for _,candidate in ipairs(State.BossOps.filteredList()) do
++                local position=objectPosition(candidate)
++                if candidate~=locked and candidate.Name==locked.Name
++                    and candidate:IsDescendantOf(workspace) and aliveModel(candidate)
++                    and position and State.BossLastPosition
++                    and (position-State.BossLastPosition).Magnitude<=80 then
++                    State.BossLock=candidate
++                    State.CurrentBoss=candidate
++                    State.BossMissingSince=nil
++                    State.BossLastPosition=position
++                    State.BossStatus="Locked: "..candidate.Name
++                    return candidate
++                end
++            end
+         end
+         State.BossMissingSince=State.BossMissingSince or now
+         State.BossWaiting=true
+@@ -11955,6 +11974,23 @@
+             State.FarmPlannerForce = true
+             State.FarmPlannerLastTick = 0
+             if v then
++                -- Explicit Boss activation takes ownership of travel/combat.
++                if State.DungeonOps then
++                    State.DungeonOps.restoreUnlockFarm()
++                    State.DungeonOps.setResume(false)
++                end
++                State.Flags.AutoBoss=true
++                State.Flags.AutoDungeon=false
++                State.Flags.AutoDungeonClear=false
++                State.DungeonAutoClearTarget=nil
++                State.DungeonCombatTarget=nil
++                State.DungeonStatus="Paused by Auto Boss"
++                State.Flags.AutoAttack=true
++                State.Flags.AutoEquip=true
++                State.Flags.FarmNoclip=true
++                State.FarmPlanTarget=nil
++                State.FarmPlanSource=nil
++                State.CurrentTarget=nil
+                 State.BossOps.reset("Auto Boss full-map scan")
+                 State.BossOps.fullMapScan(false)
+                 State.BossOps.acquire(true)
