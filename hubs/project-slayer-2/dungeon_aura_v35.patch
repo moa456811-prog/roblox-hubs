@@ -1,0 +1,200 @@
+--- base-v34
++++ base-v35
+@@ -2093,7 +2093,6 @@
+ end
+ 
+ local function nativeAttack()
+-    if State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then return false end
+     if not State.CombatReady then
+         return false
+     end
+@@ -3175,7 +3174,6 @@
+ end
+ 
+ local function moveToTarget(model)
+-    if State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then return false end
+     if not model or not model.Parent then
+         return false
+     end
+@@ -3226,7 +3224,6 @@
+ end
+ 
+ local function teleportToPosition(pos, yOffset)
+-    if State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then return false end
+     local character, hum, root = getCharacter()
+     if not character or not hum or hum.Health <= 0 or not root or not pos then
+         return false
+@@ -7021,7 +7018,6 @@
+ end
+ 
+ State.Runtime.skillCombatActive = function()
+-    if State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then return false end
+     local f=State.Flags
+     if State.Destroyed or not f.AutoSkills or not f.AutoAttack then return false end
+     local enabled=f.AutoFarm or f.AutoBoss or f.AutoQuest or f.AutoDungeon
+@@ -8194,7 +8190,6 @@
+     return false
+ end
+ State.SoulOps.tick=function()
+-    if State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then return end
+     if State.Flags.AutoCollectSouls~=true or State.Destroyed then
+         State.CurrentSoul=nil
+         if State.Flags.AutoCollectSouls~=true then State.SoulStatus="Idle" end
+@@ -8230,24 +8225,16 @@
+ State.DungeonOps.killAuraTick = function()
+     if State.Destroyed or State.Flags.DungeonKillAura ~= true then return end
+     if not State.DungeonOps.inRun() then return end
++    -- A real hit is required by the observed game behavior. Reuse the normal
++    -- dungeon planner/attacks rather than a second combat loop.
++    State.Flags.AutoDungeon=true
++    State.Flags.AutoAttack=true
++    State.Flags.AutoEquip=true
+     local now = os.clock()
+     if now - State.DungeonOps.killAuraLastTick < 0.35 then return end
+     State.DungeonOps.killAuraLastTick = now
+     local _, myHum, myRoot = getCharacter()
+     if not myHum or myHum.Health <= 0 or not myRoot then return end
+-    -- Keep an explicitly captured point; never invent a map centre.
+-    if State.DungeonOps.auraRoot~=myRoot then
+-        State.DungeonOps.auraRoot=myRoot
+-        State.DungeonOps.auraPosition=myRoot.CFrame
+-    end
+-    local hold=State.DungeonOps.auraPosition
+-    if hold and (myRoot.Position-hold.Position).Magnitude>1.5 then
+-        myRoot.CFrame=hold
+-        myRoot.AssemblyLinearVelocity=Vector3.zero
+-    end
+-    State.FarmPlanTarget=nil
+-    State.CurrentTarget=nil
+-    State.SkillAttackAt=0
+     local ownerCheck = ENV.isnetworkowner or isnetworkowner
+     if type(ownerCheck) ~= "function" then return end
+     for _, model in ipairs(collectHostiles("", true)) do
+@@ -8260,13 +8247,16 @@
+             local hum = model:FindFirstChildOfClass("Humanoid")
+             local root = hum and (hum.RootPart or model:FindFirstChild("HumanoidRootPart"))
+             if hum and root and root:IsA("BasePart") and hum.Health > 0
+-                and hum.MaxHealth > 0 and hum.Health / hum.MaxHealth <= 1.00
+-                and not State.DungeonOps.killAuraAttempts[hum] then
++                and hum.MaxHealth > 0 and hum.Health < hum.MaxHealth
++                and (not State.DungeonOps.killAuraAttempts[hum]
++                    or (State.DungeonOps.killAuraAttempts[hum].count<3
++                        and now-State.DungeonOps.killAuraAttempts[hum].at>=1)) then
+                 local okOwner, owned = pcall(ownerCheck, root)
+                 if okOwner and owned == true then
+                     local okDead, deadEnabled = pcall(hum.GetStateEnabled, hum, Enum.HumanoidStateType.Dead)
+                     if okDead and deadEnabled == true then
+-                        State.DungeonOps.killAuraAttempts[hum] = true
++                        local previous=State.DungeonOps.killAuraAttempts[hum]
++                        State.DungeonOps.killAuraAttempts[hum] = {count=previous and previous.count+1 or 1,at=now}
+                         pcall(hum.ChangeState, hum, Enum.HumanoidStateType.Dead)
+                     end
+                 end
+@@ -11091,6 +11081,15 @@
+         end
+     end
+ 
++    if source=="Dungeon" and State.Flags.DungeonKillAura then
++        State.DungeonOps.killAuraTick()
++        if not aliveModel(target) then
++            State.FarmPlanTarget=nil
++            State.CurrentTarget=nil
++            State.FarmPlannerForce=true
++            return true
++        end
++    end
+     if State.Flags.AutoAttack then
+         local attacked=nativeAttack()
+         if attacked==true then
+@@ -11120,7 +11119,6 @@
+ end
+ 
+ State.Runtime.mainHeartbeat = function()
+-    if State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then return end
+     if State.Destroyed then return end
+ 
+     local now=os.clock()
+@@ -11229,7 +11227,7 @@
+     State.Runtime.safeTick("SoulCollector",State.SoulOps.tick)
+     State.Runtime.safeTick("Dungeon",State.DungeonOps.tick)
+     State.Runtime.safeTick("DungeonKillAura",State.DungeonOps.killAuraTick)
+-    if not (State.Flags.DungeonKillAura==true and workspace:GetAttribute("MinigameKey")=="Ouwigahara") and not State.SoulOps.routeBusy() then
++    if not State.SoulOps.routeBusy() then
+         State.Runtime.safeTick("ChestLoot",chestLootTick)
+     end
+     State.Runtime.safeTick("ClanSpin",State.SpinOps.autoClanSpinTick)
+@@ -11975,6 +11973,7 @@
+                 end
+                 State.Flags.AutoBoss=true
+                 State.Flags.AutoDungeon=false
++                State.Flags.DungeonKillAura=false
+                 State.Flags.AutoDungeonClear=false
+                 State.DungeonAutoClearTarget=nil
+                 State.DungeonCombatTarget=nil
+@@ -12576,21 +12575,15 @@
+         local soulInfo=State.Runtime.addInfo(dungeonSoul,"Souls: Idle")
+         State.Runtime.addToggle(dungeonSoul,"Kill Aura",false,function(v)
+             State.Flags.DungeonKillAura = v == true
+-            State.DungeonOps.auraRoot=nil
+-            State.DungeonOps.auraPosition=nil
+             State.FarmPlannerForce=true
++            if v and State.DungeonOps.inRun() then
++                State.Flags.AutoDungeon=true
++                State.Flags.AutoAttack=true
++                State.Flags.AutoEquip=true
++                State.Flags.FarmNoclip=true
++            end
+             if v and type(ENV.isnetworkowner or isnetworkowner) ~= "function" then
+                 setStatus("Kill Aura: network ownership check unavailable")
+-            end
+-        end)
+-        State.Runtime.addButton(dungeonSoul,"Set Aura Position",function()
+-            local _,hum,root=getCharacter()
+-            if State.DungeonOps.inRun() and hum and hum.Health>0 and root then
+-                State.DungeonOps.auraRoot=root
+-                State.DungeonOps.auraPosition=root.CFrame
+-                setStatus("Aura position saved")
+-            else
+-                setStatus("Enter the dungeon before setting aura position")
+             end
+         end)
+         State.Runtime.addToggle(dungeonSoul,"Auto Dungeon (Ouwigahara)",State.Flags.AutoDungeon==true,function(v)
+
+--- runtime-v34
++++ runtime-v35
+@@ -281,11 +281,6 @@
+ end
+ local function markerPos(m) return m and pos(m.Position or m.position or m) end
+ local function move(p)
+-    local state=ENV.A7DEV_PROJECT_SLAYER_2
+-    if state and state.Flags.DungeonKillAura and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then
+-        if P.tween then pcall(function() P.tween:Cancel() end);P.tween=nil end
+-        return false
+-    end
+     if typeof(p)~="Vector3" then return false end
+     local ch=LocalPlayer.Character; local h=ch and ch:FindFirstChildOfClass("Humanoid"); local r=ch and ch:FindFirstChild("HumanoidRootPart")
+     if not h or h.Health<=0 or not r then return false end
+@@ -2294,11 +2289,6 @@
+ end
+ 
+ fxMove = function(p,offset)
+-    local state=ENV.A7DEV_PROJECT_SLAYER_2
+-    if state and state.Flags.DungeonKillAura and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then
+-        if P.tween then pcall(function() P.tween:Cancel() end);P.tween=nil end
+-        return false
+-    end
+     if typeof(p)=="CFrame" then p=p.Position end
+     if typeof(p)~="Vector3" then return false end
+     local r=fxRoot()
+@@ -3708,11 +3698,6 @@
+ if not layoutOK then warn("[A7DEV] UI layout: "..tostring(layoutError)) end
+ gui.Enabled=true
+ pcall(installRestoredFeatures, State, gui)
+-on(game:GetService("RunService").Heartbeat:Connect(function()
+-    if P.tween and State.Flags.DungeonKillAura and workspace:GetAttribute("MinigameKey")=="Ouwigahara" then
+-        pcall(function() P.tween:Cancel() end);P.tween=nil
+-    end
+-end))
+ native()
+ for _,x in ipairs(gui:GetDescendants()) do
+     renameBoss(x)
