@@ -1,0 +1,6 @@
+.dev.vars
+.env
+.env.*
+node_modules/
+.a7dev-admin-api-token
+wrangler.local.jsonc
