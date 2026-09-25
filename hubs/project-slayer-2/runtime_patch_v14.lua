@@ -3106,6 +3106,126 @@ local function installNativeSkillWatchdog(State,gui)
 end
 
 
+local function installConfig(State,gui)
+    if State.ConfigOps and State.ConfigOps.A7DEV_V14 then return end
+    local Ops={A7DEV_V14=true}
+    State.ConfigOps=Ops
+
+    local HttpService=game:GetService("HttpService")
+    local folder="A7DEV"
+    local path=folder.."/ProjectSlayer2_config.json"
+
+    local flagKeys={
+        "AutoFarmQuest","StrictFarmQuest","AutoQuestProgression",
+        "AutoAttack","AutoEquip","AutoSkills",
+        "AutoLootDrops","AutoChestLoot","ChestInterruptFarm",
+        "AutoCollectSouls","AutoDungeonCards","DungeonSafeMode",
+        "AutoLantern","AutoCrowQuest","AutoMuzanQuest",
+        "AutoSell","AutoSellUnlock","AutoYeti","AutoHeartYeti",
+        "AutoTrainingQuests"
+    }
+
+    local function ensureFolder()
+        if type(makefolder)=="function" and type(isfolder)=="function" then
+            pcall(function()
+                if not isfolder(folder) then makefolder(folder) end
+            end)
+        end
+    end
+
+    function Ops.save()
+        if type(writefile)~="function" then return false,"writefile unavailable" end
+        ensureFolder()
+
+        local flags={}
+        for _,key in ipairs(flagKeys) do flags[key]=State.Flags[key]==true end
+
+        local bossSelected={}
+        for i,name in ipairs(State.BossSelectedNames or {}) do bossSelected[i]=name end
+
+        local sellSelected={}
+        for name,v in pairs(State.SellSelected or {}) do
+            if v==true then sellSelected[name]=true end
+        end
+
+        local payload={
+            version=1,
+            flags=flags,
+            farmStyle=tostring(State.FarmStyle or "Behind"),
+            sellKeepAmount=tonumber(State.SellKeepAmount) or 1,
+            sellSelected=sellSelected,
+            bossSelected=bossSelected,
+            yetiHeartTarget=tonumber(State.YetiHeartTarget) or 1,
+            playerTargetName=tostring(State.PlayerTargetName or ""),
+            spinTargetClans=tostring(State.SpinTargetClans or ""),
+            spinStopRarity=tostring(State.SpinStopRarity or "Legendary")
+        }
+
+        local ok,json=pcall(HttpService.JSONEncode,HttpService,payload)
+        if not ok then return false,"encode failed" end
+        local wrote=pcall(writefile,path,json)
+        return wrote,wrote and "Config saved" or "Save failed"
+    end
+
+    function Ops.load()
+        if type(readfile)~="function" or type(isfile)~="function" then
+            return false,"readfile unavailable"
+        end
+        local okExists,exists=pcall(isfile,path)
+        if not okExists or not exists then return false,"No saved config" end
+
+        local okRead,raw=pcall(readfile,path)
+        if not okRead or type(raw)~="string" then return false,"Read failed" end
+
+        local okDecode,data=pcall(HttpService.JSONDecode,HttpService,raw)
+        if not okDecode or type(data)~="table" then return false,"Invalid config" end
+
+        if type(data.flags)=="table" then
+            for _,key in ipairs(flagKeys) do
+                if data.flags[key]~=nil then State.Flags[key]=data.flags[key]==true end
+            end
+        end
+
+        if data.farmStyle=="Behind" or data.farmStyle=="Above" or data.farmStyle=="Under" then
+            State.FarmStyle=data.farmStyle
+        end
+
+        State.SellKeepAmount=math.max(0,math.floor(tonumber(data.sellKeepAmount) or 1))
+        if type(data.sellSelected)=="table" then State.SellSelected=data.sellSelected end
+        State.YetiHeartTarget=math.max(1,math.floor(tonumber(data.yetiHeartTarget) or 1))
+        State.PlayerTargetName=tostring(data.playerTargetName or State.PlayerTargetName or "")
+        State.SpinTargetClans=tostring(data.spinTargetClans or State.SpinTargetClans or "")
+        State.SpinStopRarity=tostring(data.spinStopRarity or State.SpinStopRarity or "Legendary")
+
+        if type(data.bossSelected)=="table" and State.BossOps and type(State.BossOps.setSelection)=="function" then
+            State.BossOps.setSelection(table.concat(data.bossSelected,", "))
+        end
+
+        task.defer(function()
+            setNativeToggle(gui,"Auto Skills",State.Flags.AutoSkills==true)
+            setNativeToggle(gui,"Auto Loot Drops",State.Flags.AutoLootDrops==true)
+            setNativeToggle(gui,"Auto Chest Loot",State.Flags.AutoChestLoot==true)
+            setNativeToggle(gui,"Allow loot/chest route to interrupt farm",State.Flags.ChestInterruptFarm==true)
+        end)
+
+        return true,"Config loaded"
+    end
+
+    local left,right=fxColumns(gui,"MISC")
+    local col=right or left
+    if col and State.Runtime and type(State.Runtime.createSection)=="function" then
+        local sec=State.Runtime.createSection(col,"Config")
+        State.Runtime.addButton(sec,"Save Config",function()
+            local _,msg=Ops.save()
+            if State.StatusLabel then State.StatusLabel.Text="STATUS  "..tostring(msg) end
+        end)
+        State.Runtime.addButton(sec,"Load Config",function()
+            local _,msg=Ops.load()
+            if State.StatusLabel then State.StatusLabel.Text="STATUS  "..tostring(msg) end
+        end)
+    end
+end
+
 local function installRestoredFeatures(State,gui)
     if not State or not gui then return end
     State.Flags=State.Flags or {}
