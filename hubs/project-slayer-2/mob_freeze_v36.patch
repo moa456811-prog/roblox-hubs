@@ -1,0 +1,81 @@
+--- base-v35
++++ base-v36
+@@ -6578,8 +6578,7 @@
+ end
+ 
+ State.MobLockOps.expectedName = function()
+-    if State.Flags.AutoDungeon and State.DungeonOps and State.DungeonOps.inRun()
+-        and aliveModel(State.CurrentTarget) then return State.CurrentTarget.Name end
++    if State.DungeonOps and State.DungeonOps.inRun() then return "" end
+     if State.Flags.AutoBoss then
+         local boss=State.BossOps.acquire(false)
+         if boss then return boss.Name end
+@@ -6652,9 +6651,9 @@
+     local spread=slot==1 and 0 or Config.BringSpread
+     local angle=((slot-1)/maxSlots)*math.pi*2
+     local pos=base.Position+Vector3.new(math.cos(angle)*spread,0,math.sin(angle)*spread)
+-    local face=Vector3.new(playerRoot.Position.X,pos.Y,playerRoot.Position.Z)
+-    if (face-pos).Magnitude<0.1 then face=pos+Vector3.new(0,0,-1) end
+-    return CFrame.lookAt(pos,face)
++    local away=pos-Vector3.new(playerRoot.Position.X,pos.Y,playerRoot.Position.Z)
++    if away.Magnitude<0.1 then away=Vector3.new(0,0,-1) end
++    return CFrame.lookAt(pos,pos+away.Unit)
+ end
+ 
+ State.MobLockOps.attachConstraints = function(entry)
+@@ -6754,22 +6753,27 @@
+     local root=modelRoot(model)
+     if not root or root~=entry.Root then State.MobLockOps.release(model,false) return false end
+ 
++    if not State.MobLockOps.owns(root) then return false end
++    -- Refresh facing when the player moves, without moving the stored anchor.
++    local _,_,playerRoot=getCharacter()
++    if playerRoot then
++        local point=entry.Anchor.Position
++        local away=point-Vector3.new(playerRoot.Position.X,point.Y,playerRoot.Position.Z)
++        if away.Magnitude>0.1 then entry.Anchor=CFrame.lookAt(point,point+away.Unit) end
++    end
+     -- Mob only: this function never changes LocalPlayer's humanoid/root.
+     State.MobLockOps.attachConstraints(entry)
+     State.MobLockOps.removeKnockback(root)
+ 
+     local errorDistance=(root.Position-entry.Anchor.Position).Magnitude
+-    if errorDistance>Config.MobLockPositionTolerance then
+-        pcall(function()
+-            root.CFrame=entry.Anchor
+-            root.AssemblyLinearVelocity=Vector3.zero
+-            root.AssemblyAngularVelocity=Vector3.zero
+-        end)
+-    end
++    pcall(function()
++        root.AssemblyLinearVelocity=Vector3.zero
++        root.AssemblyAngularVelocity=Vector3.zero
++        if errorDistance>Config.MobLockPositionTolerance then root.CFrame=entry.Anchor end
++    end)
+ 
+     local hum=entry.Humanoid
+-    if hum and hum.Parent
+-        and (hum.WalkSpeed~=0 or hum.JumpPower~=0 or hum.JumpHeight~=0 or hum.AutoRotate~=false) then
++    if hum and hum.Parent then
+         pcall(function()
+             hum.WalkSpeed=0
+             hum.JumpPower=0
+@@ -6800,16 +6804,16 @@
+         local boss=State.BossOps.acquire(false)
+         list=boss and {boss} or {}
+     else
+-        list=collectHostiles(expected,false)
++        list=collectHostiles(expected,State.DungeonOps and State.DungeonOps.inRun() or false)
+     end
+     local out={}
+     for _,model in ipairs(list) do
+-        if #out>=Config.BringMaxMobs then break end
+         if distanceTo(model)<=Config.BringRadius and State.MobLockOps.matches(model,expected) then
+             table.insert(out,model)
+         end
+     end
+     table.sort(out,function(a,b) return distanceTo(a)<distanceTo(b) end)
++    while #out>math.max(1,Config.BringMaxMobs) do table.remove(out) end
+     State.MobLockCandidates=out
+     return out
+ end
