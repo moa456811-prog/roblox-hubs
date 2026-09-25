@@ -1,0 +1,263 @@
+--- base-v29
++++ base-v30
+@@ -7206,9 +7206,15 @@
+         if State.Flags.AutoDungeonClear and type(State.DungeonOps.autoClearTarget)=="function" then
+             dungeonTarget=State.DungeonOps.autoClearTarget()
+         else
+-            refreshNPCRegistry()
+-            dungeonTarget=chooseNearest(collectHostiles("",true))
+-        end
++            if aliveModel(State.DungeonCombatTarget)
++                and State.DungeonCombatTarget:IsDescendantOf(workspace) then
++                dungeonTarget=State.DungeonCombatTarget
++            else
++                refreshNPCRegistry()
++                dungeonTarget=chooseNearest(collectHostiles("",true))
++            end
++        end
++        State.DungeonCombatTarget=dungeonTarget
+         if dungeonTarget then
+             State.DungeonStatus="Ouwigahara | fighting "..dungeonTarget.Name
+             return dungeonTarget,"Dungeon"
+@@ -8979,13 +8985,17 @@
+     State.DungeonResumeQueued=ok
+     return ok
+ end
++-- V30: only inspect visible game UI; never interact with A7DEV controls.
+ State.DungeonOps.guiVisible=function(obj)
++    if not obj or not obj:IsDescendantOf(PlayerGui) then return false end
+     local p=obj
+     while p and p~=PlayerGui do
+-        if p:IsA("GuiObject") and p.Visible==false then return false end
++        if string.find(lower(p.Name),"a7dev",1,true) then return false end
++        if p:IsA("ScreenGui") and not p.Enabled then return false end
++        if p:IsA("GuiObject") and not p.Visible then return false end
+         p=p.Parent
+     end
+-    return true
++    return p==PlayerGui
+ end
+ State.DungeonOps.buttonText=function(button,parentDepth)
+     local out={tostring(button.Name or "")}
+@@ -9004,11 +9014,33 @@
+     end
+     return lower(table.concat(out," "))
+ end
++State.DungeonOps.clickAttempts=setmetatable({}, {__mode="k"})
+ State.DungeonOps.clickButton=function(button)
+-    if not button or not button.Parent or not State.DungeonOps.guiVisible(button) then return false end
+-    if type(firesignal)=="function" then
+-        if pcall(firesignal,button.Activated) then return true end
+-        if pcall(firesignal,button.MouseButton1Click) then return true end
++    if not button or not button:IsA("GuiButton") or not State.DungeonOps.guiVisible(button) then return false end
++    if button.AbsoluteSize.X<=0 or button.AbsoluteSize.Y<=0 then return false end
++    local canRead,interactable=pcall(function() return button.Interactable end)
++    if canRead and interactable==false then return false end
++    -- Prefer the event which actually has a Lua listener. A successful
++    -- firesignal call on an unconnected event is not a successful click.
++    if type(getconnections)=="function" and type(firesignal)=="function" then
++        for _,signal in ipairs({button.Activated,button.MouseButton1Click,button.MouseButton1Down}) do
++            local ok,list=pcall(getconnections,signal)
++            if ok and type(list)=="table" then
++                for _,connection in ipairs(list) do
++                    local readable,enabled=pcall(function() return connection.Enabled end)
++                    if not readable or enabled~=false then
++                        if pcall(firesignal,signal) then return true end
++                    end
++                end
++            end
++        end
++    end
++    -- Alternate bounded callers' retries when listener inspection is unavailable.
++    local attempt=(State.DungeonOps.clickAttempts[button] or 0)+1
++    State.DungeonOps.clickAttempts[button]=attempt
++    if type(firesignal)=="function" and attempt%3~=0 then
++        local signal=attempt%3==1 and button.Activated or button.MouseButton1Click
++        if pcall(firesignal,signal) then return true end
+     end
+     return pcall(function()
+         local vim=game:GetService("VirtualInputManager")
+@@ -9028,55 +9060,123 @@
+     end
+     return nil
+ end
++State.DungeonOps.context=function(button)
++    local names={}
++    local p=button.Parent
++    for _=1,5 do
++        if not p or p==PlayerGui then break end
++        names[#names+1]=lower(p.Name)
++        p=p.Parent
++    end
++    return table.concat(names," ")
++end
++State.DungeonOps.actionText=function(button)
++    local text=button:IsA("TextButton") and button.Text or ""
++    if trim(text)=="" then
++        for _,child in ipairs(button:GetDescendants()) do
++            if child:IsA("TextLabel") and trim(child.Text)~="" then text=child.Text break end
++        end
++    end
++    if trim(text)=="" then text=button.Name end
++    return trim(lower(text):gsub("<[^>]+>","")):gsub("%s+"," ")
++end
++State.DungeonOps.isCardCandidate=function(button)
++    local action=State.DungeonOps.actionText(button)
++    -- Exclude paid actions and navigation even inside a reward panel.
++    for _,word in ipairs({"reroll","buy","purchase","robux","skip","close","cancel","back","continue"}) do
++        if string.find(action,word,1,true) then return false end
++    end
++    local context=State.DungeonOps.context(button)
++    return string.find(context,"card",1,true)~=nil
++        or string.find(context,"reward",1,true)~=nil
++        or string.find(context,"draft",1,true)~=nil
++end
+ State.DungeonOps.cardPickTick=function()
+     if State.Flags.AutoDungeonCards~=true or not State.DungeonOps.inRun() then return false end
+     local now=os.clock()
+-    if now-(State.DungeonLastCardPick or 0)<Config.DungeonCardPickDelay then return false end
++    if now-(State.DungeonLastCardPick or 0)<1 then return State.DungeonCardPending~=nil end
++    local pending=State.DungeonCardPending
++    if pending and (not pending.Parent or not State.DungeonOps.guiVisible(pending)) then
++        State.DungeonCardPending=nil
++        State.DungeonCardRetries=0
++        State.DungeonStatus="Ouwigahara | card panel closed"
++    end
+     local priorities=splitCSV(State.DungeonCardPriority)
+     local best,bestText,bestScore
+     for _,obj in ipairs(PlayerGui:GetDescendants()) do
+-        if obj:IsA("GuiButton") and State.DungeonOps.guiVisible(obj) then
+-            local direct=State.DungeonOps.buttonText(obj,0)
+-            local text=State.DungeonOps.buttonText(obj,1)
+-            local parentName=lower(obj.Parent and obj.Parent.Name or "")
+-            local context=string.find(lower(obj.Name),"card",1,true) or string.find(parentName,"card",1,true)
+-                or string.find(parentName,"reward",1,true) or string.find(parentName,"pick",1,true)
+-            local score
++        if obj:IsA("GuiButton") and State.DungeonOps.guiVisible(obj)
++            and State.DungeonOps.isCardCandidate(obj) then
++            local text=State.DungeonOps.buttonText(obj,2)
++            local score=0
+             for index,token in ipairs(priorities) do
+-                if string.find(text,token,1,true) then score=2000-index*20 break end
+-            end
+-            if context and score==nil then score=200 end
+-            if score then
+-                if string.find(text,"supreme",1,true) then score=score+70
+-                elseif string.find(text,"mythic",1,true) then score=score+60
+-                elseif string.find(text,"legendary",1,true) then score=score+50
+-                elseif string.find(text,"rare",1,true) then score=score+30 end
+-                local actionOnly=trim(direct)
+-                if (actionOnly=="close" or actionOnly=="back" or actionOnly=="skip" or actionOnly=="continue") and not context then score=nil end
+-                if actionOnly=="reroll" and not context then score=nil end
+-            end
+-            if score and (bestScore==nil or score>bestScore) then best,bestText,bestScore=obj,text,score end
+-        end
+-    end
+-    if not best then return false end
+-    local signature=best:GetFullName().."|"..tostring(bestText)
+-    if signature==State.DungeonLastCardSignature and now-(State.DungeonLastCardPick or 0)<2 then return false end
+-    if State.DungeonOps.clickButton(best) then
+-        State.DungeonLastCardPick=now
+-        State.DungeonLastCardSignature=signature
+-        State.DungeonStatus="Ouwigahara | reward card picked"
+-        return true
+-    end
+-    return false
++                if string.find(text,lower(token),1,true) then score=2000-index*20 break end
++            end
++            if not best or score>bestScore then best,bestText,bestScore=obj,text,score end
++        end
++    end
++    if not best then
++        State.DungeonCardPending=nil
++        State.DungeonCardRetries=0
++        return false
++    end
++    local signature=best:GetFullName().."|"..bestText
++    if signature~=State.DungeonLastCardSignature or best~=State.DungeonCardPending then
++        State.DungeonCardRetries=0
++    end
++    State.DungeonLastCardSignature=signature
++    State.DungeonCardPending=best
++    State.DungeonLastCardPick=now
++    if (State.DungeonCardRetries or 0)>=3 then
++        State.DungeonStatus="Card selection needs a manual click"
++        return true -- Do not skip an unresolved card selection.
++    end
++    State.DungeonCardRetries=(State.DungeonCardRetries or 0)+1
++    State.DungeonOps.clickButton(best)
++    State.DungeonStatus="Ouwigahara | card selection requested"
++    return true
++end
++State.Flags.AutoDungeonSkip=false
++State.DungeonOps.isSkipButton=function(button)
++    local action=State.DungeonOps.actionText(button)
++    action=trim(action:gsub("%s*%(%d+%s*/%s*%d+%)", ""):gsub("%s*%[%d+%s*/%s*%d+%]", ""))
++    local context=State.DungeonOps.context(button)
++    if string.find(context,"card",1,true) or string.find(context,"reward",1,true) then return false end
++    local named=action=="skip wave" or action=="next wave" or action=="start wave"
++        or action=="skip intermission" or action=="vote skip" or action=="vote to skip"
++        or action=="start next wave"
++    local waveContext=string.find(context,"wave",1,true)
++        or string.find(context,"intermission",1,true) or string.find(context,"ouwigahara",1,true)
++    return named or (waveContext~=nil and (action=="skip" or action=="ready"))
++end
++State.DungeonOps.skipWaveTick=function()
++    if State.Flags.AutoDungeonSkip~=true or not State.DungeonOps.inRun() then return end
++    local now=os.clock()
++    if now-(State.DungeonLastSkip or 0)<1.25 then return end
++    State.DungeonLastSkip=now
++    local button,text=State.DungeonOps.findButton(function(obj)
++        return State.DungeonOps.isSkipButton(obj)
++    end,0)
++    if not button then State.DungeonSkipButton=nil;State.DungeonSkipRetries=0;return end
++    if button~=State.DungeonSkipButton or text~=State.DungeonSkipSignature then
++        State.DungeonSkipButton=button;State.DungeonSkipSignature=text;State.DungeonSkipRetries=0
++    end
++    if (State.DungeonSkipRetries or 0)>=3 then return end
++    State.DungeonSkipRetries=(State.DungeonSkipRetries or 0)+1
++    if State.DungeonOps.clickButton(button) then
++        State.DungeonStatus="Ouwigahara | next wave vote requested"
++    end
+ end
+ State.DungeonOps.tick=function()
+     if State.Destroyed then return end
+     if State.DungeonOps.inRun() then
+         if State.Flags.AutoDungeon then
+             State.DungeonOps.queueResume()
++            State.Flags.AutoAttack=true
++            State.Flags.AutoEquip=true
+             State.DungeonStatus="Ouwigahara | auto clear active"
+         end
+-        if State.Flags.AutoDungeonCards then State.DungeonOps.cardPickTick() end
++        local choosing=State.Flags.AutoDungeonCards and State.DungeonOps.cardPickTick()
++        if not choosing then State.DungeonOps.skipWaveTick() end
+         return
+     end
+     if State.Flags.AutoDungeon~=true then return end
+@@ -12484,6 +12584,10 @@
+             State.Flags.AutoDungeonClear=v
+             State.DungeonAutoClearTarget=nil
+             State.DungeonAutoClearStatus=v and "Auto Clear enabled" or "Idle"
++            if v then
++                State.Flags.AutoDungeon=true
++                State.DungeonOps.setResume(true)
++            end
+             State.FarmPlanTarget=nil
+             State.FarmPlanSource=nil
+             State.FarmPlannerForce=true
+@@ -12508,6 +12612,14 @@
+             State.Flags.AutoDungeonCards=v
+             State.DungeonLastCardPick=0
+             State.DungeonLastCardSignature=""
++            State.DungeonCardPending=nil
++            State.DungeonCardRetries=0
++        end)
++        State.Runtime.addToggle(dungeonSoul,"Auto Skip Wave",false,function(v)
++            State.Flags.AutoDungeonSkip=v==true
++            State.DungeonLastSkip=0
++            State.DungeonSkipButton=nil
++            State.DungeonSkipRetries=0
+         end)
+         State.Runtime.addInput(dungeonSoul,"Card priority",State.DungeonCardPriority,function(text)
+             State.DungeonCardPriority=trim(text)
