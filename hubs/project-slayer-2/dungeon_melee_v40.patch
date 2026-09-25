@@ -1,0 +1,52 @@
+--- base-v39
++++ base-v40
+@@ -477,7 +477,8 @@
+     DungeonTeleportRetry = 5.0,
+     DungeonCardPickDelay = 0.75,
+     DungeonAutoClearBossPriority = true,
+-    DungeonAboveHeight = 7,
++    DungeonAboveHeight = 3,
++    DungeonAboveBackOffset = 2.5,
+     DungeonAboveMoveInterval = 0.08,
+     DungeonSafeHeight = 9,
+     DungeonSafeBossBonus = 2,
+@@ -3190,6 +3191,7 @@
+     h.Root = nil
+     h.Humanoid = nil
+     h.Target = nil
++    h.Approach = nil
+     h.LastTouch = nil
+ end
+ State.DungeonHover.enabled = function()
+@@ -3240,10 +3242,19 @@
+     if not changed and now < (h.NextUpdate or 0) then return true end
+     h.NextUpdate = now + Config.DungeonAboveMoveInterval
+     h.Target = model
++    -- Stay within the native forward melee volume, facing the target.
++    -- Cache approach per target so enemy turns cannot orbit the player.
++    if changed or not h.Approach then
++        local flat = (root.Position - targetRoot.Position) * Vector3.new(1, 0, 1)
++        if flat.Magnitude < 0.1 then
++            flat = targetRoot.CFrame.LookVector * Vector3.new(-1, 0, -1)
++        end
++        if flat.Magnitude < 0.1 then flat = Vector3.new(0, 0, 1) end
++        h.Approach = flat.Unit
++    end
+     local goal = targetRoot.Position + Vector3.new(0, Config.DungeonAboveHeight, 0)
+-    local facing = targetRoot.CFrame.LookVector * Vector3.new(1, 0, 1)
+-    if facing.Magnitude < 0.1 then facing = Vector3.new(0, 0, -1) end
+-    local pose = CFrame.lookAt(goal, goal + facing.Unit)
++        + h.Approach * Config.DungeonAboveBackOffset
++    local pose = CFrame.lookAt(goal, goal - h.Approach)
+     h.Position.MaxForce = math.max(10000, root.AssemblyMass * (workspace.Gravity + 500) * 10)
+     if changed or (h.Position.Position - goal).Magnitude > 0.25 then
+         h.Position.Position = goal
+@@ -12750,7 +12761,7 @@
+             end
+         end)
+         State.Runtime.addInfo(dungeonSoul,"Auto Clear: locks one mob until death, then switches instantly")
+-        State.Runtime.addInfo(dungeonSoul,"Combat position: steady hover above target | automatic in dungeon")
++        State.Runtime.addInfo(dungeonSoul,"Combat position: low hover facing target | automatic in dungeon")
+         State.Runtime.addToggle(dungeonSoul,"Auto Pick Dungeon Cards",State.Flags.AutoDungeonCards==true,function(v)
+             State.Flags.AutoDungeonCards=v
+             State.DungeonLastCardPick=0
