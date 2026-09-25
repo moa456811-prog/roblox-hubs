@@ -1,0 +1,74 @@
+--- base-v40
++++ base-v41
+@@ -477,7 +477,7 @@
+     DungeonTeleportRetry = 5.0,
+     DungeonCardPickDelay = 0.75,
+     DungeonAutoClearBossPriority = true,
+-    DungeonAboveHeight = 3,
++    DungeonAboveHeight = 7,
+     DungeonAboveBackOffset = 2.5,
+     DungeonAboveMoveInterval = 0.08,
+     DungeonSafeHeight = 9,
+@@ -3178,8 +3178,39 @@
+ 
+ -- One reusable player constraint; the existing heartbeat owns its lifetime.
+ State.DungeonHover = {}
++-- Local target geometry only; server damage validation remains authoritative.
++State.DungeonHover.restoreHitbox = function()
++    local h = State.DungeonHover
++    local entry = h.Hitbox
++    h.Hitbox = nil
++    if not entry then return end
++    pcall(function()
++        local part = entry.Root
++        if part.Size == entry.AppliedSize then part.Size = entry.Size end
++        if part.CanCollide == false then part.CanCollide = entry.CanCollide end
++        if part.Massless == true then part.Massless = entry.Massless end
++    end)
++end
++State.DungeonHover.applyHitbox = function(model, part)
++    local h = State.DungeonHover
++    if h.Hitbox and h.Hitbox.Root == part then return end
++    h.restoreHitbox()
++    if not aliveModel(model) or isPlayerCharacter(model)
++        or not part or not part.Parent or not part:IsA("BasePart") then return end
++    local size = part.Size
++    local entry = {Root=part,Size=size,CanCollide=part.CanCollide,Massless=part.Massless,
++        AppliedSize=Vector3.new(math.max(size.X,10),math.max(size.Y,14),math.max(size.Z,10))}
++    h.Hitbox = entry
++    local ok = pcall(function()
++        part.CanCollide = false
++        part.Massless = true
++        part.Size = entry.AppliedSize
++    end)
++    if not ok then h.restoreHitbox() end
++end
+ State.DungeonHover.stop = function()
+     local h = State.DungeonHover
++    h.restoreHitbox()
+     for _, key in ipairs({"Position", "Orientation", "Attachment"}) do
+         local object = h[key]
+         h[key] = nil
+@@ -3238,11 +3269,12 @@
+         hum.AutoRotate = false
+     end
+     h.LastTouch = now
++    h.applyHitbox(model, targetRoot)
+     local changed = h.Target ~= model
+     if not changed and now < (h.NextUpdate or 0) then return true end
+     h.NextUpdate = now + Config.DungeonAboveMoveInterval
+     h.Target = model
+-    -- Stay within the native forward melee volume, facing the target.
++    -- Keep the player facing the current target.
+     -- Cache approach per target so enemy turns cannot orbit the player.
+     if changed or not h.Approach then
+         local flat = (root.Position - targetRoot.Position) * Vector3.new(1, 0, 1)
+@@ -12761,7 +12793,7 @@
+             end
+         end)
+         State.Runtime.addInfo(dungeonSoul,"Auto Clear: locks one mob until death, then switches instantly")
+-        State.Runtime.addInfo(dungeonSoul,"Combat position: low hover facing target | automatic in dungeon")
++        State.Runtime.addInfo(dungeonSoul,"Combat: 7-stud hover | enlarged local target hitbox")
+         State.Runtime.addToggle(dungeonSoul,"Auto Pick Dungeon Cards",State.Flags.AutoDungeonCards==true,function(v)
+             State.Flags.AutoDungeonCards=v
+             State.DungeonLastCardPick=0
