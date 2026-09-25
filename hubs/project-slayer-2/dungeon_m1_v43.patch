@@ -1,0 +1,48 @@
+--- base-v42
++++ base-v43
+@@ -2144,6 +2144,7 @@
+     local combo = Native.ComboValue.Value
+     local maxCombo = tonumber(preset.Max) or 5
+ 
++    if State.DungeonHover and not State.DungeonHover.prepareAttack() then return false end
+     local ok, result = pcall(Native.MainCombat.Do, Native.ComboValue, preset, combatName, altName)
+     if not ok then
+         return false
+@@ -3266,6 +3267,29 @@
+         root.AssemblyAngularVelocity = Vector3.zero
+         root.CFrame = pose
+     end
++    return true
++end
++-- Gate both attack paths during positioning; never spend a combo facing away.
++State.DungeonHover.prepareAttack = function()
++    local h = State.DungeonHover
++    if not h.Root or not h.enabled() then return true end
++    local _, hum, root = getCharacter()
++    local target = h.Target
++    local targetRoot = target and modelRoot(target)
++    if root ~= h.Root or not hum or hum.Health <= 0 or not targetRoot
++        or not aliveModel(target) or State.CurrentTarget ~= target then return false end
++    local goal = targetRoot.Position + Vector3.new(0, Config.DungeonAboveHeight, 0)
++        + h.Approach * Config.DungeonAboveBackOffset
++    local aim = targetRoot.Position - root.Position
++    if aim.Magnitude < 0.1 then return false end
++    -- Aim from the actual position, including small tracking errors.
++    h.Orientation.CFrame = CFrame.lookAt(root.Position, targetRoot.Position)
++    if (root.Position - goal).Magnitude > 1.25
++        or root.CFrame.LookVector:Dot(aim.Unit) < 0.96 then return false end
++    -- Native melee uses horizontal velocity as its direction above a threshold.
++    -- Brake only at attack time, once settled, so it uses the downward aim.
++    root.AssemblyLinearVelocity = Vector3.zero
++    root.AssemblyAngularVelocity = Vector3.zero
+     return true
+ end
+ State.DungeonHover.check = function(now)
+@@ -9535,6 +9559,7 @@
+     if now - (State.SmartFarmLastFallbackAttack or 0) < Config.FarmFallbackAttackDelay then
+         return false
+     end
++    if State.DungeonHover and not State.DungeonHover.prepareAttack() then return false end
+     State.SmartFarmLastFallbackAttack = now
+ 
+     if State.Flags.AutoEquip ~= false then
