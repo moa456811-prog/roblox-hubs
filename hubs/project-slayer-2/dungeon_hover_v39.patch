@@ -1,0 +1,200 @@
+--- base-v38
++++ base-v39
+@@ -3175,6 +3175,99 @@
+     end
+ end
+ 
++-- One reusable player constraint; the existing heartbeat owns its lifetime.
++State.DungeonHover = {}
++State.DungeonHover.stop = function()
++    local h = State.DungeonHover
++    for _, key in ipairs({"Position", "Orientation", "Attachment"}) do
++        local object = h[key]
++        h[key] = nil
++        if object then pcall(function() object:Destroy() end) end
++    end
++    if h.Humanoid and h.Humanoid.Parent then
++        h.Humanoid.AutoRotate = h.AutoRotate
++    end
++    h.Root = nil
++    h.Humanoid = nil
++    h.Target = nil
++    h.LastTouch = nil
++end
++State.DungeonHover.enabled = function()
++    return not State.Destroyed and not State.Flags.Fly and not State.Flags.AutoBoss
++        and (State.Flags.AutoDungeon or State.Flags.AutoDungeonClear or State.Flags.DungeonKillAura)
++        and State.DungeonOps and State.DungeonOps.inRun()
++end
++State.DungeonHover.update = function(model, targetRoot, hum, root, now)
++    local h = State.DungeonHover
++    if h.Root ~= root or not h.Position or not h.Position.Parent
++        or not h.Orientation or not h.Orientation.Parent
++        or not h.Attachment or not h.Attachment.Parent then
++        h.stop()
++        h.Root = root
++        h.Humanoid = hum
++        h.AutoRotate = hum.AutoRotate
++        local attachment = Instance.new("Attachment")
++        h.Attachment = attachment
++        attachment.Name = "A7DEV_DungeonHoverAttachment"
++        attachment.Parent = root
++        local position = Instance.new("AlignPosition")
++        h.Position = position
++        position.Name = "A7DEV_DungeonHoverPosition"
++        position.Mode = Enum.PositionAlignmentMode.OneAttachment
++        position.Attachment0 = attachment
++        position.ApplyAtCenterOfMass = true
++        position.RigidityEnabled = false
++        position.ReactionForceEnabled = false
++        position.MaxVelocity = 45
++        position.Responsiveness = 65
++        position.Position = root.Position
++        position.Parent = root
++        local orientation = Instance.new("AlignOrientation")
++        h.Orientation = orientation
++        orientation.Name = "A7DEV_DungeonHoverOrientation"
++        orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
++        orientation.Attachment0 = attachment
++        orientation.RigidityEnabled = false
++        orientation.MaxTorque = 1000000
++        orientation.MaxAngularVelocity = 20
++        orientation.Responsiveness = 45
++        orientation.CFrame = root.CFrame
++        orientation.Parent = root
++        hum.AutoRotate = false
++    end
++    h.LastTouch = now
++    local changed = h.Target ~= model
++    if not changed and now < (h.NextUpdate or 0) then return true end
++    h.NextUpdate = now + Config.DungeonAboveMoveInterval
++    h.Target = model
++    local goal = targetRoot.Position + Vector3.new(0, Config.DungeonAboveHeight, 0)
++    local facing = targetRoot.CFrame.LookVector * Vector3.new(1, 0, 1)
++    if facing.Magnitude < 0.1 then facing = Vector3.new(0, 0, -1) end
++    local pose = CFrame.lookAt(goal, goal + facing.Unit)
++    h.Position.MaxForce = math.max(10000, root.AssemblyMass * (workspace.Gravity + 500) * 10)
++    if changed or (h.Position.Position - goal).Magnitude > 0.25 then
++        h.Position.Position = goal
++        h.Orientation.CFrame = pose
++    end
++    -- Enter once; moving mobs are followed by the constraint, never a CFrame loop.
++    if changed and (root.Position - goal).Magnitude > 12 then
++        root.AssemblyLinearVelocity = Vector3.zero
++        root.AssemblyAngularVelocity = Vector3.zero
++        root.CFrame = pose
++    end
++    return true
++end
++State.DungeonHover.check = function(now)
++    local h = State.DungeonHover
++    if not h.Root then return end
++    local _, hum, root = getCharacter()
++    if not h.enabled() or root ~= h.Root or not hum or hum.Health <= 0
++        or not h.Target or not aliveModel(h.Target)
++        or now - (h.LastTouch or 0) > 0.3 then
++        h.stop()
++    end
++end
++
+ local function moveToTarget(model)
+     if not model or not model.Parent then
+         return false
+@@ -3185,29 +3278,13 @@
+         return false
+     end
+ 
+-    -- Dungeon positioning shares the combat loop; no extra scan or connection.
+-    local dungeonAbove = State.Flags.AutoBoss ~= true
+-        and (State.Flags.AutoDungeon or State.Flags.AutoDungeonClear or State.Flags.DungeonKillAura)
+-        and State.DungeonOps and State.DungeonOps.inRun()
+-    local now = os.clock()
+-    if dungeonAbove then
+-        if State.DungeonAboveTarget == model and State.DungeonAboveRoot == root
+-            and now < (State.DungeonAboveNextMove or 0) then
+-            return true
+-        end
+-        State.DungeonAboveTarget = model
+-        State.DungeonAboveRoot = root
+-        State.DungeonAboveNextMove = now + Config.DungeonAboveMoveInterval
+-    else
+-        State.DungeonAboveTarget = nil
+-        State.DungeonAboveRoot = nil
+-        State.DungeonAboveNextMove = nil
+-    end
++    if State.DungeonHover.enabled() then
++        return State.DungeonHover.update(model, targetRoot, hum, root, os.clock())
++    end
++    if State.DungeonHover.Root then State.DungeonHover.stop() end
+ 
+     local offset
+-    if dungeonAbove then
+-        offset = Vector3.new(0, Config.DungeonAboveHeight, 0)
+-    elseif State.FarmStyle == "Above" then
++    if State.FarmStyle == "Above" then
+         offset = Vector3.new(0, Config.FarmHeight, 0)
+     elseif State.FarmStyle == "Under" then
+         offset = Vector3.new(0, -math.abs(Config.FarmHeight), 0)
+@@ -3247,6 +3324,7 @@
+ end
+ 
+ local function teleportToPosition(pos, yOffset)
++    State.DungeonHover.stop()
+     local character, hum, root = getCharacter()
+     if not character or not hum or hum.Health <= 0 or not root or not pos then
+         return false
+@@ -11158,6 +11236,7 @@
+     local now=os.clock()
+     if now-(State.Runtime.lastMainTick or 0)<Config.RuntimeMainInterval then return end
+     State.Runtime.lastMainTick=now
++    State.DungeonHover.check(now)
+ 
+     if State.Flags.BringFreeze and State.MobLockOps then
+         State.Runtime.safeTick("MobLock",State.MobLockOps.tick)
+@@ -11182,7 +11261,7 @@
+         if hum then hum.WalkSpeed=Config.WalkSpeed end
+     end
+ 
+-    if lowHPSafetyActive() then return end
++    if lowHPSafetyActive() then State.DungeonHover.stop() return end
+     if not State.Flags.AutoBoss and not State.Flags.AutoDungeon
+         and ((State.Flags.AutoMuzanQuest and State.MuzanPriorityActive)
+             or (State.Flags.AutoCrowQuest and State.CrowPriorityActive)
+@@ -11197,10 +11276,12 @@
+     end
+ 
+     if State.SoulOps and State.SoulOps.routeBusy() then
++        State.DungeonHover.stop()
+         setStatus(State.SoulStatus or "Collecting soul...")
+         return
+     end
+     if chestRouteBusy() then
++        State.DungeonHover.stop()
+         setStatus("Loot route: "..tostring(State.ChestRoutePhase or "active"))
+         return
+     end
+@@ -11516,6 +11597,7 @@
+     end
+     pcall(restoreCombatToolbar)
+     State.Destroyed = true
++    State.DungeonHover.stop()
+     safeDisconnect(State.TargetDeathConn)
+     State.TargetDeathConn = nil
+     stopFly()
+@@ -12668,7 +12750,7 @@
+             end
+         end)
+         State.Runtime.addInfo(dungeonSoul,"Auto Clear: locks one mob until death, then switches instantly")
+-        State.Runtime.addInfo(dungeonSoul,"Combat position: 7 studs above the target | automatic in dungeon")
++        State.Runtime.addInfo(dungeonSoul,"Combat position: steady hover above target | automatic in dungeon")
+         State.Runtime.addToggle(dungeonSoul,"Auto Pick Dungeon Cards",State.Flags.AutoDungeonCards==true,function(v)
+             State.Flags.AutoDungeonCards=v
+             State.DungeonLastCardPick=0
+@@ -12975,6 +13057,7 @@
+     end))
+ 
+     track(LocalPlayer.CharacterAdded:Connect(function()
++        State.DungeonHover.stop()
+         safeDisconnect(State.NoclipDescendantConn)
+         State.NoclipDescendantConn = nil
+         State.NoclipCharacter = nil
