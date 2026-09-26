@@ -1206,7 +1206,12 @@ mk("UIStroke", mini, {Color = C.border, Thickness = 1, Transparency = .1})
 local minimized = false
 local function setMinimized(value)
     minimized = value == true
+
+    -- The old behavior only hid the BlackLight root, leaving Main itself
+    -- visible as a large empty black rectangle. Hide the whole A7DEV window
+    -- instead; the restore button is a sibling under the ScreenGui.
     root.Visible = not minimized
+    main.Visible = not minimized
     mini.Visible = minimized
 end
 
