@@ -746,7 +746,7 @@ local function recoverBoss(now)
     local acquired
     if type(ops.acquire) == "function" then
         local ok, value = pcall(ops.acquire, false)
-        if ok and aliveModel(value) then acquired = value end
+        if ok and aliveModel(value) and isWorkspaceDescendant(value) then acquired = value end
     end
     if acquired then
         R.bossNoTargetSince = nil
@@ -765,7 +765,8 @@ local function recoverBoss(now)
 
     task.delay(.45, function()
         if not R.alive or not State.Flags.AutoBoss then return end
-        if aliveModel(State.BossLock) or aliveModel(State.CurrentBoss) then return end
+        if (aliveModel(State.BossLock) and isWorkspaceDescendant(State.BossLock))
+            or (aliveModel(State.CurrentBoss) and isWorkspaceDescendant(State.CurrentBoss)) then return end
         if type(ops.acquire) == "function" then
             safe("Boss reacquire", ops.acquire, true)
         end
