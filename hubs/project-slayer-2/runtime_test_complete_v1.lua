@@ -1113,6 +1113,254 @@ task.spawn(function()
 end)
 
 -- ============================================================================
+-- DUNGEON UI / CARDS: USE ONLY VISIBLE GAME CONTROLS, NEVER A7DEV UI
+-- ============================================================================
+
+local function installDungeonUiRepair()
+    local ops = State.DungeonOps
+    if type(ops) ~= "table" or ops.A7DEV_TEST_UI_REPAIR then return false end
+    ops.A7DEV_TEST_UI_REPAIR = true
+
+    local function trim(value)
+        return tostring(value or ""):match("^%s*(.-)%s*$") or ""
+    end
+
+    local function splitCSV(value)
+        local out = {}
+        for token in tostring(value or ""):gmatch("[^,]+") do
+            token = low(trim(token))
+            if token ~= "" then out[#out + 1] = token end
+        end
+        return out
+    end
+
+    ops.guiVisible = function(object)
+        if not object or not object:IsDescendantOf(PlayerGui) then return false end
+        local p = object
+        while p and p ~= PlayerGui do
+            if string.find(low(p.Name), "a7dev", 1, true) then return false end
+            if p:IsA("ScreenGui") and p.Enabled == false then return false end
+            if p:IsA("GuiObject") and p.Visible == false then return false end
+            p = p.Parent
+        end
+        return p == PlayerGui
+    end
+
+    ops.buttonText = function(button, parentDepth)
+        local out = {tostring(button and button.Name or "")}
+        if button and button:IsA("TextButton") then out[#out + 1] = tostring(button.Text or "") end
+        if button then
+            for _, child in ipairs(button:GetDescendants()) do
+                if child:IsA("TextLabel") and child.Visible then
+                    out[#out + 1] = tostring(child.Text or "")
+                end
+            end
+            local p = button.Parent
+            for _ = 1, tonumber(parentDepth) or 0 do
+                if not p then break end
+                out[#out + 1] = tostring(p.Name or "")
+                p = p.Parent
+            end
+        end
+        return low(table.concat(out, " "))
+    end
+
+    ops.context = function(button)
+        local names = {}
+        local p = button and button.Parent
+        for _ = 1, 5 do
+            if not p or p == PlayerGui then break end
+            names[#names + 1] = low(p.Name)
+            p = p.Parent
+        end
+        return table.concat(names, " ")
+    end
+
+    ops.actionText = function(button)
+        if not button then return "" end
+        local text = button:IsA("TextButton") and button.Text or ""
+        if trim(text) == "" then
+            for _, child in ipairs(button:GetDescendants()) do
+                if child:IsA("TextLabel") and trim(child.Text) ~= "" then
+                    text = child.Text
+                    break
+                end
+            end
+        end
+        if trim(text) == "" then text = button.Name end
+        return trim(low(text):gsub("<[^>]+>", "")):gsub("%s+", " ")
+    end
+
+    ops.clickAttempts = setmetatable({}, {__mode = "k"})
+    ops.clickButton = function(button)
+        if not button or not button:IsA("GuiButton") or not ops.guiVisible(button) then return false end
+        if button.AbsoluteSize.X <= 0 or button.AbsoluteSize.Y <= 0 then return false end
+
+        local readable, interactable = pcall(function() return button.Interactable end)
+        if readable and interactable == false then return false end
+
+        if type(getconnections) == "function" and type(firesignal) == "function" then
+            for _, signal in ipairs({button.Activated, button.MouseButton1Click, button.MouseButton1Down}) do
+                local ok, list = pcall(getconnections, signal)
+                if ok and type(list) == "table" and #list > 0 then
+                    local hasLive = false
+                    for _, connection in ipairs(list) do
+                        local canRead, enabled = pcall(function() return connection.Enabled end)
+                        if not canRead or enabled ~= false then
+                            hasLive = true
+                            break
+                        end
+                    end
+                    if hasLive and pcall(firesignal, signal) then return true end
+                end
+            end
+        end
+
+        local attempt = (ops.clickAttempts[button] or 0) + 1
+        ops.clickAttempts[button] = attempt
+
+        if type(firesignal) == "function" and attempt % 3 ~= 0 then
+            local signal = attempt % 3 == 1 and button.Activated or button.MouseButton1Click
+            if pcall(firesignal, signal) then return true end
+        end
+
+        return pcall(function() button:Activate() end)
+    end
+
+    ops.isCardCandidate = function(button)
+        local action = ops.actionText(button)
+        for _, word in ipairs({"reroll", "buy", "purchase", "robux", "skip", "close", "cancel", "back", "continue"}) do
+            if string.find(action, word, 1, true) then return false end
+        end
+
+        local context = ops.context(button)
+        return string.find(context, "card", 1, true) ~= nil
+            or string.find(context, "reward", 1, true) ~= nil
+            or string.find(context, "draft", 1, true) ~= nil
+    end
+
+    ops.cardPickTick = function()
+        if State.Flags.AutoDungeonCards ~= true or not dungeonInRun() then return false end
+
+        local now = os.clock()
+        if now - (State.DungeonLastCardPick or 0) < 1 then
+            return State.DungeonCardPending ~= nil
+        end
+
+        local pending = State.DungeonCardPending
+        if pending and (not pending.Parent or not ops.guiVisible(pending)) then
+            State.DungeonCardPending = nil
+            State.DungeonCardRetries = 0
+        end
+
+        local priorities = splitCSV(State.DungeonCardPriority)
+        local best, bestText, bestScore
+
+        for _, object in ipairs(PlayerGui:GetDescendants()) do
+            if object:IsA("GuiButton") and ops.guiVisible(object) and ops.isCardCandidate(object) then
+                local text = ops.buttonText(object, 2)
+                local score = 0
+
+                for index, token in ipairs(priorities) do
+                    if string.find(text, token, 1, true) then
+                        score = 2000 - index * 20
+                        break
+                    end
+                end
+
+                if string.find(text, "supreme", 1, true) then score += 70
+                elseif string.find(text, "mythic", 1, true) then score += 60
+                elseif string.find(text, "legendary", 1, true) then score += 50
+                elseif string.find(text, "rare", 1, true) then score += 30 end
+
+                if not best or score > bestScore then
+                    best, bestText, bestScore = object, text, score
+                end
+            end
+        end
+
+        if not best then
+            State.DungeonCardPending = nil
+            State.DungeonCardRetries = 0
+            return false
+        end
+
+        local signature = best:GetFullName() .. "|" .. tostring(bestText)
+        if signature ~= State.DungeonLastCardSignature or best ~= State.DungeonCardPending then
+            State.DungeonCardRetries = 0
+        end
+
+        State.DungeonLastCardSignature = signature
+        State.DungeonCardPending = best
+        State.DungeonLastCardPick = now
+
+        if (State.DungeonCardRetries or 0) >= 3 then
+            State.DungeonStatus = "Card selection needs a manual click"
+            return true
+        end
+
+        State.DungeonCardRetries = (State.DungeonCardRetries or 0) + 1
+        ops.clickButton(best)
+        State.DungeonStatus = "Ouwigahara | card selection requested"
+        return true
+    end
+
+    if type(ops.tick) == "function" then
+        local originalTick = ops.tick
+        ops.A7DEV_TEST_ORIGINAL_TICK = originalTick
+        ops.tick = function(...)
+            if State.Flags.AutoDungeonClear == true then
+                State.Flags.AutoDungeon = true
+            end
+            if dungeonInRun() and (State.Flags.AutoDungeon == true or State.Flags.AutoDungeonClear == true) then
+                State.Flags.AutoAttack = true
+                State.Flags.AutoEquip = true
+            end
+            return originalTick(...)
+        end
+    end
+
+    return true
+end
+
+-- ============================================================================
+-- BRING / FREEZE: APPLY ONLY WITH CONFIRMED LOCAL NETWORK OWNERSHIP
+-- ============================================================================
+
+local function installFreezeOwnershipRepair()
+    local ops = State.MobLockOps
+    if type(ops) ~= "table" or ops.A7DEV_TEST_OWNERSHIP_REPAIR then return false end
+    ops.A7DEV_TEST_OWNERSHIP_REPAIR = true
+
+    ops.owns = function(root)
+        if not root or not root.Parent or not root:IsA("BasePart") then
+            return false, "invalid"
+        end
+        if root.Anchored then return false, "anchored" end
+
+        local fn = ENV.isnetworkowner or isnetworkowner
+        if type(fn) ~= "function" then return nil, "unavailable" end
+
+        local ok, owned = pcall(fn, root)
+        if not ok or type(owned) ~= "boolean" then
+            return nil, "unavailable"
+        end
+        return owned, owned and "owned" or "not_owned"
+    end
+
+    if type(ops.expectedName) == "function" then
+        local originalExpectedName = ops.expectedName
+        ops.A7DEV_TEST_ORIGINAL_EXPECTED_NAME = originalExpectedName
+        ops.expectedName = function(...)
+            if dungeonInRun() then return "" end
+            return originalExpectedName(...)
+        end
+    end
+
+    return true
+end
+
+-- ============================================================================
 -- LOW-FREQUENCY RECOVERY SUPERVISOR
 -- ============================================================================
 
@@ -1126,6 +1374,12 @@ task.spawn(function()
         end
         if not (State.A7DEVExports and State.A7DEVExports.A7DEV_TEST_SKILL_GUARD) then
             installSkillGuard()
+        end
+        if not (State.DungeonOps and State.DungeonOps.A7DEV_TEST_UI_REPAIR) then
+            installDungeonUiRepair()
+        end
+        if not (State.MobLockOps and State.MobLockOps.A7DEV_TEST_OWNERSHIP_REPAIR) then
+            installFreezeOwnershipRepair()
         end
 
         coordinateExclusiveRoutes()
@@ -1147,6 +1401,8 @@ task.delay(.8, function()
     applySafeDefaults()
     installSellRepair()
     installSkillGuard()
+    installDungeonUiRepair()
+    installFreezeOwnershipRepair()
 end)
 
 if gui then
