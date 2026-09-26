@@ -214,14 +214,6 @@ local function LoadSecureSession()
         return HttpService:JSONDecode(readfile(SECURE_SESSION_FILE))
     end)
     if ok and type(data) == "table" and type(data.session) == "string" then
-        if data.permanent == true then
-            secureSession = {
-                session = data.session,
-                expires_at = data.expires_at,
-                permanent = true,
-            }
-            return
-        end
         local expires
         pcall(function()
             expires = data.expires_at and DateTime.fromIsoDate(data.expires_at)
@@ -230,7 +222,7 @@ local function LoadSecureSession()
             secureSession = {
                 session = data.session,
                 expires_at = data.expires_at,
-                permanent = false,
+                permanent = data.permanent == true,
             }
         end
     end
@@ -312,9 +304,6 @@ local function SetAuthEnvironment()
 end
 
 local function GetSessionRemaining()
-    if secureSession and secureSession.permanent == true then
-        return math.huge
-    end
     if not secureSession or type(secureSession.expires_at) ~= "string" then
         return nil
     end
