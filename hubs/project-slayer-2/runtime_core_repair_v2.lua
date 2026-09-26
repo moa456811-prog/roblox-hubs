@@ -505,11 +505,117 @@ local function bossTarget()
     return locked or current
 end
 
+local function clearBossDeathWatch()
+    if R.bossDeathConn then
+        pcall(function() R.bossDeathConn:Disconnect() end)
+        R.bossDeathConn = nil
+    end
+    R.bossDeathWatch = nil
+end
+
+local function watchBossDeath(boss, humanoid)
+    if not boss or not humanoid then return end
+    if R.bossDeathWatch == boss and R.bossDeathConn then return end
+
+    clearBossDeathWatch()
+    R.bossDeathWatch = boss
+
+    R.bossDeathConn = humanoid.Died:Connect(function()
+        if not R.alive then return end
+        R.confirmedBossDead = boss
+        R.confirmedBossDeathAt = os.clock()
+        R.confirmedBossDeathHandled = false
+        State.BossStatus = "Boss defeated | waiting for loot"
+    end)
+end
+
+local function finishConfirmedBossDeath(now)
+    local deadBoss = R.confirmedBossDead
+    local deathAt = R.confirmedBossDeathAt
+
+    if not deadBoss or not deathAt or R.confirmedBossDeathHandled then
+        return false
+    end
+
+    if now - deathAt < 2.5 then
+        State.BossStatus = "Boss defeated | waiting for loot"
+        return true
+    end
+
+    -- If the native Boss pipeline already moved to another living boss,
+    -- this death has already been handled and must not affect the new lock.
+    local lock = State.BossLock
+    local current = State.CurrentBoss
+    if (lock and lock ~= deadBoss and aliveModel(lock))
+        or (current and current ~= deadBoss and aliveModel(current)) then
+        R.confirmedBossDeathHandled = true
+        R.confirmedBossDead = nil
+        R.confirmedBossDeathAt = nil
+        clearBossDeathWatch()
+        return false
+    end
+
+    R.confirmedBossDeathHandled = true
+
+    local ops = State.BossOps
+    if type(ops) == "table" and type(ops.defeated) == "function" then
+        safe("Boss confirmed death", ops.defeated)
+    end
+
+    -- Give the native transition one scheduler turn. Only clear references
+    -- that still point to the exact dead boss; never touch a replacement.
+    task.defer(function()
+        if not R.alive then return end
+
+        if State.BossLock == deadBoss then State.BossLock = nil end
+        if State.CurrentBoss == deadBoss then State.CurrentBoss = nil end
+        if State.CurrentTarget == deadBoss then State.CurrentTarget = nil end
+        if State.FarmPlanTarget == deadBoss then State.FarmPlanTarget = nil end
+
+        State.BossWaiting = false
+        State.BossMissingSince = nil
+        State.FarmPlanSource = nil
+        State.FarmPlannerForce = true
+        State.FarmPlannerLastTick = 0
+        State.BossStatus = "Boss defeated | finding next boss"
+
+        R.bossNoTargetSince = nil
+        R.lastBossRecovery = -math.huge
+        R.confirmedBossDead = nil
+        R.confirmedBossDeathAt = nil
+        clearBossDeathWatch()
+
+        if State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true then
+            task.delay(.15, function()
+                if not R.alive or State.Destroyed then return end
+                if not (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true) then return end
+
+                local bossOps = State.BossOps
+                if type(bossOps) == "table" and type(bossOps.acquire) == "function" then
+                    safe("Boss next acquire", bossOps.acquire, true)
+                end
+            end)
+        end
+    end)
+
+    return true
+end
+
+cleanup(clearBossDeathWatch)
+
 local function recoverBoss(now)
     local f = State.Flags
     local enabled = f.AutoBoss == true or f.AutoAllBoss == true
     if not enabled then
         R.bossNoTargetSince = nil
+        R.confirmedBossDead = nil
+        R.confirmedBossDeathAt = nil
+        R.confirmedBossDeathHandled = nil
+        clearBossDeathWatch()
+        return
+    end
+
+    if finishConfirmedBossDeath(now) then
         return
     end
 
@@ -521,6 +627,8 @@ local function recoverBoss(now)
     local hum = humanoidOf(boss)
 
     if boss and hum and hum.Health > 0 then
+        watchBossDeath(boss, hum)
+
         local position = objectPosition(boss)
         if position then State.BossLastPosition = position end
 
@@ -540,10 +648,17 @@ local function recoverBoss(now)
         return
     end
 
-    -- Health == 0 is a confirmed local death signal. Let the existing base
-    -- perform its configured loot delay / defeated transition.
+    -- Health == 0 is a confirmed local death signal. Keep the existing
+    -- 2.5-second loot window, then force the native defeated transition if
+    -- this exact dead boss is still locked.
     if boss and hum and hum.Health <= 0 then
+        if R.confirmedBossDead ~= boss then
+            R.confirmedBossDead = boss
+            R.confirmedBossDeathAt = now
+            R.confirmedBossDeathHandled = false
+        end
         R.bossNoTargetSince = nil
+        finishConfirmedBossDeath(now)
         return
     end
 
