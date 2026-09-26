@@ -1876,6 +1876,19 @@ local function yetiLootTick(now)
     State.Flags.AutoAttack = true
     State.Flags.AutoEquip = true
 
+    -- Detect the death from the boss we already owned before asking the live
+    -- selector for another target. A dead model no longer passes aliveModel().
+    if y.tracked then
+        local trackedHum = humanoidOf(y.tracked)
+        local trackedPos = objectPosition(y.tracked) or y.lastPos
+        if trackedHum and trackedHum.Health <= 0 and not y.deathAt then
+            y.lastPos = trackedPos
+            y.deathAt = now
+            y.untilAt = now + 8
+            y.beforeHearts = itemAmount("Frozen Heart")
+        end
+    end
+
     local ops = State.YetiOps
     local target = type(ops) == "table" and (ops.target or ops.lastTarget or ops.liveCache) or nil
     if not target and isYetiFamily(State.CurrentBoss) then target = State.CurrentBoss end
@@ -1889,11 +1902,6 @@ local function yetiLootTick(now)
             y.lastPos = position
             y.deathAt = nil
             y.untilAt = 0
-            y.beforeHearts = itemAmount("Frozen Heart")
-        elseif y.tracked == target and hum and hum.Health <= 0 and not y.deathAt then
-            y.lastPos = position
-            y.deathAt = now
-            y.untilAt = now + 8
             y.beforeHearts = itemAmount("Frozen Heart")
         end
     end
@@ -2200,7 +2208,7 @@ local function fishingRecoveryTick(now)
         return
     end
 
-    local text = statusText()
+    local text = low(fp .. " " .. statusText())
     local stuck = string.find(text, "waiting for bite", 1, true)
         or string.find(text, "no bite", 1, true)
         or string.find(text, "waiting bite", 1, true)
