@@ -572,12 +572,9 @@ local function finishConfirmedBossDeath(now)
         if State.CurrentTarget == deadBoss then State.CurrentTarget = nil end
         if State.FarmPlanTarget == deadBoss then State.FarmPlanTarget = nil end
 
-        State.BossWaiting = false
-        State.BossMissingSince = nil
-        State.FarmPlanSource = nil
-        State.FarmPlannerForce = true
-        State.FarmPlannerLastTick = 0
-        State.BossStatus = "Boss defeated | finding next boss"
+        local replacement = aliveModel(State.BossLock) and State.BossLock
+            or (aliveModel(State.CurrentBoss) and State.CurrentBoss)
+            or nil
 
         R.bossNoTargetSince = nil
         R.lastBossRecovery = -math.huge
@@ -585,16 +582,25 @@ local function finishConfirmedBossDeath(now)
         R.confirmedBossDeathAt = nil
         clearBossDeathWatch()
 
-        if State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true then
-            task.delay(.15, function()
-                if not R.alive or State.Destroyed then return end
-                if not (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true) then return end
+        if not replacement then
+            State.BossWaiting = false
+            State.BossMissingSince = nil
+            State.FarmPlanSource = nil
+            State.FarmPlannerForce = true
+            State.FarmPlannerLastTick = 0
+            State.BossStatus = "Boss defeated | finding next boss"
 
-                local bossOps = State.BossOps
-                if type(bossOps) == "table" and type(bossOps.acquire) == "function" then
-                    safe("Boss next acquire", bossOps.acquire, true)
-                end
-            end)
+            if State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true then
+                task.delay(.15, function()
+                    if not R.alive or State.Destroyed then return end
+                    if not (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true) then return end
+
+                    local bossOps = State.BossOps
+                    if type(bossOps) == "table" and type(bossOps.acquire) == "function" then
+                        safe("Boss next acquire", bossOps.acquire, true)
+                    end
+                end)
+            end
         end
     end)
 
