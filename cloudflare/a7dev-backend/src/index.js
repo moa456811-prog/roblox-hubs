@@ -1,6 +1,5 @@
 import { verifyCloudflareSession } from "./session-verifier.js";
 const SESSION_SECONDS = 24 * 60 * 60;
-const PERMANENT_EXPIRES_AT_MS = Date.UTC(9999, 11, 31, 23, 59, 59);
 const authRate = new Map();
 const scriptRate = new Map();
 
@@ -69,9 +68,7 @@ async function sessionKey(env) {
 async function issueSession(env, userId, opts = {}) {
   const expiresAtMs = Number.isFinite(opts.expiresAtMs)
     ? Number(opts.expiresAtMs)
-    : opts.permanent === true
-      ? PERMANENT_EXPIRES_AT_MS
-      : Date.now() + SESSION_SECONDS * 1000;
+    : Date.now() + SESSION_SECONDS * 1000;
 
   const payload = {
     v: 2,
@@ -306,14 +303,14 @@ async function authorize(env, body) {
 
   if (!valid) return json({ ok: false, error: "invalid_or_expired_key" }, 401);
 
-  const issued = await issueSession(env, userId, { admin, permanent: true });
+  const issued = await issueSession(env, userId, { admin });
   return json({
     ok: true,
     session: issued.session,
     expires_at: issued.expires_at,
     session_seconds: issued.session_seconds,
     admin,
-    permanent: true,
+    permanent: false,
   });
 }
 
@@ -325,9 +322,12 @@ async function claimManualGrant(env, body) {
   if (!grant) return json({ ok: false, error: "no_active_manual_grant" }, 404);
 
   const permanent = Number(grant.permanent) === 1;
-  const expiresAtMs = permanent
-    ? PERMANENT_EXPIRES_AT_MS
-    : new Date(String(grant.expires_at)).getTime();
+  const expiresAtMs = permanent || !grant.expires_at
+    ? Date.now() + SESSION_SECONDS * 1000
+    : Math.min(
+        new Date(String(grant.expires_at)).getTime(),
+        Date.now() + SESSION_SECONDS * 1000,
+      );
 
   const issued = await issueSession(env, userId, {
     permanent,
