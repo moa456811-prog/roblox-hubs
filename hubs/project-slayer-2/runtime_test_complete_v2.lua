@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local CollectionService = game:GetService("CollectionService")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local ENV = (getgenv and getgenv()) or _G
@@ -1880,6 +1881,329 @@ local function scanBossRespawnTimer(now)
 end
 
 -- ============================================================================
+-- GLOBAL BOSS INDEX: ALL LOADED BOSSES + CATALOG STREAMING, NO DISTANCE LIMIT
+-- ============================================================================
+
+R.globalBossIndex = R.globalBossIndex or setmetatable({}, {__mode = "k"})
+R.globalBossScanCursor = R.globalBossScanCursor or 1
+R.nextGlobalBossScan = R.nextGlobalBossScan or 0
+R.nextBossCatalogStream = R.nextBossCatalogStream or 0
+
+local function normalizedBossName(value)
+    return low(value):gsub("[^%w]", "")
+end
+
+local function resolveGlobalBossTag(tag)
+    if not tag or not tag.Parent then return nil end
+    if tag:IsA("Model") and aliveModel(tag) and isWorkspaceDescendant(tag) then
+        return tag
+    end
+
+    local parent = tag.Parent
+    if parent then
+        if parent:IsA("Model") and aliveModel(parent) and isWorkspaceDescendant(parent) then
+            return parent
+        end
+        for _, child in ipairs(parent:GetChildren()) do
+            if child:IsA("Model") and aliveModel(child) and isWorkspaceDescendant(child) then
+                return child
+            end
+        end
+    end
+
+    local p = tag
+    for _ = 1, 7 do
+        p = p and p.Parent
+        if not p then break end
+        if p:IsA("Model") and aliveModel(p) and isWorkspaceDescendant(p) then
+            return p
+        end
+    end
+end
+
+local function globalBossAliases(model, tag)
+    local out, seen = {}, {}
+    local function add(value)
+        local text = tostring(value or "")
+        local key = normalizedBossName(text)
+        if key ~= "" and not seen[key] then
+            seen[key] = true
+            out[#out + 1] = text
+        end
+    end
+
+    if model then
+        add(model.Name)
+        for _, attr in ipairs({"Title","NpcCode","NPCCode","DisplayName","BossName","EnemyType"}) do
+            local ok, value = pcall(model.GetAttribute, model, attr)
+            if ok then add(value) end
+        end
+        local childTag = model:FindFirstChild("BossTag", true)
+        if childTag then
+            local ok, value = pcall(childTag.GetAttribute, childTag, "Title")
+            if ok then add(value) end
+        end
+    end
+
+    if tag then
+        add(tag.Name)
+        local ok, value = pcall(tag.GetAttribute, tag, "Title")
+        if ok then add(value) end
+    end
+
+    return out
+end
+
+local function bossModelLooksValid(model)
+    if not model or not model:IsA("Model") or not aliveModel(model)
+        or not isWorkspaceDescendant(model)
+        or Players:GetPlayerFromCharacter(model) then
+        return false
+    end
+
+    if model:GetAttribute("Boss") == true
+        or model:GetAttribute("BossTag") == true
+        or model:GetAttribute("SpawnCountdown") ~= nil then
+        return true
+    end
+
+    local p = model
+    for _ = 1, 6 do
+        if not p then break end
+        local ok, tagged = pcall(CollectionService.HasTag, CollectionService, p, "BossTag")
+        if ok and tagged then return true end
+        p = p.Parent
+    end
+
+    for _, tag in ipairs(CollectionService:GetTagged("BossTag")) do
+        if resolveGlobalBossTag(tag) == model then return true end
+    end
+    return false
+end
+
+local function bossSelectedForGlobalScan(model, tag)
+    local selected = State.BossSelectedNames
+    if type(selected) ~= "table" or #selected == 0 then return true end
+
+    local aliases = globalBossAliases(model, tag)
+    for _, wanted in ipairs(selected) do
+        local wantedKey = normalizedBossName(wanted)
+        if wantedKey ~= "" then
+            for _, alias in ipairs(aliases) do
+                local aliasKey = normalizedBossName(alias)
+                if aliasKey == wantedKey
+                    or string.find(aliasKey, wantedKey, 1, true)
+                    or string.find(wantedKey, aliasKey, 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function bossCoolingForGlobalScan(model, tag, now)
+    for _, alias in ipairs(globalBossAliases(model, tag)) do
+        local untilAt = R.bossRespawnUntil and R.bossRespawnUntil[low(alias)]
+        if untilAt and untilAt > now then return true end
+    end
+    return false
+end
+
+local function addGlobalBoss(model, tag, now)
+    if not model or not bossModelLooksValid(model) then return end
+    if not bossSelectedForGlobalScan(model, tag) then return end
+    if bossCoolingForGlobalScan(model, tag, now) then return end
+    R.globalBossIndex[model] = now
+end
+
+local function refreshGlobalBossIndex(now)
+    -- CollectionService BossTag is the strongest live boss signal.
+    local okTags, tags = pcall(CollectionService.GetTagged, CollectionService, "BossTag")
+    if okTags and type(tags) == "table" then
+        for _, tag in ipairs(tags) do
+            addGlobalBoss(resolveGlobalBossTag(tag), tag, now)
+        end
+    end
+
+    -- Existing runtime registry already indexes active NPCs without distance.
+    if type(State.NPCRegistry) == "table" then
+        for model in pairs(State.NPCRegistry) do
+            if typeof(model) == "Instance" then addGlobalBoss(model, nil, now) end
+        end
+    end
+
+    -- Active humanoids and region ActiveNpcs cover live objects that have not
+    -- reached NPCRegistry yet. These are targeted containers, not workspace-wide scans.
+    local humanoids = workspace:FindFirstChild("Humanoids")
+    if humanoids then
+        for _, model in ipairs(humanoids:GetChildren()) do
+            if model:IsA("Model") then addGlobalBoss(model, nil, now) end
+        end
+    end
+
+    local debree = workspace:FindFirstChild("Debree")
+    local regions = debree and debree:FindFirstChild("Regions")
+    if regions then
+        for _, object in ipairs(regions:GetDescendants()) do
+            if object.Name == "ActiveNpcs" then
+                for _, model in ipairs(object:GetDescendants()) do
+                    if model:IsA("Model") then addGlobalBoss(model, nil, now) end
+                end
+            end
+        end
+    end
+
+    local ops = State.BossOps
+    if type(ops) == "table" and type(ops.filteredList) == "function" then
+        local ok, list = pcall(ops.filteredList)
+        if ok and type(list) == "table" then
+            for _, model in ipairs(list) do addGlobalBoss(model, nil, now) end
+        end
+    end
+
+    for model in pairs(R.globalBossIndex) do
+        if not bossModelLooksValid(model)
+            or not bossSelectedForGlobalScan(model, nil)
+            or bossCoolingForGlobalScan(model, nil, now) then
+            R.globalBossIndex[model] = nil
+        end
+    end
+end
+
+local function chooseGlobalBoss(now)
+    local _, _, root = livingCharacter()
+    local best, bestDistance
+
+    for model in pairs(R.globalBossIndex) do
+        if bossModelLooksValid(model)
+            and bossSelectedForGlobalScan(model, nil)
+            and not bossCoolingForGlobalScan(model, nil, now) then
+            local pos = objectPosition(model)
+            local distance = (root and pos) and (root.Position - pos).Magnitude or 0
+            if not best or distance < bestDistance then
+                best, bestDistance = model, distance
+            end
+        end
+    end
+
+    return best
+end
+
+local function catalogEntrySelected(entry)
+    local selected = State.BossSelectedNames
+    if type(selected) ~= "table" or #selected == 0 then return true end
+    local aliases = {
+        tostring(entry and entry.Name or ""),
+        tostring(entry and entry.Code or ""),
+    }
+    for _, wanted in ipairs(selected) do
+        local wantedKey = normalizedBossName(wanted)
+        for _, alias in ipairs(aliases) do
+            local aliasKey = normalizedBossName(alias)
+            if wantedKey ~= "" and aliasKey ~= ""
+                and (wantedKey == aliasKey
+                    or string.find(aliasKey, wantedKey, 1, true)
+                    or string.find(wantedKey, aliasKey, 1, true)) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function catalogPosition(entry)
+    local value = entry and entry.Position
+    if typeof(value) == "Vector3" then return value end
+    if typeof(value) == "CFrame" then return value.Position end
+    if typeof(value) == "Instance" then return objectPosition(value) end
+end
+
+local function streamBossCatalog(now)
+    if now < R.nextBossCatalogStream then return end
+    R.nextBossCatalogStream = now + .75
+
+    local catalog = State.BossCatalog
+    if type(catalog) ~= "table" or #catalog == 0 then return end
+
+    local streamed = 0
+    local checked = 0
+    local cursor = math.clamp(tonumber(R.globalBossScanCursor) or 1, 1, #catalog)
+
+    while checked < #catalog and streamed < 4 do
+        local entry = catalog[cursor]
+        cursor = cursor % #catalog + 1
+        checked += 1
+
+        if type(entry) == "table" and catalogEntrySelected(entry) then
+            local name = tostring(entry.Name or entry.Code or "")
+            local cooling = R.bossRespawnUntil and R.bossRespawnUntil[low(name)]
+            local pos = catalogPosition(entry)
+            if pos and (not cooling or cooling <= now) then
+                streamed += 1
+                task.spawn(function()
+                    pcall(LocalPlayer.RequestStreamAroundAsync, LocalPlayer, pos, .25)
+                end)
+            end
+        end
+    end
+
+    R.globalBossScanCursor = cursor
+end
+
+local function globalBossScanTick(now)
+    if not (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true) then
+        table.clear(R.globalBossIndex)
+        return false
+    end
+
+    local liveLock = aliveModel(State.BossLock) and isWorkspaceDescendant(State.BossLock)
+    local liveCurrent = aliveModel(State.CurrentBoss) and isWorkspaceDescendant(State.CurrentBoss)
+    if liveLock or liveCurrent then return false end
+
+    if R.confirmedBossDeathAt and not R.confirmedBossDeathHandled
+        and now - R.confirmedBossDeathAt < 2.5 then
+        return false
+    end
+
+    if now < R.nextGlobalBossScan then return false end
+    R.nextGlobalBossScan = now + .45
+
+    refreshGlobalBossIndex(now)
+    local candidate = chooseGlobalBoss(now)
+
+    if candidate then
+        State.BossLock = candidate
+        State.CurrentBoss = candidate
+        State.CurrentTarget = candidate
+        State.FarmPlanTarget = candidate
+        State.FarmPlanSource = "Boss"
+        State.BossLastPosition = objectPosition(candidate) or State.BossLastPosition
+        State.BossWaiting = false
+        State.BossMissingSince = nil
+        State.FarmPlannerForce = true
+        State.FarmPlannerLastTick = 0
+        State.BossStatus = "Global scan: " .. tostring(candidate.Name)
+        R.bossDetachedSince = nil
+        R.bossNoTargetSince = nil
+        return true
+    end
+
+    -- No live loaded boss: stream catalog positions across the whole map
+    -- without moving the player's character.
+    streamBossCatalog(now)
+    return false
+end
+
+track(CollectionService:GetInstanceAddedSignal("BossTag"):Connect(function(tag)
+    task.defer(function()
+        if R.alive and (State.Flags.AutoBoss or State.Flags.AutoAllBoss) then
+            addGlobalBoss(resolveGlobalBossTag(tag), tag, os.clock())
+        end
+    end)
+end))
+
+-- ============================================================================
 -- YETI: STRICT SUMMON PRIORITY + VERIFIED BOSS LOOT WINDOW
 -- ============================================================================
 
@@ -2532,6 +2856,222 @@ local function specialQuestRecoveryTick(now)
 end
 
 -- ============================================================================
+-- CHEST DROP RECOVERY: DELAYED REPLICATION / RETRY WINDOW
+-- ============================================================================
+
+R.chestDropWindow = R.chestDropWindow or {
+    center = nil,
+    untilAt = 0,
+    lastChest = nil,
+    lastOpened = tonumber(State.ChestOpened) or 0,
+    candidates = setmetatable({}, {__mode = "k"}),
+    attempts = setmetatable({}, {__mode = "k"}),
+}
+
+local function dropOwnerAllowed(drop)
+    if not drop or not drop.Parent then return false end
+
+    local claimed = drop:GetAttribute("DropClaimedBy")
+    if claimed ~= nil and claimed ~= false and claimed ~= 0 and tostring(claimed) ~= "" then
+        return false
+    end
+
+    local owner = drop:GetAttribute("DropOwnerUserId")
+    if owner ~= nil and tostring(owner) ~= "" then
+        local ownerId = tonumber(owner)
+        if ownerId and ownerId ~= LocalPlayer.UserId then return false end
+    end
+
+    local reserved = drop:GetAttribute("DropReservedFor")
+    if typeof(reserved) == "string" and reserved:gsub("%s+", "") ~= "" then
+        local normalized = "," .. reserved:gsub("%s+", ""):gsub("^,+", ""):gsub(",+$", "") .. ","
+        if not string.find(normalized, "," .. tostring(LocalPlayer.UserId) .. ",", 1, true) then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function lootPromptContext(prompt)
+    local pieces = {
+        tostring(prompt and prompt.Name or ""),
+        tostring(prompt and prompt.ActionText or ""),
+        tostring(prompt and prompt.ObjectText or ""),
+    }
+    local p = prompt and prompt.Parent
+    for _ = 1, 4 do
+        if not p or p == workspace then break end
+        pieces[#pieces + 1] = tostring(p.Name or "")
+        p = p.Parent
+    end
+    return low(table.concat(pieces, " "))
+end
+
+local function strictChestDropCandidate(drop)
+    if not drop or not drop.Parent then return false end
+    if not dropOwnerAllowed(drop) then return false end
+
+    local prompt = drop:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if not prompt or not prompt.Enabled then return false end
+
+    local context = lootPromptContext(prompt)
+    for _, bad in ipairs({"shop","merchant","vendor","buy","sell","talk","dialog","quest","trainer","open chest"}) do
+        if string.find(context, bad, 1, true) then return false end
+    end
+
+    local tagged = false
+    pcall(function() tagged = CollectionService:HasTag(drop, "LootDrop") end)
+    if tagged then return true, prompt end
+
+    if drop:GetAttribute("DropOwnerUserId") ~= nil
+        or drop:GetAttribute("DropReservedFor") ~= nil
+        or drop:GetAttribute("DropClaimedBy") ~= nil then
+        return true, prompt
+    end
+
+    for _, good in ipairs({"loot","drop","reward","pickup","pick up","take item","collect","claim item"}) do
+        if string.find(context, good, 1, true) then return true, prompt end
+    end
+
+    return false
+end
+
+local function addChestDropCandidate(object)
+    local W = R.chestDropWindow
+    if os.clock() > (W.untilAt or 0) or not W.center then return end
+
+    local drop = object
+    if drop and drop:IsA("ProximityPrompt") then
+        local p = drop.Parent
+        while p and p ~= workspace do
+            if p:IsA("Model") or p:IsA("BasePart") then
+                drop = p
+                break
+            end
+            p = p.Parent
+        end
+    end
+    if not drop or not (drop:IsA("Model") or drop:IsA("BasePart")) then return end
+
+    local pos = objectPosition(drop)
+    if pos and (pos - W.center).Magnitude <= 100 then
+        W.candidates[drop] = true
+    end
+end
+
+track(CollectionService:GetInstanceAddedSignal("LootDrop"):Connect(function(drop)
+    addChestDropCandidate(drop)
+end))
+
+track(workspace.DescendantAdded:Connect(function(object)
+    local W = R.chestDropWindow
+    if os.clock() > (W.untilAt or 0) then return end
+    if object:IsA("ProximityPrompt") then
+        task.defer(function() addChestDropCandidate(object) end)
+    elseif object:IsA("Model") or object:IsA("BasePart") then
+        -- A prompt/tag can arrive a frame later.
+        task.delay(.08, function()
+            if R.alive and object.Parent then addChestDropCandidate(object) end
+        end)
+    end
+end))
+
+local function openChestDropWindow(now)
+    local W = R.chestDropWindow
+    local chest = State.CurrentChest
+
+    if chest and chest ~= W.lastChest then
+        W.lastChest = chest
+        W.lastChestPosition = objectPosition(chest) or W.lastChestPosition
+    elseif chest then
+        W.lastChestPosition = objectPosition(chest) or W.lastChestPosition
+    end
+
+    local opened = tonumber(State.ChestOpened) or 0
+    local status = low(State.ChestStatus)
+    local opening = string.find(status, "opening chest", 1, true)
+        or string.find(status, "chest opened", 1, true)
+        or string.find(status, "collecting drops", 1, true)
+
+    if opened > (W.lastOpened or 0) or opening then
+        W.lastOpened = math.max(opened, W.lastOpened or 0)
+        local _, _, root = livingCharacter()
+        W.center = W.lastChestPosition or (root and root.Position) or W.center
+        if W.center then
+            W.untilAt = math.max(W.untilAt or 0, now + 10)
+            State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1.2)
+        end
+    end
+end
+
+local function chestDropRecoveryTick(now)
+    if State.Flags.AutoChestLoot ~= true and State.Flags.AutoLootDrops ~= true then
+        R.chestDropWindow.untilAt = 0
+        return
+    end
+
+    openChestDropWindow(now)
+    local W = R.chestDropWindow
+    if not W.center or now > (W.untilAt or 0) then return end
+
+    -- Pull in all tagged drops every pass; list size is small and this catches
+    -- tags that replicate after the Instance itself.
+    local ok, tagged = pcall(CollectionService.GetTagged, CollectionService, "LootDrop")
+    if ok and type(tagged) == "table" then
+        for _, drop in ipairs(tagged) do addChestDropCandidate(drop) end
+    end
+
+    local pending = false
+    for drop in pairs(W.candidates) do
+        if not drop.Parent then
+            W.candidates[drop] = nil
+            W.attempts[drop] = nil
+        else
+            local pos = objectPosition(drop)
+            local eligible, prompt = strictChestDropCandidate(drop)
+            if not pos or (pos - W.center).Magnitude > 100 or not eligible then
+                if not pos or (pos and (pos - W.center).Magnitude > 100) then
+                    W.candidates[drop] = nil
+                end
+            else
+                pending = true
+
+                -- If the base collector tried before the prompt/ownership was
+                -- fully ready, make the still-live drop eligible again.
+                if type(State.LootAttempts) == "table" then
+                    local attemptedAt = State.LootAttempts[drop]
+                    if attemptedAt and now - attemptedAt >= .75 then
+                        State.LootAttempts[drop] = nil
+                    end
+                end
+                State.LastChestScan = 0
+                State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1)
+                State.ChestRoutePhase = "Chest loot retry"
+
+                local _, _, root = livingCharacter()
+                local reach = tonumber(prompt.MaxActivationDistance) or 8
+                local distance = root and (root.Position - pos).Magnitude or math.huge
+                local info = W.attempts[drop] or {count = 0, nextAt = 0}
+
+                -- Only directly trigger when already in legitimate prompt
+                -- range. Longer travel remains owned by the existing chest router.
+                if distance <= reach and now >= info.nextAt and info.count < 4 then
+                    info.count += 1
+                    info.nextAt = now + .8
+                    W.attempts[drop] = info
+                    triggerPromptNative(prompt)
+                end
+            end
+        end
+    end
+
+    if pending then
+        State.ChestStatus = "Chest opened - collecting drops"
+    end
+end
+
+-- ============================================================================
 -- LOW-FREQUENCY RECOVERY SUPERVISOR
 -- ============================================================================
 
@@ -2559,6 +3099,7 @@ task.spawn(function()
         safe("Route arbiter", routeArbiterTick)
         safe("Boss/Dungeon coordinator", coordinateExclusiveRoutes)
         safe("Boss respawn timer", scanBossRespawnTimer, now)
+        safe("Global boss scan", globalBossScanTick, now)
         safe("Farm recovery", recoverFarm, now)
         safe("Boss recovery", recoverBoss, now)
         safe("Yeti loot", yetiLootTick, now)
@@ -2567,6 +3108,7 @@ task.spawn(function()
         safe("Player recovery", playerRecoveryTick, now)
         safe("Dungeon recovery", dungeonRecoveryTick, now)
         safe("Fishing recovery", fishingRecoveryTick, now)
+        safe("Chest drop recovery", chestDropRecoveryTick, now)
         safe("Special quest recovery", specialQuestRecoveryTick, now)
 
         -- Do not repeatedly hunt optional modules forever on a broken startup.
