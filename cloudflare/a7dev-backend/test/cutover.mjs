@@ -18,8 +18,8 @@ globalThis.fetch=async url=>{
 const response=await backend.fetch(new Request('https://test.invalid/v1/hub',{method:'POST',body:JSON.stringify({action:'authorize',key:'https://work.ink/test?token=test-token',user_id:12345})}),env);
 const issued=await response.json();
 assert.equal(response.status,200);assert.equal(issued.ok,true);assert.equal(workinkCalls,1);
-assert.equal(issued.permanent,true);assert.equal(issued.admin,false);
-assert(issued.session_seconds>200000000000);
+assert.equal(issued.permanent,false);assert.equal(issued.admin,false);
+assert(issued.session_seconds>=86390&&issued.session_seconds<=86400);
 assert((await verifyCloudflareSession(issued.session,12345,env.SESSION_ED25519_PUBLIC)).uid===12345);
 assert.equal(await verifyCloudflareSession(issued.session,12346,env.SESSION_ED25519_PUBLIC),null);
 for (const payload of [{v:2,uid:12345,exp:0},{v:2,uid:12345},{v:2,uid:'12345',exp:9999999999}]) {
