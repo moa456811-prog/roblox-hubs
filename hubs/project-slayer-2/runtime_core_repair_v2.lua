@@ -505,6 +505,8 @@ local function bossTarget()
     return locked or current
 end
 
+local allSelectedBossesCooling
+
 local function clearBossDeathWatch()
     if R.bossDeathConn then
         pcall(function() R.bossDeathConn:Disconnect() end)
@@ -1714,7 +1716,7 @@ local function bossCooldownUntil(name)
     end
 end
 
-local function allSelectedBossesCooling(now)
+allSelectedBossesCooling = function(now)
     local selected = selectedBossNames()
     if #selected == 0 then return false end
 
