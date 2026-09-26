@@ -2,7 +2,7 @@
 
 The user authorized production cutover on 2026-09-25 after the staging import. The deployed Worker uses src/production.js. The existing Supabase secure API address now forwards requests to Cloudflare. Existing Loader, legacy per-game bootstrap function and GitHub loadstrings remain byte-for-byte unchanged.
 
-Cloudflare D1 supplies access records and active script pointers; private R2 supplies verified source objects. Validated key sessions and permanent grants are issued as permanent sessions. For compatibility with existing Loader/verifier code, permanent sessions use a technical expiry at the end of year 9999; temporary manual grants still expire at their own grant deadline. Supabase remains the relay for the unchanged URLs and the automatic fallback. This preserves compatibility; it does not remove dependency on Supabase's public endpoint.
+Cloudflare D1 supplies access records and active script pointers; private R2 supplies verified source objects. New sessions are issued by Cloudflare for 24 hours, retaining permanent-access flags. Supabase remains the relay for the unchanged URLs and the automatic fallback. This preserves compatibility; it does not remove dependency on Supabase's public endpoint.
 
 ## Failover and sessions
 
