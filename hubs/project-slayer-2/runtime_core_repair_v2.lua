@@ -668,9 +668,15 @@ local function recoverBoss(now)
         return
     end
 
-    if R.bossTimerUntil and now < R.bossTimerUntil then
-        local remaining = math.max(0, math.ceil(R.bossTimerUntil - now))
-        State.BossStatus = string.format("Respawn in %d:%02d", math.floor(remaining / 60), remaining % 60)
+    local allCooling, nextUntil, nextName = allSelectedBossesCooling(now)
+    if allCooling and nextUntil then
+        local remaining = math.max(0, math.ceil(nextUntil - now))
+        State.BossStatus = string.format(
+            "All selected bosses cooling | %s respawns in %d:%02d",
+            tostring(nextName or "next"),
+            math.floor(remaining / 60),
+            remaining % 60
+        )
         R.bossNoTargetSince = now
         return
     end
@@ -1693,22 +1699,88 @@ local function selectedBossNames()
     return names
 end
 
+R.bossRespawnUntil = R.bossRespawnUntil or {}
+R.bossRespawnSeenAt = R.bossRespawnSeenAt or {}
+R.bossTimerReleased = R.bossTimerReleased or {}
+
+local function bossCooldownUntil(name)
+    local key = low(name)
+    local value = R.bossRespawnUntil[key]
+    if value and value > os.clock() then return value end
+    if value then
+        R.bossRespawnUntil[key] = nil
+        R.bossRespawnSeenAt[key] = nil
+        R.bossTimerReleased[key] = nil
+    end
+end
+
+local function allSelectedBossesCooling(now)
+    local selected = selectedBossNames()
+    if #selected == 0 then return false end
+
+    local nextUntil, nextName
+    for _, name in ipairs(selected) do
+        local untilAt = R.bossRespawnUntil[low(name)]
+        if not untilAt or untilAt <= now then
+            return false
+        end
+        if not nextUntil or untilAt < nextUntil then
+            nextUntil, nextName = untilAt, name
+        end
+    end
+    return true, nextUntil, nextName
+end
+
+local function releaseTimedDeadBoss(name, now)
+    local key = low(name)
+    local seenAt = R.bossRespawnSeenAt[key]
+    if not seenAt or now - seenAt < 2.5 or R.bossTimerReleased[key] then return end
+
+    local locked = State.BossLock
+    local current = State.CurrentBoss
+    local lockedMatch = locked and low(locked.Name) == key and not aliveModel(locked)
+    local currentMatch = current and low(current.Name) == key and not aliveModel(current)
+    if not lockedMatch and not currentMatch then return end
+
+    R.bossTimerReleased[key] = true
+
+    local ops = State.BossOps
+    if type(ops) == "table" and type(ops.defeated) == "function" then
+        safe("Boss timer defeated", ops.defeated)
+    end
+
+    if lockedMatch and State.BossLock == locked then State.BossLock = nil end
+    if currentMatch and State.CurrentBoss == current then State.CurrentBoss = nil end
+    if State.CurrentTarget and low(State.CurrentTarget.Name) == key and not aliveModel(State.CurrentTarget) then
+        State.CurrentTarget = nil
+    end
+    if State.FarmPlanTarget and low(State.FarmPlanTarget.Name) == key and not aliveModel(State.FarmPlanTarget) then
+        State.FarmPlanTarget = nil
+    end
+
+    State.BossWaiting = false
+    State.BossMissingSince = nil
+    State.FarmPlanSource = nil
+    State.FarmPlannerForce = true
+    State.FarmPlannerLastTick = 0
+    State.BossStatus = "Boss defeated | finding next boss"
+    R.bossNoTargetSince = nil
+    R.lastBossRecovery = -math.huge
+end
+
 local function scanBossRespawnTimer(now)
     if not (State.Flags.AutoBoss or State.Flags.AutoAllBoss) then
-        R.bossTimerUntil = nil
-        return
-    end
-    if aliveModel(State.BossLock) or aliveModel(State.CurrentBoss) then
-        R.bossTimerUntil = nil
+        table.clear(R.bossRespawnUntil)
+        table.clear(R.bossRespawnSeenAt)
+        table.clear(R.bossTimerReleased)
         return
     end
     if now < (R.nextBossTimerScan or 0) then return end
-    R.nextBossTimerScan = now + 1
+    R.nextBossTimerScan = now + .75
 
     local selected = selectedBossNames()
     if #selected == 0 then return end
 
-    local best
     for _, object in ipairs(PlayerGui:GetDescendants()) do
         local text = visibleGameText(object)
         if text then
@@ -1728,20 +1800,23 @@ local function scanBossRespawnTimer(now)
                 end
 
                 for _, name in ipairs(selected) do
-                    local bossKey = low(name)
-                    if bossKey ~= "" and string.find(context, bossKey, 1, true) then
-                        if not best or seconds < best then best = seconds end
-                        break
+                    local key = low(name)
+                    if key ~= "" and string.find(context, key, 1, true) then
+                        R.bossRespawnUntil[key] = now + seconds
+                        R.bossRespawnSeenAt[key] = R.bossRespawnSeenAt[key] or now
+                        releaseTimedDeadBoss(name, now)
                     end
                 end
             end
         end
     end
 
-    if best and best > 0 then
-        R.bossTimerUntil = now + best
-    elseif R.bossTimerUntil and now >= R.bossTimerUntil then
-        R.bossTimerUntil = nil
+    for key, untilAt in pairs(R.bossRespawnUntil) do
+        if untilAt <= now then
+            R.bossRespawnUntil[key] = nil
+            R.bossRespawnSeenAt[key] = nil
+            R.bossTimerReleased[key] = nil
+        end
     end
 end
 
