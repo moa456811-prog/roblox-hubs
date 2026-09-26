@@ -3,6 +3,7 @@
 
 local BASE = "https://rbhasxhkhvldbbsvbmqj.supabase.co/functions/v1/a7dev-loader?game=project-slayer-2"
 local CORE_TEST = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/test/slayer2-ui-redesign/hubs/project-slayer-2/runtime_test_complete_v2.lua"
+local PARRY_TEST = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/test/slayer2-ui-redesign/hubs/project-slayer-2/auto_parry_v1.lua"
 local UI_TEST = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/test/slayer2-ui-redesign/hubs/project-slayer-2/ui_test_reference_v18.lua"
 
 local function runSource(url, label)
@@ -30,6 +31,7 @@ end
 if not runSource(BASE, "Slayer 2 base") then return end
 
 if not runSource(CORE_TEST, "Complete Core Repair V2") then return end
+runSource(PARRY_TEST, "Auto Parry V1")
 
 task.spawn(function()
     local player = game:GetService("Players").LocalPlayer
