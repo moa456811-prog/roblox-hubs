@@ -2,7 +2,7 @@
 -- Production loader/main.lua are not modified by this file.
 
 local BASE = "https://rbhasxhkhvldbbsvbmqj.supabase.co/functions/v1/a7dev-loader?game=project-slayer-2"
-local UI_TEST = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/test/slayer2-ui-redesign/hubs/project-slayer-2/ui_test_reference_v11.lua"
+local UI_TEST = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/test/slayer2-ui-redesign/hubs/project-slayer-2/ui_test_blackwhite_v12.lua"
 
 local function runSource(url, label)
     local okHttp, source = pcall(game.HttpGet, game, url)
@@ -39,5 +39,5 @@ task.spawn(function()
         end
     end
 
-    runSource(UI_TEST, "Reference UI V11")
+    runSource(UI_TEST, "Black/White UI V12")
 end)
