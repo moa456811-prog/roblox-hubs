@@ -641,17 +641,69 @@ local function recoverBoss(now)
         if position then State.BossLastPosition = position end
 
         if isWorkspaceDescendant(boss) then
+            R.bossDetachedSince = nil
             R.bossNoTargetSince = nil
             return
         end
 
-        -- Streaming disappearance is not a death. Keep the lock and request
-        -- the last known area instead of selecting another boss.
+        -- Streaming disappearance is not immediately treated as death.
+        -- The respawn-timer scanner runs before this recovery tick and can
+        -- release this exact boss as soon as its cooldown is visible.
+        R.bossDetachedSince = R.bossDetachedSince or now
+
         if State.BossLastPosition and now - R.lastBossStream >= 2 then
             R.lastBossStream = now
             task.spawn(function()
                 pcall(LocalPlayer.RequestStreamAroundAsync, LocalPlayer, State.BossLastPosition, 0.35)
             end)
+        end
+
+        -- If the game never exposes a matching timer, do not wait forever.
+        -- Eight seconds matches the existing streaming grace used by the boss
+        -- pipeline. Release only this detached stale reference and reacquire.
+        if now - R.bossDetachedSince >= 8 then
+            local staleBoss = boss
+            if State.BossLock == staleBoss then State.BossLock = nil end
+            if State.CurrentBoss == staleBoss then State.CurrentBoss = nil end
+            if State.CurrentTarget == staleBoss then State.CurrentTarget = nil end
+            if State.FarmPlanTarget == staleBoss then State.FarmPlanTarget = nil end
+
+            State.BossWaiting = false
+            State.BossMissingSince = nil
+            State.FarmPlanSource = nil
+            State.FarmPlannerForce = true
+            State.FarmPlannerLastTick = 0
+            State.BossStatus = "Boss lock recovered | finding target"
+
+            R.bossDetachedSince = nil
+            R.bossNoTargetSince = nil
+            R.lastBossRecovery = -math.huge
+            clearBossDeathWatch()
+
+            local ops = State.BossOps
+            task.defer(function()
+                if not R.alive or State.Destroyed then return end
+                if not (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true) then return end
+                if type(ops) ~= "table" then return end
+
+                local acquired
+                if type(ops.acquire) == "function" then
+                    local ok, value = pcall(ops.acquire, true)
+                    if ok and aliveModel(value) and isWorkspaceDescendant(value) then
+                        acquired = value
+                    end
+                end
+                if acquired then return end
+
+                if State.BossFullScanRunning ~= true
+                    and State.BossStreamBusy ~= true
+                    and type(ops.fullMapScan) == "function" then
+                    safe("Boss stale-lock scan", ops.fullMapScan, false)
+                end
+            end)
+        else
+            State.BossWaiting = true
+            State.BossStatus = "Waiting for locked boss to reload"
         end
         return
     end
@@ -694,7 +746,7 @@ local function recoverBoss(now)
     local acquired
     if type(ops.acquire) == "function" then
         local ok, value = pcall(ops.acquire, false)
-        if ok and aliveModel(value) then acquired = value end
+        if ok and aliveModel(value) and isWorkspaceDescendant(value) then acquired = value end
     end
     if acquired then
         R.bossNoTargetSince = nil
@@ -713,7 +765,8 @@ local function recoverBoss(now)
 
     task.delay(.45, function()
         if not R.alive or not State.Flags.AutoBoss then return end
-        if aliveModel(State.BossLock) or aliveModel(State.CurrentBoss) then return end
+        if (aliveModel(State.BossLock) and isWorkspaceDescendant(State.BossLock))
+            or (aliveModel(State.CurrentBoss) and isWorkspaceDescendant(State.CurrentBoss)) then return end
         if type(ops.acquire) == "function" then
             safe("Boss reacquire", ops.acquire, true)
         end
@@ -1740,8 +1793,10 @@ local function releaseTimedDeadBoss(name, now)
 
     local locked = State.BossLock
     local current = State.CurrentBoss
-    local lockedMatch = locked and low(locked.Name) == key and not aliveModel(locked)
-    local currentMatch = current and low(current.Name) == key and not aliveModel(current)
+    local lockedMatch = locked and low(locked.Name) == key
+        and not (aliveModel(locked) and isWorkspaceDescendant(locked))
+    local currentMatch = current and low(current.Name) == key
+        and not (aliveModel(current) and isWorkspaceDescendant(current))
     if not lockedMatch and not currentMatch then return end
 
     R.bossTimerReleased[key] = true
@@ -1753,10 +1808,12 @@ local function releaseTimedDeadBoss(name, now)
 
     if lockedMatch and State.BossLock == locked then State.BossLock = nil end
     if currentMatch and State.CurrentBoss == current then State.CurrentBoss = nil end
-    if State.CurrentTarget and low(State.CurrentTarget.Name) == key and not aliveModel(State.CurrentTarget) then
+    if State.CurrentTarget and low(State.CurrentTarget.Name) == key
+        and not (aliveModel(State.CurrentTarget) and isWorkspaceDescendant(State.CurrentTarget)) then
         State.CurrentTarget = nil
     end
-    if State.FarmPlanTarget and low(State.FarmPlanTarget.Name) == key and not aliveModel(State.FarmPlanTarget) then
+    if State.FarmPlanTarget and low(State.FarmPlanTarget.Name) == key
+        and not (aliveModel(State.FarmPlanTarget) and isWorkspaceDescendant(State.FarmPlanTarget)) then
         State.FarmPlanTarget = nil
     end
 
