@@ -611,7 +611,7 @@ local function beginBossLootHold(boss, now)
     R.bossLootStartedAt = now
     R.bossLootMinUntil = now + 3.0
     R.bossLootNoSpawnUntil = now + 4.5
-    R.bossLootDeadline = now + 8.0
+    R.bossLootDeadline = now + 3.0
     R.bossLootComplete = false
     R.bossLootQuietSince = nil
     R.bossLootLastActivity = now
