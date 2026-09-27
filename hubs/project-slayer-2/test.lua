@@ -1,9 +1,9 @@
 -- A7DEV HUB | Slayer 2 TEST bootstrap
 -- MAIN remains untouched. This launches the normal protected Slayer 2 runtime,
--- then applies the A7 Blue TEST interface only for this execution path.
+-- then fully replaces the visible UI with the A7 Blue TEST interface for this execution path.
 
 local MAIN_BOOTSTRAP = "https://rbhasxhkhvldbbsvbmqj.supabase.co/functions/v1/a7dev-loader?game=project-slayer-2"
-local TEST_UI = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/main/hubs/project-slayer-2/ui_a7blue_test_v1.lua"
+local TEST_UI = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/main/hubs/project-slayer-2/ui_a7blue_full_test_v2.lua"
 
 local okSource, source = pcall(game.HttpGet, game, MAIN_BOOTSTRAP)
 if not okSource then
