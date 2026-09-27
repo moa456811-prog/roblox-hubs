@@ -652,6 +652,8 @@ local function finishConfirmedBossDeath(now)
         R.confirmedBossDead = nil
         R.confirmedBossDeathAt = nil
         clearBossDeathWatch()
+        clearBossLootHold()
+        State.BossWaiting = false
         return false
     end
 
@@ -3155,8 +3157,22 @@ local function chestDropRecoveryTick(now)
         else
             local pos = objectPosition(drop)
             local eligible, prompt = strictChestDropCandidate(drop)
+
+            local waitingForPrompt = false
+            if pos and (pos - W.center).Magnitude <= 100 and dropOwnerAllowed(drop) and not eligible then
+                local taggedDrop = false
+                pcall(function() taggedDrop = CollectionService:HasTag(drop, "LootDrop") end)
+                waitingForPrompt = taggedDrop
+                    or drop:GetAttribute("DropOwnerUserId") ~= nil
+                    or drop:GetAttribute("DropReservedFor") ~= nil
+            end
+
             if not pos or (pos - W.center).Magnitude > 100 or not eligible then
-                if not pos or (pos and (pos - W.center).Magnitude > 100) then
+                if waitingForPrompt then
+                    pending = true
+                    R.bossLootLastActivity = now
+                    State.LastChestScan = 0
+                elseif not pos or (pos and (pos - W.center).Magnitude > 100) then
                     W.candidates[drop] = nil
                 end
             else
