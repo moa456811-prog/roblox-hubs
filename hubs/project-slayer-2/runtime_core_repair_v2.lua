@@ -2014,8 +2014,31 @@ local function installDungeonUiRepair()
 
         State.DungeonLastSkip = now
         State.DungeonSkipRetries = (State.DungeonSkipRetries or 0) + 1
+        local attempt = State.DungeonSkipRetries
 
-        local sent = ops.clickButton(best)
+        -- Rotate independent input routes. Some executors report Activate()
+        -- success even when the game's LocalScript only listens to another
+        -- signal, so never rely on one route forever.
+        local sent = false
+
+        if attempt == 1 and type(firesignal) == "function" then
+            sent = pcall(firesignal, best.Activated)
+        elseif attempt == 2 and type(firesignal) == "function" then
+            sent = pcall(firesignal, best.MouseButton1Click)
+        elseif attempt == 3 then
+            sent = pcall(function()
+                local vim = game:GetService("VirtualInputManager")
+                local pos = best.AbsolutePosition + best.AbsoluteSize / 2
+                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+                task.wait(.04)
+                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+            end)
+        elseif attempt == 4 then
+            sent = pcall(function() best:Activate() end)
+        else
+            sent = ops.clickButton(best)
+        end
+
         if sent then
             State.DungeonSkipStatus = "Skip requested"
             State.DungeonStatus = "Ouwigahara | skip requested"
@@ -2023,7 +2046,7 @@ local function installDungeonUiRepair()
             State.DungeonSkipStatus = "Skip input retry"
         end
 
-        if (State.DungeonSkipRetries or 0) >= 5 then
+        if attempt >= 5 then
             State.DungeonSkipRetries = 0
         end
         return sent == true
