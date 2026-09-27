@@ -1086,8 +1086,7 @@ do
    if not alive or not object.Parent then return end
    local section=findSectionFrom(object)
    if section then
-    readabilityPass(section)
-    searchRows[section]=sectionText(section)
+      searchRows[section]=sectionText(section)
    end
    if object:IsA("TextButton") or object:IsA("Frame") or object:IsA("UIStroke") then
     guardColor(object)
