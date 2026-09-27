@@ -508,6 +508,62 @@ end
 
 local allSelectedBossesCooling
 
+local function clearBossLootHold()
+    R.bossLootBoss = nil
+    R.bossLootCenter = nil
+    R.bossLootStartedAt = nil
+    R.bossLootMinUntil = nil
+    R.bossLootDeadline = nil
+    R.bossLootComplete = nil
+    R.bossLootQuietSince = nil
+    R.bossLootLastActivity = nil
+end
+
+local function beginBossLootHold(boss, now)
+    now = tonumber(now) or os.clock()
+
+    if State.Flags.AutoChestLoot ~= true and State.Flags.AutoLootDrops ~= true then
+        clearBossLootHold()
+        return
+    end
+
+    R.bossLootBoss = boss
+    R.bossLootCenter = objectPosition(boss) or State.BossLastPosition or R.bossLootCenter
+    R.bossLootStartedAt = now
+    R.bossLootMinUntil = now + 4.5
+    R.bossLootDeadline = now + 11
+    R.bossLootComplete = false
+    R.bossLootQuietSince = nil
+    R.bossLootLastActivity = now
+
+    State.BossWaiting = true
+    State.BossStatus = "Boss defeated | collecting loot"
+    State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1.2)
+    State.ChestRoutePhase = "Boss loot"
+    State.LastChestScan = 0
+end
+
+local function bossLootHoldActive(now)
+    now = tonumber(now) or os.clock()
+    if not R.bossLootStartedAt then return false end
+
+    if State.Flags.AutoChestLoot ~= true and State.Flags.AutoLootDrops ~= true then
+        clearBossLootHold()
+        return false
+    end
+
+    if R.bossLootComplete == true then
+        return false
+    end
+
+    if R.bossLootDeadline and now >= R.bossLootDeadline then
+        R.bossLootComplete = true
+        return false
+    end
+
+    return true
+end
+
 local function clearBossDeathWatch()
     if R.bossDeathConn then
         pcall(function() R.bossDeathConn:Disconnect() end)
@@ -525,10 +581,42 @@ local function watchBossDeath(boss, humanoid)
 
     R.bossDeathConn = humanoid.Died:Connect(function()
         if not R.alive then return end
+        local now = os.clock()
         R.confirmedBossDead = boss
-        R.confirmedBossDeathAt = os.clock()
+        R.confirmedBossDeathAt = now
         R.confirmedBossDeathHandled = false
+        beginBossLootHold(boss, now)
         State.BossStatus = "Boss defeated | waiting for loot"
+    end)
+end
+
+local function installBossLootAcquireGate()
+    local ops = State.BossOps
+    if type(ops) ~= "table" or type(ops.acquire) ~= "function" then return end
+    if ops.A7DEV_CORE_LOOT_GATE == true then return end
+
+    local original = ops.acquire
+    local gated
+    gated = function(...)
+        if bossLootHoldActive(os.clock()) then
+            State.BossWaiting = true
+            return nil
+        end
+        return original(...)
+    end
+
+    ops.A7DEV_CORE_LOOT_GATE = true
+    ops.A7DEV_CORE_ORIGINAL_ACQUIRE = original
+    ops.acquire = gated
+
+    cleanup(function()
+        if ops.acquire == gated then
+            ops.acquire = original
+        end
+        if ops.A7DEV_CORE_ORIGINAL_ACQUIRE == original then
+            ops.A7DEV_CORE_ORIGINAL_ACQUIRE = nil
+        end
+        ops.A7DEV_CORE_LOOT_GATE = nil
     end)
 end
 
@@ -545,6 +633,15 @@ local function finishConfirmedBossDeath(now)
         return true
     end
 
+    if bossLootHoldActive(now) then
+        State.BossWaiting = true
+        State.BossStatus = "Boss defeated | collecting loot"
+        State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + .9)
+        State.ChestRoutePhase = "Boss loot"
+        State.LastChestScan = 0
+        return true
+    end
+
     -- If the native Boss pipeline already moved to another living boss,
     -- this death has already been handled and must not affect the new lock.
     local lock = State.BossLock
@@ -555,6 +652,8 @@ local function finishConfirmedBossDeath(now)
         R.confirmedBossDead = nil
         R.confirmedBossDeathAt = nil
         clearBossDeathWatch()
+        clearBossLootHold()
+        State.BossWaiting = false
         return false
     end
 
@@ -584,6 +683,7 @@ local function finishConfirmedBossDeath(now)
         R.confirmedBossDead = nil
         R.confirmedBossDeathAt = nil
         clearBossDeathWatch()
+        clearBossLootHold()
 
         if not replacement then
             State.BossWaiting = false
@@ -621,8 +721,11 @@ local function recoverBoss(now)
         R.confirmedBossDeathAt = nil
         R.confirmedBossDeathHandled = nil
         clearBossDeathWatch()
+        clearBossLootHold()
         return
     end
+
+    installBossLootAcquireGate()
 
     if finishConfirmedBossDeath(now) then
         return
@@ -717,6 +820,7 @@ local function recoverBoss(now)
             R.confirmedBossDead = boss
             R.confirmedBossDeathAt = now
             R.confirmedBossDeathHandled = false
+            beginBossLootHold(boss, now)
         end
         R.bossNoTargetSince = nil
         finishConfirmedBossDeath(now)
@@ -2157,6 +2261,11 @@ local function globalBossScanTick(now)
         return false
     end
 
+    if bossLootHoldActive(now) then
+        State.BossWaiting = true
+        return false
+    end
+
     local liveLock = aliveModel(State.BossLock) and isWorkspaceDescendant(State.BossLock)
     local liveCurrent = aliveModel(State.CurrentBoss) and isWorkspaceDescendant(State.CurrentBoss)
     if liveLock or liveCurrent then return false end
@@ -3008,12 +3117,30 @@ end
 local function chestDropRecoveryTick(now)
     if State.Flags.AutoChestLoot ~= true and State.Flags.AutoLootDrops ~= true then
         R.chestDropWindow.untilAt = 0
+        if R.bossLootStartedAt then
+            R.bossLootComplete = true
+        end
         return
+    end
+
+    local bossLoot = bossLootHoldActive(now)
+    if bossLoot and R.bossLootCenter then
+        local W = R.chestDropWindow
+        W.center = R.bossLootCenter
+        W.untilAt = math.max(W.untilAt or 0, R.bossLootDeadline or (now + 6))
+        State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1)
+        State.ChestRoutePhase = "Boss loot"
+        State.LastChestScan = 0
     end
 
     openChestDropWindow(now)
     local W = R.chestDropWindow
-    if not W.center or now > (W.untilAt or 0) then return end
+    if not W.center or now > (W.untilAt or 0) then
+        if bossLoot and R.bossLootMinUntil and now >= R.bossLootMinUntil then
+            R.bossLootComplete = true
+        end
+        return
+    end
 
     -- Pull in all tagged drops every pass; list size is small and this catches
     -- tags that replicate after the Instance itself.
@@ -3030,8 +3157,22 @@ local function chestDropRecoveryTick(now)
         else
             local pos = objectPosition(drop)
             local eligible, prompt = strictChestDropCandidate(drop)
+
+            local waitingForPrompt = false
+            if pos and (pos - W.center).Magnitude <= 100 and dropOwnerAllowed(drop) and not eligible then
+                local taggedDrop = false
+                pcall(function() taggedDrop = CollectionService:HasTag(drop, "LootDrop") end)
+                waitingForPrompt = taggedDrop
+                    or drop:GetAttribute("DropOwnerUserId") ~= nil
+                    or drop:GetAttribute("DropReservedFor") ~= nil
+            end
+
             if not pos or (pos - W.center).Magnitude > 100 or not eligible then
-                if not pos or (pos and (pos - W.center).Magnitude > 100) then
+                if waitingForPrompt then
+                    pending = true
+                    R.bossLootLastActivity = now
+                    State.LastChestScan = 0
+                elseif not pos or (pos and (pos - W.center).Magnitude > 100) then
                     W.candidates[drop] = nil
                 end
             else
@@ -3063,6 +3204,43 @@ local function chestDropRecoveryTick(now)
                     triggerPromptNative(prompt)
                 end
             end
+        end
+    end
+
+    local bossChestBusy = false
+    if bossLoot and R.bossLootCenter then
+        local chest = State.CurrentChest
+        if chest and chest.Parent then
+            local chestPos = objectPosition(chest)
+            if chestPos and (chestPos - R.bossLootCenter).Magnitude <= 120 then
+                bossChestBusy = true
+            end
+        end
+
+        local status = low(State.ChestStatus)
+        if string.find(status, "opening chest", 1, true)
+            or string.find(status, "going to chest", 1, true)
+            or string.find(status, "collecting drops", 1, true)
+            or string.find(status, "looting:", 1, true)
+            or string.find(status, "moving to loot", 1, true) then
+            bossChestBusy = true
+        end
+
+        if pending or bossChestBusy then
+            R.bossLootLastActivity = now
+            R.bossLootQuietSince = nil
+            State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1)
+            State.ChestRoutePhase = "Boss loot"
+            State.LastChestScan = 0
+        elseif R.bossLootMinUntil and now >= R.bossLootMinUntil then
+            R.bossLootQuietSince = R.bossLootQuietSince or now
+            if now - R.bossLootQuietSince >= 1.4 then
+                R.bossLootComplete = true
+            end
+        end
+
+        if R.bossLootDeadline and now >= R.bossLootDeadline then
+            R.bossLootComplete = true
         end
     end
 
