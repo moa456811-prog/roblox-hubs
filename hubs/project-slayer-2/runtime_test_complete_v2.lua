@@ -902,6 +902,7 @@ local function stopDungeonHover()
     h.humanoid = nil
     h.target = nil
     h.approach = nil
+    h.nextUpdate = nil
     h.lastTouch = nil
 end
 
@@ -962,6 +963,44 @@ local function dungeonHoverEnabled()
         and dungeonInRun()
 end
 
+local function installDungeonHoverOwnership()
+    local legacy = State.DungeonHover
+    if type(legacy) ~= "table" or type(legacy.update) ~= "function" then return false end
+    if legacy.A7DEV_CORE_FIXED_OWNER == true then return true end
+
+    -- Remove any already-created legacy constraints once. After that the
+    -- protected base still calls its normal moveToTarget path, but its hover
+    -- update becomes a no-op only while Core V2 owns dungeon positioning.
+    if type(legacy.stop) == "function" then
+        pcall(legacy.stop)
+    end
+
+    local originalUpdate = legacy.update
+    local wrappedUpdate
+    wrappedUpdate = function(...)
+        if dungeonHoverEnabled() then
+            return true
+        end
+        return originalUpdate(...)
+    end
+
+    legacy.A7DEV_CORE_FIXED_OWNER = true
+    legacy.A7DEV_CORE_ORIGINAL_UPDATE = originalUpdate
+    legacy.update = wrappedUpdate
+
+    cleanup(function()
+        if legacy.update == wrappedUpdate then
+            legacy.update = originalUpdate
+        end
+        if legacy.A7DEV_CORE_ORIGINAL_UPDATE == originalUpdate then
+            legacy.A7DEV_CORE_ORIGINAL_UPDATE = nil
+        end
+        legacy.A7DEV_CORE_FIXED_OWNER = nil
+    end)
+
+    return true
+end
+
 local function ensureDungeonConstraint(root, hum)
     local h = R.dungeonHover
     if h.root == root
@@ -989,8 +1028,8 @@ local function ensureDungeonConstraint(root, hum)
     position.ApplyAtCenterOfMass = true
     position.RigidityEnabled = false
     position.ReactionForceEnabled = false
-    position.MaxVelocity = 45
-    position.Responsiveness = 65
+    position.MaxVelocity = 28
+    position.Responsiveness = 32
     position.MaxForce = math.max(10000, root.AssemblyMass * (workspace.Gravity + 500) * 10)
     position.Position = root.Position
     position.Parent = root
@@ -1002,8 +1041,8 @@ local function ensureDungeonConstraint(root, hum)
     orientation.Attachment0 = attachment
     orientation.RigidityEnabled = false
     orientation.MaxTorque = 1000000
-    orientation.MaxAngularVelocity = 20
-    orientation.Responsiveness = 45
+    orientation.MaxAngularVelocity = 12
+    orientation.Responsiveness = 30
     orientation.CFrame = root.CFrame
     orientation.Parent = root
     h.orientation = orientation
@@ -1024,9 +1063,23 @@ local function updateDungeonHover(now)
         return
     end
 
-    local target = State.DungeonCombatTarget
-    if not aliveModel(target) then target = State.CurrentTarget end
-    if not aliveModel(target) or Players:GetPlayerFromCharacter(target) then
+    local h = R.dungeonHover
+
+    -- Keep one dungeon target until it actually dies/disappears. The base
+    -- scheduler can briefly rotate DungeonCombatTarget between living mobs;
+    -- following those transient changes is what made the character swing
+    -- around the room.
+    local target = h.target
+    if not aliveModel(target) or not isWorkspaceDescendant(target)
+        or Players:GetPlayerFromCharacter(target) then
+        target = State.DungeonCombatTarget
+        if not aliveModel(target) or not isWorkspaceDescendant(target) then
+            target = State.CurrentTarget
+        end
+    end
+
+    if not aliveModel(target) or not isWorkspaceDescendant(target)
+        or Players:GetPlayerFromCharacter(target) then
         stopDungeonHover()
         return
     end
@@ -1039,48 +1092,53 @@ local function updateDungeonHover(now)
 
     if not ensureDungeonConstraint(root, hum) then return end
 
-    local h = R.dungeonHover
+    h = R.dungeonHover
     local changed = h.target ~= target
-
-    if changed or not h.approach then
-        local flat = (root.Position - targetRoot.Position) * Vector3.new(1, 0, 1)
-        if flat.Magnitude < 0.1 then
-            flat = targetRoot.CFrame.LookVector * Vector3.new(-1, 0, -1)
-        end
-        if flat.Magnitude < 0.1 then flat = Vector3.new(0, 0, 1) end
-        h.approach = flat.Unit
-    end
-
     h.target = target
     h.lastTouch = now
 
+    -- Keep dungeon combat pointed at the same living mob so movement and M1
+    -- do not fight over different targets. This is dungeon-only and releases
+    -- automatically as soon as the mob dies.
+    State.DungeonCombatTarget = target
+    State.CurrentTarget = target
+
     if not changed and now < (h.nextUpdate or 0) then return end
-    h.nextUpdate = now + 0.08
+    h.nextUpdate = now + 0.10
 
-    local goal = targetRoot.Position
-        + Vector3.new(0, 7, 0)
-        + h.approach * 0.5
-    local aimPoint = targetRoot.Position + Vector3.new(0, 1.5, 0)
+    -- Fixed directly above the mob. No rotating horizontal approach vector.
+    local targetPos = targetRoot.Position
+    local goal = targetPos + Vector3.new(0, 7, 0)
+    local aimPoint = targetPos + Vector3.new(0, 1.5, 0)
 
-    h.position.MaxForce = math.max(10000, root.AssemblyMass * (workspace.Gravity + 500) * 10)
+    h.position.MaxForce = math.max(12000, root.AssemblyMass * (workspace.Gravity + 420) * 9)
     h.position.Position = goal
+    h.orientation.CFrame = CFrame.lookAt(root.Position, aimPoint)
 
-    if (root.Position - aimPoint).Magnitude > 0.1 then
-        h.orientation.CFrame = CFrame.lookAt(root.Position, aimPoint)
-    else
-        h.orientation.CFrame = CFrame.lookAt(goal, aimPoint)
-    end
+    local errorDistance = (root.Position - goal).Magnitude
 
-    -- One entry correction only. Afterwards the constraint follows the same mob.
-    if changed and (root.Position - goal).Magnitude > 12 then
+    -- One entry correction when changing mob. Once above it, AlignPosition is
+    -- the only thing allowed to track movement.
+    if changed and errorDistance > 10 then
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         root.CFrame = CFrame.lookAt(goal, aimPoint)
+    elseif errorDistance <= 3 then
+        -- Remove residual sideways/angular momentum that causes visible
+        -- circles/oscillation while preserving the target's horizontal motion.
+        local tv = targetRoot.AssemblyLinearVelocity
+        root.AssemblyLinearVelocity = Vector3.new(tv.X, 0, tv.Z)
+        root.AssemblyAngularVelocity = Vector3.zero
     end
 end
 
+installDungeonHoverOwnership()
+
 track(RunService.Heartbeat:Connect(function()
     if not R.alive then return end
+    if not (State.DungeonHover and State.DungeonHover.A7DEV_CORE_FIXED_OWNER) then
+        installDungeonHoverOwnership()
+    end
     updateDungeonHover(os.clock())
 end))
 
