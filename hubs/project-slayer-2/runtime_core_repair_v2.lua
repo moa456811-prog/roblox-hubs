@@ -1111,6 +1111,9 @@ local function stopDungeonHover()
     h.humanoid = nil
     h.target = nil
     h.approach = nil
+    h.targetAnchor = nil
+    h.pendingAnchor = nil
+    h.pendingAnchorSince = nil
     h.nextUpdate = nil
     h.lastTouch = nil
 end
@@ -1237,8 +1240,8 @@ local function ensureDungeonConstraint(root, hum)
     position.ApplyAtCenterOfMass = true
     position.RigidityEnabled = false
     position.ReactionForceEnabled = false
-    position.MaxVelocity = 28
-    position.Responsiveness = 32
+    position.MaxVelocity = 20
+    position.Responsiveness = 28
     position.MaxForce = math.max(10000, root.AssemblyMass * (workspace.Gravity + 500) * 10)
     position.Position = root.Position
     position.Parent = root
@@ -1250,8 +1253,8 @@ local function ensureDungeonConstraint(root, hum)
     orientation.Attachment0 = attachment
     orientation.RigidityEnabled = false
     orientation.MaxTorque = 1000000
-    orientation.MaxAngularVelocity = 12
-    orientation.Responsiveness = 30
+    orientation.MaxAngularVelocity = 10
+    orientation.Responsiveness = 26
     orientation.CFrame = root.CFrame
     orientation.Parent = root
     h.orientation = orientation
@@ -1306,37 +1309,59 @@ local function updateDungeonHover(now)
     h.target = target
     h.lastTouch = now
 
-    -- Keep dungeon combat pointed at the same living mob so movement and M1
-    -- do not fight over different targets. This is dungeon-only and releases
-    -- automatically as soon as the mob dies.
+    -- Keep dungeon combat pointed at the same living mob until death.
     State.DungeonCombatTarget = target
     State.CurrentTarget = target
 
-    if not changed and now < (h.nextUpdate or 0) then return end
-    h.nextUpdate = now + 0.10
-
-    -- Fixed directly above the mob. No rotating horizontal approach vector.
     local targetPos = targetRoot.Position
-    local goal = targetPos + Vector3.new(0, 7, 0)
+
+    if changed or not h.targetAnchor then
+        h.targetAnchor = targetPos
+        h.pendingAnchor = nil
+        h.pendingAnchorSince = nil
+    else
+        local drift = (targetPos - h.targetAnchor).Magnitude
+
+        -- Ignore small target/root jitter completely. If the mob really moved,
+        -- require that movement to persist briefly before moving our anchor.
+        if drift > 2.5 then
+            if not h.pendingAnchor or (targetPos - h.pendingAnchor).Magnitude > 1 then
+                h.pendingAnchor = targetPos
+                h.pendingAnchorSince = now
+            elseif now - (h.pendingAnchorSince or now) >= .22 then
+                h.targetAnchor = targetPos
+                h.pendingAnchor = nil
+                h.pendingAnchorSince = nil
+            end
+        else
+            h.pendingAnchor = nil
+            h.pendingAnchorSince = nil
+        end
+    end
+
+    if not changed and now < (h.nextUpdate or 0) then return end
+    h.nextUpdate = now + 0.12
+
+    -- Position is driven by one stable world anchor, directly above the mob.
+    local goal = h.targetAnchor + Vector3.new(0, 7, 0)
     local aimPoint = targetPos + Vector3.new(0, 1.5, 0)
 
     h.position.MaxForce = math.max(12000, root.AssemblyMass * (workspace.Gravity + 420) * 9)
-    h.position.Position = goal
+    if changed or (h.position.Position - goal).Magnitude > .35 then
+        h.position.Position = goal
+    end
     h.orientation.CFrame = CFrame.lookAt(root.Position, aimPoint)
 
     local errorDistance = (root.Position - goal).Magnitude
 
-    -- One entry correction when changing mob. Once above it, AlignPosition is
-    -- the only thing allowed to track movement.
     if changed and errorDistance > 10 then
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         root.CFrame = CFrame.lookAt(goal, aimPoint)
-    elseif errorDistance <= 3 then
-        -- Remove residual sideways/angular momentum that causes visible
-        -- circles/oscillation while preserving the target's horizontal motion.
-        local tv = targetRoot.AssemblyLinearVelocity
-        root.AssemblyLinearVelocity = Vector3.new(tv.X, 0, tv.Z)
+    elseif errorDistance <= 2.25 then
+        -- Never inherit the mob's velocity: that created a feedback loop with
+        -- Bring/Freeze and made the player orbit or shake around the target.
+        root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
     end
 end
@@ -1785,7 +1810,18 @@ local function installDungeonUiRepair()
             if pcall(firesignal, signal) then return true end
         end
 
-        return pcall(function() button:Activate() end)
+        local activated = pcall(function() button:Activate() end)
+        if activated then return true end
+
+        -- Final native UI fallback for executors where Activate/firesignal does
+        -- not reach the game's LocalScript listener.
+        return pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            local pos = button.AbsolutePosition + button.AbsoluteSize / 2
+            vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+            task.wait(.035)
+            vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+        end)
     end
 
     ops.isCardCandidate = function(button)
@@ -1800,11 +1836,60 @@ local function installDungeonUiRepair()
             or string.find(context, "draft", 1, true) ~= nil
     end
 
+    ops.cardText = function(button)
+        if not button then return "" end
+
+        local container = button
+        local p = button.Parent
+        for _ = 1, 4 do
+            if not p or p == PlayerGui then break end
+            local visibleButtons = 0
+            for _, d in ipairs(p:GetDescendants()) do
+                if d:IsA("GuiButton") and ops.guiVisible(d) then
+                    visibleButtons += 1
+                    if visibleButtons > 1 then break end
+                end
+            end
+            if visibleButtons <= 1 then
+                container = p
+                break
+            end
+            p = p.Parent
+        end
+
+        local out = {ops.buttonText(button, 1)}
+        if container ~= button then
+            out[#out + 1] = tostring(container.Name or "")
+            for _, d in ipairs(container:GetDescendants()) do
+                if d:IsA("TextLabel") and d.Visible and trim(d.Text) ~= "" then
+                    out[#out + 1] = tostring(d.Text)
+                elseif d:IsA("TextButton") and d == button and trim(d.Text) ~= "" then
+                    out[#out + 1] = tostring(d.Text)
+                end
+            end
+        end
+        return low(table.concat(out, " ")):gsub("%s+", " ")
+    end
+
+    ops.cardPointValue = function(text)
+        text = low(text)
+        if not string.find(text, "point", 1, true) then return nil end
+
+        local best = 1
+        for value in text:gmatch("(%d+)%s*points?") do
+            best = math.max(best, tonumber(value) or 1)
+        end
+        for value in text:gmatch("%+(%d+)%s*points?") do
+            best = math.max(best, tonumber(value) or 1)
+        end
+        return best
+    end
+
     ops.cardPickTick = function()
         if State.Flags.AutoDungeonCards ~= true or not dungeonInRun() then return false end
 
         local now = os.clock()
-        if now - (State.DungeonLastCardPick or 0) < 1 then
+        if now - (State.DungeonLastCardPick or 0) < .75 then
             return State.DungeonCardPending ~= nil
         end
 
@@ -1819,23 +1904,24 @@ local function installDungeonUiRepair()
 
         for _, object in ipairs(PlayerGui:GetDescendants()) do
             if object:IsA("GuiButton") and ops.guiVisible(object) and ops.isCardCandidate(object) then
-                local text = ops.buttonText(object, 2)
-                local score = 0
+                local text = ops.cardText(object)
+                local points = ops.cardPointValue(text)
 
-                for index, token in ipairs(priorities) do
-                    if string.find(text, token, 1, true) then
-                        score = 2000 - index * 20
-                        break
+                -- User requested point cards only. Never auto-pick a reward
+                -- that does not explicitly advertise Point/Points.
+                if points then
+                    local score = points * 10000
+
+                    for index, token in ipairs(priorities) do
+                        if string.find(text, token, 1, true) then
+                            score += 2000 - index * 20
+                            break
+                        end
                     end
-                end
 
-                if string.find(text, "supreme", 1, true) then score += 70
-                elseif string.find(text, "mythic", 1, true) then score += 60
-                elseif string.find(text, "legendary", 1, true) then score += 50
-                elseif string.find(text, "rare", 1, true) then score += 30 end
-
-                if not best or score > bestScore then
-                    best, bestText, bestScore = object, text, score
+                    if not best or score > bestScore then
+                        best, bestText, bestScore = object, text, score
+                    end
                 end
             end
         end
@@ -1843,6 +1929,7 @@ local function installDungeonUiRepair()
         if not best then
             State.DungeonCardPending = nil
             State.DungeonCardRetries = 0
+            State.DungeonStatus = "Ouwigahara | waiting for point card"
             return false
         end
 
@@ -1855,15 +1942,91 @@ local function installDungeonUiRepair()
         State.DungeonCardPending = best
         State.DungeonLastCardPick = now
 
-        if (State.DungeonCardRetries or 0) >= 3 then
-            State.DungeonStatus = "Card selection needs a manual click"
+        if (State.DungeonCardRetries or 0) >= 4 then
+            State.DungeonStatus = "Point card selection needs a manual click"
             return true
         end
 
         State.DungeonCardRetries = (State.DungeonCardRetries or 0) + 1
         ops.clickButton(best)
-        State.DungeonStatus = "Ouwigahara | card selection requested"
+        State.DungeonStatus = "Ouwigahara | point card requested"
         return true
+    end
+
+    ops.isSkipButton = function(button)
+        if not button or not button:IsA("GuiButton") or not ops.guiVisible(button) then return false end
+
+        local action = ops.actionText(button)
+        local text = ops.buttonText(button, 3)
+        local context = ops.context(button)
+        local all = low(action .. " " .. text .. " " .. context)
+        local compact = all:gsub("[^%a]", "")
+        local name = low(button.Name):gsub("[^%a]", "")
+
+        for _, bad in ipairs({"card", "reward", "draft", "reroll", "shop", "purchase", "buy", "leave", "exit", "giveup", "cancel"}) do
+            if string.find(all, bad, 1, true) then return false end
+        end
+
+        local explicit = {
+            "skipwave", "voteskip", "votetoskip", "skipintermission",
+            "nextwave", "startwave", "startnextwave", "ready", "readyup",
+        }
+        for _, token in ipairs(explicit) do
+            if string.find(compact, token, 1, true) or string.find(name, token, 1, true) then
+                return true
+            end
+        end
+
+        local waveContext = string.find(all, "wave", 1, true)
+            or string.find(all, "intermission", 1, true)
+            or string.find(all, "ouwigahara", 1, true)
+
+        return waveContext ~= nil
+            and (string.find(all, "skip", 1, true) ~= nil or string.find(all, "ready", 1, true) ~= nil)
+    end
+
+    ops.skipWaveTick = function()
+        if State.Flags.AutoDungeonSkip ~= true or not dungeonInRun() then return false end
+
+        local now = os.clock()
+        if now - (State.DungeonLastSkip or 0) < .65 then return false end
+
+        local best
+        for _, object in ipairs(PlayerGui:GetDescendants()) do
+            if object:IsA("GuiButton") and ops.isSkipButton(object) then
+                best = object
+                break
+            end
+        end
+
+        if not best then
+            State.DungeonSkipButton = nil
+            State.DungeonSkipRetries = 0
+            State.DungeonSkipStatus = "Waiting for wave skip"
+            return false
+        end
+
+        if best ~= State.DungeonSkipButton then
+            State.DungeonSkipButton = best
+            State.DungeonSkipRetries = 0
+            ops.clickAttempts[best] = 0
+        end
+
+        State.DungeonLastSkip = now
+        State.DungeonSkipRetries = (State.DungeonSkipRetries or 0) + 1
+
+        local sent = ops.clickButton(best)
+        if sent then
+            State.DungeonSkipStatus = "Skip requested"
+            State.DungeonStatus = "Ouwigahara | skip requested"
+        else
+            State.DungeonSkipStatus = "Skip input retry"
+        end
+
+        if (State.DungeonSkipRetries or 0) >= 5 then
+            State.DungeonSkipRetries = 0
+        end
+        return sent == true
     end
 
     if type(ops.tick) == "function" then
@@ -1873,11 +2036,26 @@ local function installDungeonUiRepair()
             if State.Flags.AutoDungeonClear == true then
                 State.Flags.AutoDungeon = true
             end
-            if dungeonInRun() and (State.Flags.AutoDungeon == true or State.Flags.AutoDungeonClear == true) then
+
+            local inRun = dungeonInRun()
+            if inRun and (State.Flags.AutoDungeon == true or State.Flags.AutoDungeonClear == true) then
                 State.Flags.AutoAttack = true
                 State.Flags.AutoEquip = true
             end
-            return originalTick(...)
+
+            local result = originalTick(...)
+
+            if inRun then
+                local choosing = false
+                if State.Flags.AutoDungeonCards == true then
+                    choosing = ops.cardPickTick() == true
+                end
+                if State.Flags.AutoDungeonSkip == true and not choosing then
+                    ops.skipWaveTick()
+                end
+            end
+
+            return result
         end
     end
 
