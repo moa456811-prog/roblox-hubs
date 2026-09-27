@@ -33,19 +33,27 @@ task.spawn(function()
         )
 
         if root then
-            task.wait(.20)
+            local previousVisible = main.Visible
+            main.Visible = false
+            task.wait(.08)
+
             local okUiSource, uiSource = pcall(game.HttpGet, game, TEST_UI)
             if not okUiSource then
+                main.Visible = previousVisible
                 warn("[A7DEV TEST] UI download failed: " .. tostring(uiSource))
                 return
             end
+
             local uiFn, uiCompileError = loadstring(uiSource)
             if not uiFn then
+                main.Visible = previousVisible
                 warn("[A7DEV TEST] UI compile failed: " .. tostring(uiCompileError))
                 return
             end
+
             local okRun, runError = pcall(uiFn)
             if not okRun then
+                main.Visible = previousVisible
                 warn("[A7DEV TEST] UI runtime failed: " .. tostring(runError))
             end
             return
