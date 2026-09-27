@@ -54,6 +54,7 @@ end
 
 -- Now previous visual layers can be stopped safely.
 for _,key in ipairs({
+ "A7DEV_PS2_REFERENCE_V13_STOP",
  "A7DEV_PS2_REFERENCE_V12_STOP",
  "A7DEV_PS2_REFERENCE_V11_STOP",
  "A7DEV_PS2_REFERENCE_V10_STOP",
@@ -584,6 +585,7 @@ local route={
 local pages={}
 local sectionCategory=setmetatable({}, {__mode="k"})
 local sectionName=setmetatable({}, {__mode="k"})
+local contentOwner=setmetatable({}, {__mode="k"})
 local searchRows=setmetatable({}, {__mode="k"})
 local categorySections={}
 local selectedSub={}
@@ -942,6 +944,7 @@ local function routeSection(section)
  sectionName[section]=section.Name
 
  local content=holder or section
+ contentOwner[content]=section
  content.Parent=page
  content.Position=UDim2.fromOffset(0,0)
  content.Size=UDim2.new(1,0,0,0)
@@ -1261,6 +1264,16 @@ do
    syncAllToggles()
   end
  end)
+end
+
+local function ownerSection(object)
+ local p=object
+ while p and p~=gui do
+  if contentOwner[p] then return contentOwner[p],p end
+  if p:IsA("Frame") and string.sub(p.Name or "",1,8)=="Section_" then return p,getSectionHolder(p) end
+  p=p.Parent
+ end
+ return nil,nil
 end
 
 local selectedCategory="home"
@@ -1620,29 +1633,21 @@ connect(gui.DescendantAdded,function(object)
   end)
   return
  end
- local p=object.Parent
- while p and p~=gui do
-  if p:IsA("Frame") and string.sub(p.Name or "",1,8)=="Section_" then
-   local section=p
-   task.delay(.05,function()
-    if alive and section.Parent then
-     local holder=nil
-     for _,item in ipairs(categorySections[sectionCategory[section]] or {}) do
-      if item.section==section then holder=item.content break end
-     end
-     if holder then
-      searchRows[section]=contentText(holder,section.Name)
-      if selectedSection==section then
-       styleHolder(holder)
-       sizeHolder(holder,pages[selectedCategory])
-      end
-     end
-     applySearch()
+ local section,holder=ownerSection(object)
+ if section then
+  task.delay(.05,function()
+   if alive and holder and holder.Parent then
+    searchRows[section]=contentText(holder,section.Name)
+    if selectedSection==section then
+     holder.Visible=true
+     styleHolder(holder)
+     syncAllToggles()
+     enlargeInputs()
+     sizeHolder(holder,pages[selectedCategory])
     end
-   end)
-   break
-  end
-  p=p.Parent
+    applySearch()
+   end
+  end)
  end
 end)
 
