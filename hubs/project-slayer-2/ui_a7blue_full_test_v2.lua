@@ -6,11 +6,14 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local ENV = (getgenv and getgenv()) or _G
 
 for _, key in ipairs({
+    "A7DEV_PS2_REF_V18_STOP",
+    "A7DEV_PS2_BLACKLIGHT_V7_STOP",
     "A7DEV_PS2_BLACKLIGHT_TEST_STOP",
     "A7DEV_PS2_BLACKLIGHT_POLISH_STOP",
     "A7DEV_PS2_BLACKLIGHT_V4_STOP",
@@ -854,6 +857,143 @@ row(menuCard, 42, "Menu Bind", "LeftControl")
 row(menuCard, 66, "Search", "Enabled")
 row(menuCard, 90, "Language", "English")
 
+local profileCard = card("INFO", 3, "Profile", 134)
+local avatar = mk("Frame", profileCard, {
+    Position = UDim2.fromOffset(14, 42),
+    Size = UDim2.fromOffset(62, 62),
+    BackgroundColor3 = C.control,
+    BorderSizePixel = 0,
+    ZIndex = 132,
+})
+mk("UICorner", avatar, {CornerRadius = UDim.new(0, 31)})
+mk("UIStroke", avatar, {Color = C.border, Thickness = 1, Transparency = .08})
+local avatarImage = mk("ImageLabel", avatar, {
+    Size = UDim2.fromScale(1,1),
+    BackgroundTransparency = 1,
+    Image = "",
+    ZIndex = 133,
+})
+mk("UICorner", avatarImage, {CornerRadius = UDim.new(0,31)})
+local profileName = mk("TextLabel", profileCard, {
+    Position = UDim2.fromOffset(88, 49),
+    Size = UDim2.new(1, -102, 0, 24),
+    BackgroundTransparency = 1,
+    Text = LocalPlayer.DisplayName,
+    Font = Enum.Font.GothamBold,
+    TextSize = 12,
+    TextColor3 = C.text,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextTruncate = Enum.TextTruncate.AtEnd,
+    AutoLocalize = false,
+    ZIndex = 132,
+})
+mk("TextLabel", profileCard, {
+    Position = UDim2.fromOffset(88, 74),
+    Size = UDim2.new(1, -102, 0, 22),
+    BackgroundTransparency = 1,
+    Text = "@" .. LocalPlayer.Name,
+    Font = Enum.Font.GothamMedium,
+    TextSize = 9,
+    TextColor3 = C.bright,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextTruncate = Enum.TextTruncate.AtEnd,
+    AutoLocalize = false,
+    ZIndex = 132,
+})
+local onlineDot = mk("Frame", profileCard, {
+    Position = UDim2.fromOffset(65, 91),
+    Size = UDim2.fromOffset(11, 11),
+    BackgroundColor3 = Color3.fromRGB(0,218,161),
+    BorderSizePixel = 0,
+    ZIndex = 134,
+})
+mk("UICorner", onlineDot, {CornerRadius = UDim.new(0,6)})
+task.spawn(function()
+    local ok,url,ready = pcall(function()
+        return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size180x180)
+    end)
+    if alive and ok and ready then avatarImage.Image=url end
+end)
+on(LocalPlayer:GetPropertyChangedSignal("DisplayName"):Connect(function()
+    if alive then profileName.Text=LocalPlayer.DisplayName end
+end))
+
+local performanceCard = card("INFO", 3, "Performance", 116, -900)
+local fpsLabel = mk("TextLabel", performanceCard, {
+    Position=UDim2.fromOffset(14,42), Size=UDim2.new(.5,-14,0,22),
+    BackgroundTransparency=1, Text="-- FPS", Font=Enum.Font.GothamBold, TextSize=11,
+    TextColor3=C.text, TextXAlignment=Enum.TextXAlignment.Left, AutoLocalize=false, ZIndex=132,
+})
+local pingLabel = mk("TextLabel", performanceCard, {
+    Position=UDim2.new(.5,0,0,42), Size=UDim2.new(.5,-14,0,22),
+    BackgroundTransparency=1, Text="Ping -- ms", Font=Enum.Font.GothamMedium, TextSize=9,
+    TextColor3=C.muted, TextXAlignment=Enum.TextXAlignment.Right, AutoLocalize=false, ZIndex=132,
+})
+local perfTrack = mk("Frame", performanceCard, {
+    Position=UDim2.fromOffset(14,79), Size=UDim2.new(1,-28,0,10),
+    BackgroundColor3=Color3.fromRGB(16,29,49), BorderSizePixel=0, ZIndex=132,
+})
+mk("UICorner", perfTrack, {CornerRadius=UDim.new(0,5)})
+local perfFill = mk("Frame", perfTrack, {
+    Size=UDim2.fromOffset(0,10), BackgroundColor3=C.blue, BorderSizePixel=0, ZIndex=133,
+})
+mk("UICorner", perfFill, {CornerRadius=UDim.new(0,5)})
+local perfGradient = mk("UIGradient", perfFill, {
+    Color=ColorSequence.new(C.blue,C.bright), Rotation=0,
+})
+local fpsTime,frameCount,pingTime=0,0,0
+on(RunService.RenderStepped:Connect(function(dt)
+    fpsTime+=dt; frameCount+=1
+    if fpsTime>=.5 then
+        local fps=frameCount/fpsTime
+        fpsLabel.Text=string.format("%d FPS",math.floor(fps+.5))
+        perfFill.Size=UDim2.new(math.clamp(fps/60,0,1),0,0,10)
+        fpsTime=0; frameCount=0
+    end
+end))
+on(RunService.Heartbeat:Connect(function(dt)
+    pingTime+=dt
+    if pingTime<1 then return end
+    pingTime=0
+    local ok,seconds=pcall(function() return LocalPlayer:GetNetworkPing() end)
+    pingLabel.Text=ok and string.format("Ping %d ms",math.floor(seconds*1000+.5)) or "Ping -- ms"
+end))
+
+local sessionCard = card("INFO", 3, "Session", 116, -890)
+local playersValue = mk("TextLabel", sessionCard, {
+    Position=UDim2.fromOffset(14,42), Size=UDim2.new(.5,-14,0,26),
+    BackgroundTransparency=1, Text=tostring(#Players:GetPlayers()), Font=Enum.Font.GothamBold,
+    TextSize=14, TextColor3=C.text, TextXAlignment=Enum.TextXAlignment.Left, AutoLocalize=false, ZIndex=132,
+})
+mk("TextLabel", sessionCard, {
+    Position=UDim2.fromOffset(14,69), Size=UDim2.new(.5,-14,0,18),
+    BackgroundTransparency=1, Text="Players", Font=Enum.Font.GothamMedium,
+    TextSize=9, TextColor3=C.muted, TextXAlignment=Enum.TextXAlignment.Left, AutoLocalize=false, ZIndex=132,
+})
+local elapsedValue = mk("TextLabel", sessionCard, {
+    Position=UDim2.new(.5,0,0,42), Size=UDim2.new(.5,-14,0,26),
+    BackgroundTransparency=1, Text="00:00:00", Font=Enum.Font.GothamBold,
+    TextSize=12, TextColor3=C.text, TextXAlignment=Enum.TextXAlignment.Right, AutoLocalize=false, ZIndex=132,
+})
+mk("TextLabel", sessionCard, {
+    Position=UDim2.new(.5,0,0,69), Size=UDim2.new(.5,-14,0,18),
+    BackgroundTransparency=1, Text="Elapsed", Font=Enum.Font.GothamMedium,
+    TextSize=9, TextColor3=C.muted, TextXAlignment=Enum.TextXAlignment.Right, AutoLocalize=false, ZIndex=132,
+})
+local sessionStarted=os.clock()
+local function updatePlayerCount()
+    if alive then playersValue.Text=tostring(#Players:GetPlayers()) end
+end
+on(Players.PlayerAdded:Connect(updatePlayerCount))
+on(Players.PlayerRemoving:Connect(function() task.defer(updatePlayerCount) end))
+local lastElapsed=-1
+on(RunService.Heartbeat:Connect(function()
+    local elapsed=math.floor(os.clock()-sessionStarted)
+    if elapsed==lastElapsed then return end
+    lastElapsed=elapsed
+    elapsedValue.Text=string.format("%02d:%02d:%02d",math.floor(elapsed/3600),math.floor(elapsed/60)%60,elapsed%60)
+end))
+
 local serverCard = card("SERVER", 1, "Server", 196)
 
 local function action(parent, y, text, callback)
@@ -999,7 +1139,7 @@ local function rebuildSub(primary, selected)
             Text = name,
             Font = Enum.Font.GothamMedium,
             TextSize = 9,
-            TextColor3 = name == selected and C.text or C.muted,
+            TextColor3 = name == selected and C.bright or C.muted,
             AutoLocalize = false,
             Active = true,
             Selectable = true,
@@ -1054,7 +1194,7 @@ selectView = function(primary, sub)
     for key, item in pairs(primaryButtons) do
         local active = key == primary
         item.button.BackgroundTransparency = active and 0 or 1
-        item.icon.ImageColor3 = active and C.text or C.dim
+        item.icon.ImageColor3 = active and C.bright or C.dim
         item.label.TextColor3 = active and C.text or C.dim
     end
 
