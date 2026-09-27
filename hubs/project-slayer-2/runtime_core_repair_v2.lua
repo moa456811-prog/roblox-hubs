@@ -609,9 +609,9 @@ local function beginBossLootHold(boss, now)
     R.bossLootBoss = boss
     R.bossLootCenter = objectPosition(boss) or State.BossLastPosition or R.bossLootCenter
     R.bossLootStartedAt = now
-    R.bossLootMinUntil = now + 5.5
-    R.bossLootNoSpawnUntil = now + 8.0
-    R.bossLootDeadline = now + 14.0
+    R.bossLootMinUntil = now + 3.0
+    R.bossLootNoSpawnUntil = now + 4.5
+    R.bossLootDeadline = now + 8.0
     R.bossLootComplete = false
     R.bossLootQuietSince = nil
     R.bossLootLastActivity = now
@@ -3507,7 +3507,7 @@ local function chestDropRecoveryTick(now)
             -- We actually saw boss loot/chest activity. Finish only after the
             -- area has stayed quiet long enough for all delayed drops/prompts.
             R.bossLootQuietSince = R.bossLootQuietSince or now
-            if now - R.bossLootQuietSince >= 1.6 then
+            if now - R.bossLootQuietSince >= .8 then
                 R.bossLootComplete = true
             end
         elseif R.bossLootObserved ~= true
