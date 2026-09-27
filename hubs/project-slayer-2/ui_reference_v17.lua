@@ -1878,10 +1878,10 @@ do
   local accent=frame(holder,"Accent",0,0,4,54,C.blue,2);accent.ZIndex=1002
   local textLabel=label(holder,safeText(message),16,0,320,54,12,C.text,true);textLabel.ZIndex=1002
   holder.BackgroundTransparency=1
-  tween(holder,{BackgroundTransparency=0})
+  tween(holder,{BackgroundTransparency=0}):Play()
   task.delay(2.6,function()
    if holder and holder.Parent then
-    tween(holder,{BackgroundTransparency=1})
+    tween(holder,{BackgroundTransparency=1}):Play()
     task.delay(.2,function() if holder and holder.Parent then holder:Destroy() end end)
    end
   end)
@@ -1917,7 +1917,7 @@ do
 
  local favButton=create("TextButton",contentStage,{
   Name="FavoriteCurrent",
-  Position=UDim2.new(1,-250,0,12),
+  Position=UDim2.new(1,-300,0,12),
   Size=UDim2.fromOffset(44,31),
   BackgroundColor3=C.row,
   BorderSizePixel=0,
@@ -2167,10 +2167,10 @@ do
  }
  local quickButtons={}
  for i,def in ipairs(quickDefs) do
-  local b=create("TextButton",main,{
+  local b=create("TextButton",banner,{
    Name="Quick_"..def.text,
-   Position=UDim2.fromOffset(500+(i-1)*96,28),
-   Size=UDim2.fromOffset(86,28),
+   Position=UDim2.fromOffset(610+(i-1)*112,174),
+   Size=UDim2.fromOffset(102,40),
    BackgroundColor3=C.row,BorderSizePixel=0,AutoButtonColor=false,
    Text=def.text,Font=Enum.Font.GothamMedium,TextSize=10,TextColor3=C.muted,ZIndex=171,
   })
