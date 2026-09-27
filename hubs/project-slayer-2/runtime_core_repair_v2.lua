@@ -531,7 +531,10 @@ local function beginBossLootHold(boss, now)
 
     -- Multiple death signals/timer scans for the same boss must not restart
     -- the timeout forever.
-    if R.bossLootBoss == boss and R.bossLootStartedAt and R.bossLootComplete ~= true then
+    if R.bossLootBoss == boss and R.bossLootStartedAt then
+        if R.bossLootComplete == true then
+            return
+        end
         State.BossWaiting = true
         State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1)
         State.ChestRoutePhase = "Boss loot"
@@ -580,6 +583,31 @@ local function bossLootHoldActive(now)
         return false
     end
 
+    return true
+end
+
+local function enforceBossLootHold(now)
+    if not bossLootHoldActive(now) then return false end
+
+    local deadBoss = R.bossLootBoss
+
+    if State.BossLock and State.BossLock ~= deadBoss then
+        State.BossLock = nil
+    end
+    if State.CurrentBoss and State.CurrentBoss ~= deadBoss then
+        State.CurrentBoss = nil
+    end
+    if State.CurrentTarget and State.CurrentTarget ~= deadBoss then
+        State.CurrentTarget = nil
+    end
+
+    State.FarmPlanTarget = nil
+    State.FarmPlanSource = nil
+    State.BossWaiting = true
+    State.BossStatus = "Boss defeated | collecting loot"
+    State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + .8)
+    State.ChestRoutePhase = "Boss loot"
+    State.LastChestScan = 0
     return true
 end
 
@@ -801,6 +829,11 @@ local function recoverBoss(now)
     end
 
     installBossLootAcquireGate()
+
+    if enforceBossLootHold(now) then
+        finishConfirmedBossDeath(now)
+        return
+    end
 
     if finishConfirmedBossDeath(now) then
         return
