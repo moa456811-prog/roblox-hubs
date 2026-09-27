@@ -3,7 +3,7 @@
 -- then fully replaces the visible UI with the supplied A7 reference layout for this execution path.
 
 local MAIN_BOOTSTRAP = "https://rbhasxhkhvldbbsvbmqj.supabase.co/functions/v1/a7dev-loader?game=project-slayer-2"
-local TEST_UI = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/main/hubs/project-slayer-2/ui_reference_v3.lua"
+local TEST_UI = "https://raw.githubusercontent.com/moa456811-prog/roblox-hubs/main/hubs/project-slayer-2/ui_reference_v3.lua?v=20260927-1009-fix1"
 
 local okSource, source = pcall(game.HttpGet, game, MAIN_BOOTSTRAP)
 if not okSource then
