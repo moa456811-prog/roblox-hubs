@@ -517,6 +517,8 @@ local function clearBossLootHold()
     R.bossLootComplete = nil
     R.bossLootQuietSince = nil
     R.bossLootLastActivity = nil
+    R.bossLootObserved = nil
+    R.bossLootNoSpawnUntil = nil
 end
 
 local function beginBossLootHold(boss, now)
@@ -527,18 +529,35 @@ local function beginBossLootHold(boss, now)
         return
     end
 
+    -- Multiple death signals/timer scans for the same boss must not restart
+    -- the timeout forever.
+    if R.bossLootBoss == boss and R.bossLootStartedAt and R.bossLootComplete ~= true then
+        State.BossWaiting = true
+        State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1)
+        State.ChestRoutePhase = "Boss loot"
+        State.LastChestScan = 0
+        return
+    end
+
     R.bossLootBoss = boss
     R.bossLootCenter = objectPosition(boss) or State.BossLastPosition or R.bossLootCenter
     R.bossLootStartedAt = now
-    R.bossLootMinUntil = now + 4.5
-    R.bossLootDeadline = now + 11
+    R.bossLootMinUntil = now + 5.5
+    R.bossLootNoSpawnUntil = now + 8.0
+    R.bossLootDeadline = now + 14.0
     R.bossLootComplete = false
     R.bossLootQuietSince = nil
     R.bossLootLastActivity = now
+    R.bossLootObserved = false
 
+    -- Stop combat movement immediately. Keep BossLock/CurrentBoss only as
+    -- identity references until loot is done.
+    State.CurrentTarget = nil
+    State.FarmPlanTarget = nil
+    State.FarmPlanSource = nil
     State.BossWaiting = true
     State.BossStatus = "Boss defeated | collecting loot"
-    State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1.2)
+    State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1.5)
     State.ChestRoutePhase = "Boss loot"
     State.LastChestScan = 0
 end
@@ -595,26 +614,82 @@ local function installBossLootAcquireGate()
     if type(ops) ~= "table" or type(ops.acquire) ~= "function" then return end
     if ops.A7DEV_CORE_LOOT_GATE == true then return end
 
-    local original = ops.acquire
-    local gated
-    gated = function(...)
+    local originalAcquire = ops.acquire
+    local originalDefeated = ops.defeated
+    local originalFullMapScan = ops.fullMapScan
+
+    local gatedAcquire
+    gatedAcquire = function(...)
         if bossLootHoldActive(os.clock()) then
             State.BossWaiting = true
             return nil
         end
-        return original(...)
+        return originalAcquire(...)
+    end
+
+    local gatedDefeated
+    if type(originalDefeated) == "function" then
+        gatedDefeated = function(...)
+            local now = os.clock()
+            local deadBoss = State.BossLock or State.CurrentBoss or R.bossDeathWatch or R.confirmedBossDead
+            local hum = humanoidOf(deadBoss)
+            local looksDead = deadBoss and (
+                (hum and hum.Health <= 0)
+                or not isWorkspaceDescendant(deadBoss)
+            )
+
+            if looksDead
+                and (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true)
+                and (State.Flags.AutoChestLoot == true or State.Flags.AutoLootDrops == true) then
+                if R.confirmedBossDead ~= deadBoss then
+                    R.confirmedBossDead = deadBoss
+                    R.confirmedBossDeathAt = now
+                    R.confirmedBossDeathHandled = false
+                end
+                beginBossLootHold(deadBoss, now)
+
+                if bossLootHoldActive(now) then
+                    State.BossWaiting = true
+                    return nil
+                end
+            end
+
+            return originalDefeated(...)
+        end
+    end
+
+    local gatedFullMapScan
+    if type(originalFullMapScan) == "function" then
+        gatedFullMapScan = function(...)
+            if bossLootHoldActive(os.clock()) then
+                State.BossWaiting = true
+                return nil
+            end
+            return originalFullMapScan(...)
+        end
     end
 
     ops.A7DEV_CORE_LOOT_GATE = true
-    ops.A7DEV_CORE_ORIGINAL_ACQUIRE = original
-    ops.acquire = gated
+    ops.A7DEV_CORE_ORIGINAL_ACQUIRE = originalAcquire
+    ops.A7DEV_CORE_ORIGINAL_DEFEATED = originalDefeated
+    ops.A7DEV_CORE_ORIGINAL_FULL_MAP_SCAN = originalFullMapScan
+    ops.acquire = gatedAcquire
+    if gatedDefeated then ops.defeated = gatedDefeated end
+    if gatedFullMapScan then ops.fullMapScan = gatedFullMapScan end
 
     cleanup(function()
-        if ops.acquire == gated then
-            ops.acquire = original
-        end
-        if ops.A7DEV_CORE_ORIGINAL_ACQUIRE == original then
+        if ops.acquire == gatedAcquire then ops.acquire = originalAcquire end
+        if gatedDefeated and ops.defeated == gatedDefeated then ops.defeated = originalDefeated end
+        if gatedFullMapScan and ops.fullMapScan == gatedFullMapScan then ops.fullMapScan = originalFullMapScan end
+
+        if ops.A7DEV_CORE_ORIGINAL_ACQUIRE == originalAcquire then
             ops.A7DEV_CORE_ORIGINAL_ACQUIRE = nil
+        end
+        if ops.A7DEV_CORE_ORIGINAL_DEFEATED == originalDefeated then
+            ops.A7DEV_CORE_ORIGINAL_DEFEATED = nil
+        end
+        if ops.A7DEV_CORE_ORIGINAL_FULL_MAP_SCAN == originalFullMapScan then
+            ops.A7DEV_CORE_ORIGINAL_FULL_MAP_SCAN = nil
         end
         ops.A7DEV_CORE_LOOT_GATE = nil
     end)
@@ -1952,7 +2027,7 @@ end
 local function releaseTimedDeadBoss(name, now)
     local key = low(name)
     local seenAt = R.bossRespawnSeenAt[key]
-    if not seenAt or now - seenAt < 2.5 or R.bossTimerReleased[key] then return end
+    if not seenAt or R.bossTimerReleased[key] then return end
 
     local locked = State.BossLock
     local current = State.CurrentBoss
@@ -1962,32 +2037,25 @@ local function releaseTimedDeadBoss(name, now)
         and not (aliveModel(current) and isWorkspaceDescendant(current))
     if not lockedMatch and not currentMatch then return end
 
-    R.bossTimerReleased[key] = true
-
-    local ops = State.BossOps
-    if type(ops) == "table" and type(ops.defeated) == "function" then
-        safe("Boss timer defeated", ops.defeated)
+    local deadBoss = lockedMatch and locked or current
+    if deadBoss then
+        if R.confirmedBossDead ~= deadBoss then
+            R.confirmedBossDead = deadBoss
+            R.confirmedBossDeathAt = seenAt
+            R.confirmedBossDeathHandled = false
+        end
+        beginBossLootHold(deadBoss, now)
     end
 
-    if lockedMatch and State.BossLock == locked then State.BossLock = nil end
-    if currentMatch and State.CurrentBoss == current then State.CurrentBoss = nil end
-    if State.CurrentTarget and low(State.CurrentTarget.Name) == key
-        and not (aliveModel(State.CurrentTarget) and isWorkspaceDescendant(State.CurrentTarget)) then
-        State.CurrentTarget = nil
-    end
-    if State.FarmPlanTarget and low(State.FarmPlanTarget.Name) == key
-        and not (aliveModel(State.FarmPlanTarget) and isWorkspaceDescendant(State.FarmPlanTarget)) then
-        State.FarmPlanTarget = nil
-    end
+    -- Timer visibility is a death confirmation. Keep the exact dead boss
+    -- locked as identity only until the common Boss Loot pipeline finishes.
+    State.BossWaiting = true
+    State.BossStatus = bossLootHoldActive(now)
+        and "Boss defeated | collecting loot"
+        or "Boss defeated | finalizing"
 
-    State.BossWaiting = false
-    State.BossMissingSince = nil
-    State.FarmPlanSource = nil
-    State.FarmPlannerForce = true
-    State.FarmPlannerLastTick = 0
-    State.BossStatus = "Boss defeated | finding next boss"
-    R.bossNoTargetSince = nil
-    R.lastBossRecovery = -math.huge
+    -- finishConfirmedBossDeath() owns the actual defeated/reset/acquire path.
+    -- Do not clear the lock here or Auto Boss can jump away before drops spawn.
 end
 
 local function scanBossRespawnTimer(now)
@@ -3124,6 +3192,11 @@ local function addChestDropCandidate(object)
     local pos = objectPosition(drop)
     if pos and (pos - W.center).Magnitude <= 100 then
         W.candidates[drop] = true
+        if bossLootHoldActive(os.clock()) and R.bossLootCenter then
+            R.bossLootObserved = true
+            R.bossLootLastActivity = os.clock()
+            R.bossLootQuietSince = nil
+        end
     end
 end
 
@@ -3163,6 +3236,11 @@ local function openChestDropWindow(now)
 
     if opened > (W.lastOpened or 0) or opening then
         W.lastOpened = math.max(opened, W.lastOpened or 0)
+        if bossLootHoldActive(now) then
+            R.bossLootObserved = true
+            R.bossLootLastActivity = now
+            R.bossLootQuietSince = nil
+        end
         local _, _, root = livingCharacter()
         W.center = W.lastChestPosition or (root and root.Position) or W.center
         if W.center then
@@ -3285,16 +3363,25 @@ local function chestDropRecoveryTick(now)
         end
 
         if pending or bossChestBusy then
+            R.bossLootObserved = true
             R.bossLootLastActivity = now
             R.bossLootQuietSince = nil
             State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + 1)
             State.ChestRoutePhase = "Boss loot"
             State.LastChestScan = 0
-        elseif R.bossLootMinUntil and now >= R.bossLootMinUntil then
+        elseif R.bossLootObserved == true and R.bossLootMinUntil and now >= R.bossLootMinUntil then
+            -- We actually saw boss loot/chest activity. Finish only after the
+            -- area has stayed quiet long enough for all delayed drops/prompts.
             R.bossLootQuietSince = R.bossLootQuietSince or now
-            if now - R.bossLootQuietSince >= 1.4 then
+            if now - R.bossLootQuietSince >= 1.6 then
                 R.bossLootComplete = true
             end
+        elseif R.bossLootObserved ~= true
+            and R.bossLootNoSpawnUntil
+            and now >= R.bossLootNoSpawnUntil then
+            -- Nothing appeared at all. Give late server replication a longer
+            -- grace before allowing the next boss.
+            R.bossLootComplete = true
         end
 
         if R.bossLootDeadline and now >= R.bossLootDeadline then
