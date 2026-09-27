@@ -306,7 +306,8 @@ connect(UserInputService.InputEnded,function(input)
 end)
 connect(UserInputService.WindowFocusReleased,function() dragging=false;dragTouch=nil end)
 
-local body=transparent(root,"Body",0,116,1404,708)\nlocal switchCategory
+local body=transparent(root,"Body",0,116,1404,708)
+local switchCategory
 local nav=transparent(header,"Navigation",224,16,472,62)
 local active=frame(nav,"ActiveTab",2,59,66,5,C.blue,3)
 local navNames={"home","user","tools","settings","cube"}
