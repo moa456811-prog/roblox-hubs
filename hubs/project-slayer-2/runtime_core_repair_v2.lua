@@ -234,12 +234,18 @@ local function refreshNative(force)
     local Client = CAM and CAM:FindFirstChild("Client")
     local subsets = Global and Global:FindFirstChild("Subsets")
     local gameplay = subsets and subsets:FindFirstChild("Gameplay")
+    local collectibles = Global and Global:FindFirstChild("Collectibles")
     local comm = ReplicatedStorage:FindFirstChild("Communication")
     local sc = comm and comm:FindFirstChild("ServerAndClient")
     local signals = sc and sc:FindFirstChild("Signals")
 
     Native.Utility = Global and requireSafe(Global:FindFirstChild("Utility"))
     Native.Quests = gameplay and requireSafe(gameplay:FindFirstChild("Quests"))
+    Native.Items = collectibles and requireSafe(collectibles:FindFirstChild("Items"))
+    Native.CharacterInfo = Global and (
+        requireSafe(Global:FindFirstChild("Character_info_provider"))
+        or requireSafe(Global:FindFirstChild("CharacterInfoProvider"))
+    )
     Native.SignalFunction = signals and requireSafe(signals:FindFirstChild("SignalFunction"))
     Native.SignalEvent = signals and requireSafe(signals:FindFirstChild("SignalEvent"))
     Native.ready = true
@@ -3189,6 +3195,376 @@ end
 cleanup(restoreLanternOwnedFlags)
 
 -- ============================================================================
+-- DUNGEON AUTO START + POINT CHEST GUARD + AUTO POTION
+-- ============================================================================
+
+State.Flags.AutoDungeonPotion = State.Flags.AutoDungeonPotion == true
+State.DungeonPotionHP = math.clamp(tonumber(State.DungeonPotionHP) or 45, 10, 90)
+R.dungeonPotionLastUse = R.dungeonPotionLastUse or -math.huge
+R.dungeonWasInRun = R.dungeonWasInRun == true
+R.dungeonEndedAt = R.dungeonEndedAt or nil
+R.dungeonPointChests = R.dungeonPointChests or setmetatable({}, {__mode = "k"})
+
+local DUNGEON_TOOLBAR_KEYS = {"One", "Two", "Three", "Four", "Five"}
+
+local function dungeonItemId(item)
+    if not item then return nil end
+    local obj = item:FindFirstChild("Id") or item:FindFirstChild("ID") or item:FindFirstChild("ItemId")
+    if obj and obj:IsA("ValueBase") then return tonumber(obj.Value) end
+
+    for _, key in ipairs({"Id", "ID", "ItemId"}) do
+        local ok, value = pcall(item.GetAttribute, item, key)
+        if ok and tonumber(value) then return tonumber(value) end
+    end
+
+    if item:IsA("ValueBase") and tonumber(item.Value) then
+        return tonumber(item.Value)
+    end
+end
+
+local function dungeonInventoryData()
+    local data = playerData()
+    local inventory = data and data:FindFirstChild("Inventory")
+    return data,
+        inventory and inventory:FindFirstChild("Inventory"),
+        inventory and inventory:FindFirstChild("Toolbar")
+end
+
+local function dungeonFindToolbarSlot(data, itemName, itemId)
+    local inventory = data and data:FindFirstChild("Inventory")
+    local toolbar = inventory and inventory:FindFirstChild("Toolbar")
+    if not toolbar then return nil end
+
+    refreshNative()
+
+    if Native.CharacterInfo and type(Native.CharacterInfo.GetItemFromId) == "function" then
+        for index, key in ipairs(DUNGEON_TOOLBAR_KEYS) do
+            local slot = toolbar:FindFirstChild(key)
+            local id = slot and tonumber(slot.Value)
+            if id and id ~= 0 then
+                local ok, item = pcall(Native.CharacterInfo.GetItemFromId, LocalPlayer, id)
+                if ok and item and tostring(item.Name) == tostring(itemName) then
+                    return index, key, slot, id
+                end
+            end
+        end
+    end
+
+    if itemId then
+        for index, key in ipairs(DUNGEON_TOOLBAR_KEYS) do
+            local slot = toolbar:FindFirstChild(key)
+            if slot and tonumber(slot.Value) == tonumber(itemId) then
+                return index, key, slot, itemId
+            end
+        end
+
+        for index, key in ipairs(DUNGEON_TOOLBAR_KEYS) do
+            local slot = toolbar:FindFirstChild(key)
+            if slot and (tonumber(slot.Value) or 0) == 0 then
+                return index, key, slot, itemId
+            end
+        end
+
+        local slot = toolbar:FindFirstChild("Five")
+        if slot then return 5, "Five", slot, itemId end
+    end
+end
+
+local function dungeonPotionText(item)
+    local parts = {tostring(item and item.Name or "")}
+
+    if item then
+        for _, key in ipairs({
+            "DisplayName", "Title", "Type", "Category", "ItemType",
+            "Effect", "Description", "UseType"
+        }) do
+            local ok, value = pcall(item.GetAttribute, item, key)
+            if ok and value ~= nil then parts[#parts + 1] = tostring(value) end
+        end
+    end
+
+    local name = item and tostring(item.Name or "") or ""
+    local cfg = Native.Items and Native.Items[name]
+    if type(cfg) == "table" then
+        for _, key in ipairs({
+            "Name", "DisplayName", "Type", "Category", "Effect", "Description",
+            "Heal", "Healing", "Health", "HealthRestore", "HP"
+        }) do
+            local value = cfg[key]
+            if value ~= nil then parts[#parts + 1] = tostring(value) end
+        end
+    end
+
+    return low(table.concat(parts, " "))
+end
+
+local function isDungeonHealingPotion(item)
+    if not item or not item.Parent then return false end
+    local text = dungeonPotionText(item)
+
+    if not string.find(text, "potion", 1, true) then
+        return false
+    end
+
+    return string.find(text, "heal", 1, true) ~= nil
+        or string.find(text, "health", 1, true) ~= nil
+        or string.find(text, " hp", 1, true) ~= nil
+        or string.find(text, "life", 1, true) ~= nil
+end
+
+local function findDungeonHealingPotion()
+    refreshNative()
+    local _, items = dungeonInventoryData()
+    if not items then return nil end
+
+    local best, bestAmount = nil, -1
+    for _, item in ipairs(items:GetChildren()) do
+        if isDungeonHealingPotion(item) then
+            local amountObj = item:FindFirstChild("Amount")
+            local amount = math.max(1, math.floor(tonumber(amountObj and amountObj.Value) or 1))
+            if amount > bestAmount then
+                best, bestAmount = item, amount
+            end
+        end
+    end
+    return best
+end
+
+local function useDungeonPotion(item)
+    if not item or not item.Parent then return false end
+
+    refreshNative(true)
+    if not Native.SignalEvent or type(Native.SignalEvent.ToServer) ~= "function" then
+        return false
+    end
+
+    local data = playerData()
+    local itemId = dungeonItemId(item)
+    local slotIndex, slotKey, slotObject, useId =
+        dungeonFindToolbarSlot(data, item.Name, itemId)
+
+    if not slotIndex or not slotObject then return false end
+
+    if tonumber(slotObject.Value) ~= tonumber(useId) then
+        pcall(Native.SignalEvent.ToServer, "Toolbar_Equip", slotKey, useId)
+        pcall(function() slotObject.Value = useId end)
+        task.wait(.12)
+    end
+
+    local itemsConfig = LocalPlayer:FindFirstChild("Items_Config")
+    local equipped = itemsConfig and itemsConfig:FindFirstChild("Equipped")
+    if equipped and equipped:IsA("IntValue") then
+        pcall(function() equipped.Value = slotIndex end)
+    end
+
+    pcall(Native.SignalEvent.ToServer, "Item_Equip", slotIndex)
+    task.wait(.08)
+
+    local toolScripts = ReplicatedStorage:FindFirstChild("ToolScripts")
+    local folder = toolScripts and toolScripts:FindFirstChild(item.Name)
+    local moduleScript = folder and folder:FindFirstChild(item.Name)
+
+    if moduleScript and moduleScript:IsA("ModuleScript") then
+        local ok, module = pcall(require, moduleScript)
+        if ok and type(module) == "table" and type(module.MouseDown) == "function" then
+            task.spawn(module.MouseDown, LocalPlayer.Character, item.Name)
+        end
+    end
+
+    local okDown = pcall(Native.SignalEvent.ToServer, "Tool_Mouse", "Down", nil)
+    if not okDown then return false end
+
+    task.delay(.28, function()
+        if Native.SignalEvent and type(Native.SignalEvent.ToServer) == "function" then
+            pcall(Native.SignalEvent.ToServer, "Tool_Mouse", "Up", nil)
+        end
+    end)
+
+    return true
+end
+
+local function dungeonPotionTick(now)
+    if State.Flags.AutoDungeonPotion ~= true or not dungeonInRun() then return end
+    if now - (R.dungeonPotionLastUse or -math.huge) < 4 then return end
+
+    local _, humanoid = livingCharacter()
+    if not humanoid or humanoid.MaxHealth <= 0 or humanoid.Health <= 0 then return end
+
+    local hpPercent = (humanoid.Health / humanoid.MaxHealth) * 100
+    if hpPercent > (tonumber(State.DungeonPotionHP) or 45) then return end
+
+    local potion = findDungeonHealingPotion()
+    if not potion then
+        State.DungeonPotionStatus = "No healing potion"
+        return
+    end
+
+    R.dungeonPotionLastUse = now
+    if useDungeonPotion(potion) then
+        State.DungeonPotionStatus = "Used " .. tostring(potion.Name)
+    else
+        State.DungeonPotionStatus = "Potion use retry"
+    end
+end
+
+local function pointChestText(chest)
+    if not chest then return "" end
+
+    local parts = {
+        tostring(chest.Name or ""),
+        tostring(chest:GetAttribute("ChestId") or ""),
+        tostring(chest:GetAttribute("ChestModel") or ""),
+    }
+
+    for _, key in ipairs({
+        "Reward", "RewardType", "Currency", "Type", "Category",
+        "ChestType", "DisplayName", "Title"
+    }) do
+        local ok, value = pcall(chest.GetAttribute, chest, key)
+        if ok and value ~= nil then parts[#parts + 1] = tostring(value) end
+    end
+
+    for _, object in ipairs(chest:GetDescendants()) do
+        if object:IsA("ProximityPrompt") then
+            parts[#parts + 1] = tostring(object.Name or "")
+            parts[#parts + 1] = tostring(object.ActionText or "")
+            parts[#parts + 1] = tostring(object.ObjectText or "")
+        elseif object:IsA("StringValue") then
+            parts[#parts + 1] = tostring(object.Name or "")
+            parts[#parts + 1] = tostring(object.Value or "")
+        end
+    end
+
+    return low(table.concat(parts, " "))
+end
+
+local function isDungeonPointChest(chest)
+    if not chest or not chest.Parent then return false end
+    local text = pointChestText(chest)
+    return string.find(text, "point", 1, true) ~= nil
+end
+
+local function dungeonPointChestGuardTick(now)
+    local active = dungeonInRun()
+        or (R.dungeonEndedAt and now - R.dungeonEndedAt <= 25)
+
+    if not active then return end
+
+    local seen = {}
+
+    local ok, tagged = pcall(CollectionService.GetTagged, CollectionService, "Chest")
+    if ok and type(tagged) == "table" then
+        for _, chest in ipairs(tagged) do
+            if chest and chest.Parent then seen[chest] = true end
+        end
+    end
+
+    local debree = workspace:FindFirstChild("Debree")
+    local folder = debree and debree:FindFirstChild("Chests")
+    if folder then
+        for _, chest in ipairs(folder:GetChildren()) do
+            if chest:IsA("Model") then seen[chest] = true end
+        end
+    end
+
+    State.ChestAttempts = State.ChestAttempts or setmetatable({}, {__mode = "k"})
+
+    for chest in pairs(seen) do
+        if isDungeonPointChest(chest) then
+            R.dungeonPointChests[chest] = true
+            -- Base chestUsable() treats a future attempt timestamp as still
+            -- inside its retry delay, which cleanly excludes this chest.
+            State.ChestAttempts[chest] = now + 3600
+
+            if State.CurrentChest == chest then
+                State.CurrentChest = nil
+                State.ChestRouteUntil = 0
+                State.ChestRoutePhase = "Idle"
+                State.ChestStatus = "Point chest ignored"
+            end
+        end
+    end
+end
+
+local function dungeonAutoStartTick(now)
+    local inRun = dungeonInRun()
+    local ops = State.DungeonOps
+
+    if inRun and not R.dungeonWasInRun then
+        R.dungeonWasInRun = true
+        R.dungeonEndedAt = nil
+
+        -- One-shot per dungeon session. If the user disables Auto Dungeon
+        -- afterwards, do not force it back on until a new dungeon session.
+        State.Flags.AutoDungeon = true
+        State.Flags.AutoAttack = true
+        State.Flags.AutoEquip = true
+        State.Flags.FarmNoclip = true
+
+        setControl("Auto Dungeon (Ouwigahara)", true)
+        setControl("Auto Dungeon", true)
+        setControl("Auto Attack", true)
+        setControl("Auto Attack (native)", true)
+        setControl("Auto Equip", true)
+        setControl("Auto Equip Combat Tool", true)
+
+        if type(ops) == "table" then
+            if type(ops.setResume) == "function" then
+                safe("Dungeon auto start resume", ops.setResume, true)
+            end
+            if type(ops.queueResume) == "function" then
+                safe("Dungeon auto start queue", ops.queueResume)
+            end
+            if type(ops.tick) == "function" then
+                safe("Dungeon auto start tick", ops.tick)
+            end
+        end
+
+        State.DungeonStatus = "Ouwigahara | auto started"
+    elseif not inRun and R.dungeonWasInRun then
+        R.dungeonWasInRun = false
+        R.dungeonEndedAt = now
+    end
+end
+
+local function installDungeonPotionUi()
+    if R.dungeonPotionUiInstalled then return true end
+    if not State.Runtime or type(State.Runtime.addToggle) ~= "function" then return false end
+
+    local gui = LocalPlayer:FindFirstChild("PlayerGui")
+        and LocalPlayer.PlayerGui:FindFirstChild("A7DEV_ProjectSlayer2")
+    if not gui then return false end
+
+    local section = gui:FindFirstChild("Section_Dungeon + Souls", true)
+    local holder = section and section:FindFirstChild("Items")
+    if not holder then return false end
+
+    local controls = State.Runtime.ToggleControls
+    if type(controls) == "table" and controls["Auto Use Potion"] then
+        R.dungeonPotionUiInstalled = true
+        return true
+    end
+
+    State.Runtime.addToggle(holder, "Auto Use Potion", State.Flags.AutoDungeonPotion == true, function(value)
+        State.Flags.AutoDungeonPotion = value == true
+        R.dungeonPotionLastUse = -math.huge
+    end)
+
+    if type(State.Runtime.addInput) == "function" then
+        State.Runtime.addInput(holder, "Potion HP %", State.DungeonPotionHP, function(text, box)
+            local value = tonumber(text)
+            if value then
+                State.DungeonPotionHP = math.clamp(value, 10, 90)
+            end
+            if box then box.Text = tostring(math.floor(State.DungeonPotionHP + .5)) end
+        end, "45")
+    end
+
+    R.dungeonPotionUiInstalled = true
+    return true
+end
+
+-- ============================================================================
 -- PLAYER FARM: PRESENT TARGET MUST NOT EXPIRE WHILE WAITING FOR ROUTE
 -- ============================================================================
 
@@ -3223,20 +3599,27 @@ end
 -- ============================================================================
 
 local function dungeonRecoveryTick(now)
+    local ops = State.DungeonOps
+    if type(ops) ~= "table" then return end
+
+    local inRun = dungeonInRun()
+
+    if inRun and not R.dungeonWasInRun then
+        dungeonAutoStartTick(now)
+    end
+
     local enabled = State.Flags.AutoDungeon == true or State.Flags.AutoDungeonClear == true
     if not enabled then
         R.dungeonWaitSince = nil
+        if not inRun then dungeonAutoStartTick(now) end
         return
     end
-
-    local ops = State.DungeonOps
-    if type(ops) ~= "table" then return end
 
     if State.Flags.AutoDungeonClear == true then
         State.Flags.AutoDungeon = true
     end
 
-    if dungeonInRun() then
+    if inRun then
         R.dungeonWaitSince = nil
         if State.DungeonCombatTarget and not aliveModel(State.DungeonCombatTarget) then
             State.DungeonCombatTarget = nil
@@ -3248,6 +3631,8 @@ local function dungeonRecoveryTick(now)
         State.Flags.AutoEquip = true
         return
     end
+
+    dungeonAutoStartTick(now)
 
     local text = low(tostring(State.DungeonStatus or "") .. " " .. statusText())
     local waiting = string.find(text, "dungeonwait", 1, true)
@@ -3747,6 +4132,9 @@ task.spawn(function()
         if not (State.DungeonOps and State.DungeonOps.A7DEV_TEST_UI_REPAIR) then
             installDungeonUiRepair()
         end
+        if not R.dungeonPotionUiInstalled then
+            installDungeonPotionUi()
+        end
         if not (State.MobLockOps and State.MobLockOps.A7DEV_TEST_OWNERSHIP_REPAIR) then
             installFreezeOwnershipRepair()
         end
@@ -3764,7 +4152,10 @@ task.spawn(function()
         safe("Yeti resolver recovery", yetiResolverRecovery, now)
         safe("Lantern acquisition", lanternAcquireTick)
         safe("Player recovery", playerRecoveryTick, now)
+        safe("Dungeon auto start", dungeonAutoStartTick, now)
         safe("Dungeon recovery", dungeonRecoveryTick, now)
+        safe("Dungeon point chest guard", dungeonPointChestGuardTick, now)
+        safe("Dungeon potion", dungeonPotionTick, now)
         safe("Fishing recovery", fishingRecoveryTick, now)
         safe("Chest drop recovery", chestDropRecoveryTick, now)
         safe("Special quest recovery", specialQuestRecoveryTick, now)
@@ -3785,6 +4176,7 @@ task.delay(.8, function()
     installSellRepair()
     installSkillGuard()
     installDungeonUiRepair()
+    installDungeonPotionUi()
     installFreezeOwnershipRepair()
     installYetiPriorityRepair()
 end)
