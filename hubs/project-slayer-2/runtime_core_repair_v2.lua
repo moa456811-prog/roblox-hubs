@@ -3425,13 +3425,20 @@ local function pointChestText(chest)
     end
 
     for _, object in ipairs(chest:GetDescendants()) do
+        parts[#parts + 1] = tostring(object.Name or "")
+
         if object:IsA("ProximityPrompt") then
-            parts[#parts + 1] = tostring(object.Name or "")
             parts[#parts + 1] = tostring(object.ActionText or "")
             parts[#parts + 1] = tostring(object.ObjectText or "")
-        elseif object:IsA("StringValue") then
-            parts[#parts + 1] = tostring(object.Name or "")
+        elseif object:IsA("ValueBase") then
             parts[#parts + 1] = tostring(object.Value or "")
+        end
+    end
+
+    local okTags, tags = pcall(CollectionService.GetTags, CollectionService, chest)
+    if okTags and type(tags) == "table" then
+        for _, tag in ipairs(tags) do
+            parts[#parts + 1] = tostring(tag)
         end
     end
 
@@ -3442,6 +3449,24 @@ local function isDungeonPointChest(chest)
     if not chest or not chest.Parent then return false end
     local text = pointChestText(chest)
     return string.find(text, "point", 1, true) ~= nil
+end
+
+local function blockDungeonPointChest(chest, now)
+    if not chest or not chest.Parent or not isDungeonPointChest(chest) then return false end
+
+    now = tonumber(now) or os.clock()
+    State.ChestAttempts = State.ChestAttempts or setmetatable({}, {__mode = "k"})
+    R.dungeonPointChests[chest] = true
+    State.ChestAttempts[chest] = now + 3600
+
+    if State.CurrentChest == chest then
+        State.CurrentChest = nil
+        State.ChestRouteUntil = 0
+        State.ChestRoutePhase = "Idle"
+        State.ChestStatus = "Point chest ignored"
+    end
+
+    return true
 end
 
 local function dungeonPointChestGuardTick(now)
@@ -3471,20 +3496,29 @@ local function dungeonPointChestGuardTick(now)
 
     for chest in pairs(seen) do
         if isDungeonPointChest(chest) then
-            R.dungeonPointChests[chest] = true
             -- Base chestUsable() treats a future attempt timestamp as still
             -- inside its retry delay, which cleanly excludes this chest.
-            State.ChestAttempts[chest] = now + 3600
-
-            if State.CurrentChest == chest then
-                State.CurrentChest = nil
-                State.ChestRouteUntil = 0
-                State.ChestRoutePhase = "Idle"
-                State.ChestStatus = "Point chest ignored"
-            end
+            blockDungeonPointChest(chest, now)
         end
     end
 end
+
+track(CollectionService:GetInstanceAddedSignal("Chest"):Connect(function(chest)
+    task.defer(function()
+        if not R.alive or not chest or not chest.Parent then return end
+        local now = os.clock()
+        local active = dungeonInRun()
+            or (R.dungeonEndedAt and now - R.dungeonEndedAt <= 25)
+        if active then
+            blockDungeonPointChest(chest, now)
+            task.delay(.08, function()
+                if R.alive and chest.Parent then
+                    blockDungeonPointChest(chest, os.clock())
+                end
+            end)
+        end
+    end)
+end))
 
 local function dungeonAutoStartTick(now)
     local inRun = dungeonInRun()
