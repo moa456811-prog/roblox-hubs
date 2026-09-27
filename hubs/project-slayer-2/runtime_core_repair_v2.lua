@@ -179,6 +179,16 @@ local function setControl(label, value)
     return false
 end
 
+local function controlValue(label)
+    local controls = State.Runtime and State.Runtime.ToggleControls
+    local control = type(controls) == "table" and controls[label] or nil
+    if control and type(control.Get) == "function" then
+        local ok, value = pcall(control.Get)
+        if ok and type(value) == "boolean" then return value end
+    end
+end
+
+
 local function statusText()
     local text = tostring(State.Status or "")
     local label = State.StatusLabel
@@ -521,6 +531,60 @@ local function clearBossLootHold()
     R.bossLootNoSpawnUntil = nil
 end
 
+local function pauseBossAutomationForLoot(deadBoss)
+    if not R.bossAutomationPaused then
+        R.bossAutomationPaused = true
+        R.bossResumeAutoBoss = State.Flags.AutoBoss == true
+        R.bossResumeAutoAllBoss = State.Flags.AutoAllBoss == true
+    end
+
+    -- Internal pause only: do not call ToggleControls.Set(), so the UI keeps
+    -- showing the user's enabled Auto Boss state.
+    State.Flags.AutoBoss = false
+    State.Flags.AutoAllBoss = false
+
+    if deadBoss then
+        State.BossLock = deadBoss
+        State.CurrentBoss = deadBoss
+    end
+
+    State.CurrentTarget = nil
+    State.FarmPlanTarget = nil
+    State.FarmPlanSource = nil
+    State.BossWaiting = true
+end
+
+local function resumeBossAutomationAfterLoot()
+    if not R.bossAutomationPaused then return end
+
+    local wantBoss = R.bossResumeAutoBoss == true
+    local wantAll = R.bossResumeAutoAllBoss == true
+
+    -- If the user manually switched the visible control off during the loot
+    -- pause, respect that instead of silently re-enabling automation.
+    local uiBoss = controlValue("Auto Boss")
+    if type(uiBoss) == "boolean" then wantBoss = uiBoss end
+
+    local uiAll = controlValue("Auto All Boss")
+    if type(uiAll) == "boolean" then wantAll = uiAll end
+
+    R.bossAutomationPaused = nil
+    R.bossResumeAutoBoss = nil
+    R.bossResumeAutoAllBoss = nil
+
+    State.Flags.AutoBoss = wantBoss
+    State.Flags.AutoAllBoss = wantAll
+
+    if wantBoss or wantAll then
+        State.BossWaiting = false
+        State.FarmPlannerForce = true
+        State.FarmPlannerLastTick = 0
+        R.bossNoTargetSince = nil
+        R.lastBossRecovery = -math.huge
+    end
+end
+
+
 local function beginBossLootHold(boss, now)
     now = tonumber(now) or os.clock()
 
@@ -552,6 +616,10 @@ local function beginBossLootHold(boss, now)
     R.bossLootQuietSince = nil
     R.bossLootLastActivity = now
     R.bossLootObserved = false
+
+    -- Freeze Auto Boss internally before the native runtime can choose the
+    -- next boss. UI state remains unchanged and will be restored afterwards.
+    pauseBossAutomationForLoot(boss)
 
     -- Stop combat movement immediately. Keep BossLock/CurrentBoss only as
     -- identity references until loot is done.
@@ -590,19 +658,17 @@ local function enforceBossLootHold(now)
     if not bossLootHoldActive(now) then return false end
 
     local deadBoss = R.bossLootBoss
+    pauseBossAutomationForLoot(deadBoss)
 
-    if State.BossLock and State.BossLock ~= deadBoss then
-        State.BossLock = nil
+    -- Any replacement chosen by a native worker in the same frame is rejected.
+    if deadBoss then
+        State.BossLock = deadBoss
+        State.CurrentBoss = deadBoss
     end
-    if State.CurrentBoss and State.CurrentBoss ~= deadBoss then
-        State.CurrentBoss = nil
-    end
-    if State.CurrentTarget and State.CurrentTarget ~= deadBoss then
-        State.CurrentTarget = nil
-    end
-
+    State.CurrentTarget = nil
     State.FarmPlanTarget = nil
     State.FarmPlanSource = nil
+
     State.BossWaiting = true
     State.BossStatus = "Boss defeated | collecting loot"
     State.ChestRouteUntil = math.max(State.ChestRouteUntil or 0, now + .8)
@@ -612,28 +678,43 @@ local function enforceBossLootHold(now)
 end
 
 local function clearBossDeathWatch()
-    if R.bossDeathConn then
+    if type(R.bossDeathConns) == "table" then
+        for _, connection in ipairs(R.bossDeathConns) do
+            pcall(function() connection:Disconnect() end)
+        end
+    elseif R.bossDeathConn then
         pcall(function() R.bossDeathConn:Disconnect() end)
-        R.bossDeathConn = nil
     end
+    R.bossDeathConns = nil
+    R.bossDeathConn = nil
     R.bossDeathWatch = nil
 end
 
 local function watchBossDeath(boss, humanoid)
     if not boss or not humanoid then return end
-    if R.bossDeathWatch == boss and R.bossDeathConn then return end
+    if R.bossDeathWatch == boss and type(R.bossDeathConns) == "table" then return end
 
     clearBossDeathWatch()
     R.bossDeathWatch = boss
+    R.bossDeathConns = {}
 
-    R.bossDeathConn = humanoid.Died:Connect(function()
+    local function confirm()
         if not R.alive then return end
+        if R.confirmedBossDead == boss and R.confirmedBossDeathHandled ~= true then return end
+
         local now = os.clock()
         R.confirmedBossDead = boss
         R.confirmedBossDeathAt = now
         R.confirmedBossDeathHandled = false
         beginBossLootHold(boss, now)
         State.BossStatus = "Boss defeated | waiting for loot"
+    end
+
+    R.bossDeathConns[#R.bossDeathConns + 1] = humanoid.Died:Connect(confirm)
+    R.bossDeathConns[#R.bossDeathConns + 1] = humanoid.HealthChanged:Connect(function(health)
+        if tonumber(health) and health <= 0 then
+            confirm()
+        end
     end)
 end
 
@@ -745,8 +826,9 @@ local function finishConfirmedBossDeath(now)
         return true
     end
 
-    -- If the native Boss pipeline already moved to another living boss,
-    -- this death has already been handled and must not affect the new lock.
+    -- A native worker may have picked a replacement in the death frame.
+    -- Loot is already complete here, so preserve the replacement only after
+    -- restoring the user's Auto Boss intent.
     local lock = State.BossLock
     local current = State.CurrentBoss
     if (lock and lock ~= deadBoss and aliveModel(lock))
@@ -755,6 +837,7 @@ local function finishConfirmedBossDeath(now)
         R.confirmedBossDead = nil
         R.confirmedBossDeathAt = nil
         clearBossDeathWatch()
+        resumeBossAutomationAfterLoot()
         clearBossLootHold()
         State.BossWaiting = false
         return false
@@ -786,6 +869,7 @@ local function finishConfirmedBossDeath(now)
         R.confirmedBossDead = nil
         R.confirmedBossDeathAt = nil
         clearBossDeathWatch()
+        resumeBossAutomationAfterLoot()
         clearBossLootHold()
 
         if not replacement then
@@ -814,10 +898,15 @@ local function finishConfirmedBossDeath(now)
 end
 
 cleanup(clearBossDeathWatch)
+cleanup(function()
+    if R.bossAutomationPaused then
+        resumeBossAutomationAfterLoot()
+    end
+end)
 
 local function recoverBoss(now)
     local f = State.Flags
-    local enabled = f.AutoBoss == true or f.AutoAllBoss == true
+    local enabled = f.AutoBoss == true or f.AutoAllBoss == true or R.bossAutomationPaused == true
     if not enabled then
         R.bossNoTargetSince = nil
         R.confirmedBossDead = nil
@@ -825,6 +914,9 @@ local function recoverBoss(now)
         R.confirmedBossDeathHandled = nil
         clearBossDeathWatch()
         clearBossLootHold()
+        R.bossAutomationPaused = nil
+        R.bossResumeAutoBoss = nil
+        R.bossResumeAutoAllBoss = nil
         return
     end
 
@@ -832,6 +924,15 @@ local function recoverBoss(now)
 
     if enforceBossLootHold(now) then
         finishConfirmedBossDeath(now)
+        return
+    end
+
+    -- Loot just completed while the internal boss flags are still paused.
+    -- Finalize the dead boss first; resume happens in finishConfirmedBossDeath.
+    if R.bossAutomationPaused == true then
+        if finishConfirmedBossDeath(now) then return end
+        resumeBossAutomationAfterLoot()
+        clearBossLootHold()
         return
     end
 
