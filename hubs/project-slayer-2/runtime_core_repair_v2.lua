@@ -2623,14 +2623,6 @@ local function refreshGlobalBossIndex(now)
         end
     end
 
-    local ops = State.BossOps
-    if type(ops) == "table" and type(ops.filteredList) == "function" then
-        local ok, list = pcall(ops.filteredList)
-        if ok and type(list) == "table" then
-            for _, model in ipairs(list) do addGlobalBoss(model, nil, now) end
-        end
-    end
-
     for model in pairs(R.globalBossIndex) do
         if not bossModelLooksValid(model)
             or not bossSelectedForGlobalScan(model, nil)
