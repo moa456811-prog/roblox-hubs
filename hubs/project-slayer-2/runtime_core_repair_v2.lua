@@ -1074,7 +1074,9 @@ local function recoverBoss(now)
     end
 
     -- Never start another scan while the native scanner is already busy.
-    if State.BossFullScanRunning == true or State.BossStreamBusy == true then
+    if State.BossFullScanRunning == true
+        or State.BossStreamBusy == true
+        or R.lightBossScanRunning == true then
         return
     end
 
@@ -2456,6 +2458,7 @@ end
 -- ============================================================================
 
 R.globalBossIndex = R.globalBossIndex or setmetatable({}, {__mode = "k"})
+R.globalBossTagged = R.globalBossTagged or setmetatable({}, {__mode = "k"})
 R.globalBossScanCursor = R.globalBossScanCursor or 1
 R.nextGlobalBossScan = R.nextGlobalBossScan or 0
 R.nextBossCatalogStream = R.nextBossCatalogStream or 0
@@ -2538,6 +2541,10 @@ local function bossModelLooksValid(model)
         return true
     end
 
+    if R.globalBossTagged[model] == true then
+        return true
+    end
+
     local p = model
     for _ = 1, 6 do
         if not p then break end
@@ -2546,9 +2553,6 @@ local function bossModelLooksValid(model)
         p = p.Parent
     end
 
-    for _, tag in ipairs(CollectionService:GetTagged("BossTag")) do
-        if resolveGlobalBossTag(tag) == model then return true end
-    end
     return false
 end
 
@@ -2593,7 +2597,11 @@ local function refreshGlobalBossIndex(now)
     local okTags, tags = pcall(CollectionService.GetTagged, CollectionService, "BossTag")
     if okTags and type(tags) == "table" then
         for _, tag in ipairs(tags) do
-            addGlobalBoss(resolveGlobalBossTag(tag), tag, now)
+            local model = resolveGlobalBossTag(tag)
+            if model then
+                R.globalBossTagged[model] = true
+                addGlobalBoss(model, tag, now)
+            end
         end
     end
 
@@ -2604,24 +2612,14 @@ local function refreshGlobalBossIndex(now)
         end
     end
 
-    -- Active humanoids and region ActiveNpcs cover live objects that have not
-    -- reached NPCRegistry yet. These are targeted containers, not workspace-wide scans.
+    -- Active humanoids cover fresh live objects not in NPCRegistry yet.
+    -- Do not walk Debree/Regions here: that hierarchy can be very large and
+    -- was one of the activation stutter sources. Far bosses are discovered
+    -- through BossCatalog streaming below.
     local humanoids = workspace:FindFirstChild("Humanoids")
     if humanoids then
         for _, model in ipairs(humanoids:GetChildren()) do
             if model:IsA("Model") then addGlobalBoss(model, nil, now) end
-        end
-    end
-
-    local debree = workspace:FindFirstChild("Debree")
-    local regions = debree and debree:FindFirstChild("Regions")
-    if regions then
-        for _, object in ipairs(regions:GetDescendants()) do
-            if object.Name == "ActiveNpcs" then
-                for _, model in ipairs(object:GetDescendants()) do
-                    if model:IsA("Model") then addGlobalBoss(model, nil, now) end
-                end
-            end
         end
     end
 
@@ -2771,12 +2769,107 @@ local function globalBossScanTick(now)
     return false
 end
 
+local function installBossScanPerformanceRepair()
+    local ops = State.BossOps
+    if type(ops) ~= "table" or type(ops.fullMapScan) ~= "function" then return false end
+    if ops.A7DEV_CORE_LIGHT_SCAN == true then return true end
+
+    local originalFullMapScan = ops.fullMapScan
+    local lightweightScan
+
+    lightweightScan = function(...)
+        if R.lightBossScanRunning then
+            R.lightBossScanQueued = true
+            return true
+        end
+
+        R.lightBossScanRunning = true
+
+        -- Never run the old blocking full-map sweep from the toggle callback.
+        -- Do one cheap live-index pass now, then stream known catalog positions
+        -- in bounded batches over subsequent supervisor ticks.
+        task.defer(function()
+            if not R.alive or State.Destroyed then
+                R.lightBossScanRunning = false
+                return
+            end
+
+            local now = os.clock()
+            safe("Boss lightweight index", refreshGlobalBossIndex, now)
+
+            local candidate = chooseGlobalBoss(now)
+            if candidate
+                and (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true)
+                and not bossLootHoldActive(now) then
+                State.BossLock = candidate
+                State.CurrentBoss = candidate
+                State.CurrentTarget = candidate
+                State.FarmPlanTarget = candidate
+                State.FarmPlanSource = "Boss"
+                State.BossLastPosition = objectPosition(candidate) or State.BossLastPosition
+                State.BossWaiting = false
+                State.BossMissingSince = nil
+                State.FarmPlannerForce = true
+                State.FarmPlannerLastTick = 0
+                State.BossStatus = "Boss found: " .. tostring(candidate.Name)
+                R.bossNoTargetSince = nil
+            else
+                streamBossCatalog(now)
+            end
+
+            R.lightBossScanRunning = false
+
+            if R.lightBossScanQueued then
+                R.lightBossScanQueued = nil
+                task.delay(.08, function()
+                    if R.alive and ops.fullMapScan == lightweightScan then
+                        lightweightScan(false)
+                    end
+                end)
+            end
+        end)
+
+        return true
+    end
+
+    ops.A7DEV_CORE_LIGHT_SCAN = true
+    ops.A7DEV_CORE_ORIGINAL_FULL_MAP_SCAN_HEAVY = originalFullMapScan
+    ops.fullMapScan = lightweightScan
+
+    cleanup(function()
+        if ops.fullMapScan == lightweightScan then
+            ops.fullMapScan = originalFullMapScan
+        end
+        if ops.A7DEV_CORE_ORIGINAL_FULL_MAP_SCAN_HEAVY == originalFullMapScan then
+            ops.A7DEV_CORE_ORIGINAL_FULL_MAP_SCAN_HEAVY = nil
+        end
+        ops.A7DEV_CORE_LIGHT_SCAN = nil
+    end)
+
+    return true
+end
+
+installBossScanPerformanceRepair()
+
 track(CollectionService:GetInstanceAddedSignal("BossTag"):Connect(function(tag)
     task.defer(function()
-        if R.alive and (State.Flags.AutoBoss or State.Flags.AutoAllBoss) then
-            addGlobalBoss(resolveGlobalBossTag(tag), tag, os.clock())
+        if R.alive then
+            local model = resolveGlobalBossTag(tag)
+            if model then
+                R.globalBossTagged[model] = true
+                if State.Flags.AutoBoss or State.Flags.AutoAllBoss then
+                    addGlobalBoss(model, tag, os.clock())
+                end
+            end
         end
     end)
+end))
+
+track(CollectionService:GetInstanceRemovedSignal("BossTag"):Connect(function(tag)
+    local model = resolveGlobalBossTag(tag)
+    if model then
+        R.globalBossTagged[model] = nil
+    end
 end))
 
 -- ============================================================================
@@ -4174,6 +4267,9 @@ task.spawn(function()
         end
         if not (State.YetiOps and State.YetiOps.A7DEV_TEST_PRIORITY_REPAIR) then
             installYetiPriorityRepair()
+        end
+        if not (State.BossOps and State.BossOps.A7DEV_CORE_LIGHT_SCAN) then
+            installBossScanPerformanceRepair()
         end
 
         safe("Route arbiter", routeArbiterTick)
