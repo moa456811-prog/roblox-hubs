@@ -610,7 +610,7 @@ local function beginBossLootHold(boss, now)
     R.bossLootCenter = objectPosition(boss) or State.BossLastPosition or R.bossLootCenter
     R.bossLootStartedAt = now
     R.bossLootMinUntil = now + 3.0
-    R.bossLootNoSpawnUntil = now + 4.5
+    R.bossLootNoSpawnUntil = now + 3.0
     R.bossLootDeadline = now + 3.0
     R.bossLootComplete = false
     R.bossLootQuietSince = nil
