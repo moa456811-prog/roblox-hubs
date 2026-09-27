@@ -1190,7 +1190,6 @@ local function showSub(name)
   section.Size=UDim2.new(1,0,0,math.max(96,section.Size.Y.Offset))
   section.Visible=true
   styleSection(section)
-  readabilityPass(section)
   reviveSectionControls(section)
   guardSelectedVisibility(section)
 
