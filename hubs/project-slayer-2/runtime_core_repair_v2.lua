@@ -3778,126 +3778,261 @@ local function dungeonRecoveryTick(now)
 end
 
 -- ============================================================================
--- FISHING: BOUNDED STUCK-STATE RECOVERY WITHOUT REPLACING THE NATIVE HOOK
+-- FISHING: PRESERVE THE NATIVE STATE MACHINE + TARGETED RECOVERY
 -- ============================================================================
 
-R.fishing = R.fishing or {
-    active = false,
-    fingerprint = nil,
-    changedAt = 0,
-    lastPulse = -math.huge,
-    pulses = 0,
-    internalPulse = false,
-}
+R.fishing = R.fishing or {}
+R.fishing.nextDrive = R.fishing.nextDrive or 0
+R.fishing.lastLineSeen = R.fishing.lastLineSeen or 0
+R.fishing.lineMissingSince = R.fishing.lineMissingSince or nil
+R.fishing.nativeTickBusy = false
 
-local function fishingFingerprint()
-    local parts = {}
-
-    for key, value in pairs(State) do
-        local k = low(key)
-        if string.find(k, "fish", 1, true) or string.find(k, "bait", 1, true)
-            or string.find(k, "rod", 1, true) or string.find(k, "reel", 1, true) then
-            local kind = typeof(value)
-            if kind == "string" or kind == "number" or kind == "boolean" then
-                parts[#parts + 1] = tostring(key) .. "=" .. tostring(value)
-            end
-        end
-    end
-
-    local character = LocalPlayer.Character
-    if character then
-        for _, child in ipairs(character:GetChildren()) do
-            if child:IsA("Tool") then
-                local n = low(child.Name)
-                if string.find(n, "rod", 1, true) or string.find(n, "fish", 1, true) then
-                    parts[#parts + 1] = "tool=" .. child.Name
-                end
-            end
-        end
-    end
-
-    parts[#parts + 1] = "status=" .. statusText()
-    table.sort(parts)
-    return table.concat(parts, "|")
+local function fishingBlockedByOtherRoute()
+    local f = State.Flags
+    return f.AutoFarm == true
+        or f.AutoBoss == true
+        or f.AutoAllBoss == true
+        or f.AutoDungeon == true
+        or f.AutoDungeonClear == true
+        or f.AutoClanSpin == true
+        or f.AutoQuest == true
+        or f.AutoMuzanQuest == true
+        or f.AutoCrowQuest == true
+        or f.AutoTrainingQuests == true
+        or f.AutoBecomeDemon == true
+        or f.AutoBecomeSlayer == true
+        or f.AutoYeti == true
+        or f.AutoHeartYeti == true
+        or f.AutoFarmPlayers == true
 end
 
-local function findFishingControl()
-    local controls = State.Runtime and State.Runtime.ToggleControls
-    if type(controls) ~= "table" then return nil end
-    for label, control in pairs(controls) do
-        local l = low(label)
-        if string.find(l, "fish", 1, true) and type(control.Set) == "function" then
-            return control
-        end
+local function installFishingRepair()
+    local ops = State.GameOps
+    if type(ops) ~= "table" or type(ops.verifiedAutoFishingTick) ~= "function" then
+        return false
     end
+    if ops.A7DEV_CORE_FISHING_REPAIR == true then return true end
+
+    local originalTick = ops.verifiedAutoFishingTick
+    local wrappedTick
+
+    wrappedTick = function(...)
+        local F = R.fishing
+        if F.nativeTickBusy then return nil end
+
+        F.nativeTickBusy = true
+        local result = table.pack(pcall(originalTick, ...))
+        F.nativeTickBusy = false
+
+        if not result[1] then
+            error(result[2], 0)
+        end
+        return table.unpack(result, 2, result.n)
+    end
+
+    ops.A7DEV_CORE_FISHING_REPAIR = true
+    ops.A7DEV_CORE_ORIGINAL_FISHING_TICK = originalTick
+    ops.verifiedAutoFishingTick = wrappedTick
+
+    cleanup(function()
+        if ops.verifiedAutoFishingTick == wrappedTick then
+            ops.verifiedAutoFishingTick = originalTick
+        end
+        if ops.A7DEV_CORE_ORIGINAL_FISHING_TICK == originalTick then
+            ops.A7DEV_CORE_ORIGINAL_FISHING_TICK = nil
+        end
+        ops.A7DEV_CORE_FISHING_REPAIR = nil
+        R.fishing.nativeTickBusy = false
+    end)
+
+    return true
+end
+
+local function currentFishingLine(ops)
+    if type(ops) ~= "table" or type(ops.verifiedFishingLine) ~= "function" then
+        return nil, false
+    end
+    local ok, line = pcall(ops.verifiedFishingLine)
+    return ok and line or nil, ok
+end
+
+local function driveNativeFishing(ops)
+    if type(ops) ~= "table" then return false end
+
+    if type(ops.verifiedEnsureFishingPortalHook) == "function" then
+        pcall(ops.verifiedEnsureFishingPortalHook)
+    end
+
+    if type(ops.verifiedAutoFishingTick) == "function" then
+        local ok = pcall(ops.verifiedAutoFishingTick)
+        return ok
+    end
+    return false
+end
+
+local function resetFishingCastForRetry(now, status)
+    State.FishingBitePending = false
+    State.FishingCastPendingUntil = 0
+    State.FishingCastStartedAt = 0
+    State.FishingLineSeenAt = 0
+    State.FishingLineLostAt = now
+    State.FishingCatchSubmittedAt = 0
+    State.FishingPhase = "RecastWait"
+    State.FishingStatus = status or "Fishing recovery | preparing recast"
 end
 
 local function fishingRecoveryTick(now)
     local F = R.fishing
-    local enabled = State.Flags.AutoFishingReel == true
 
-    if F.internalPulse then return end
-
-    if not enabled then
+    if State.Flags.AutoFishingReel ~= true then
         F.active = false
-        F.fingerprint = nil
-        F.changedAt = now
-        F.pulses = 0
+        F.lineMissingSince = nil
+        F.lastLineSeen = 0
+        F.nextDrive = 0
         return
     end
 
-    local fp = fishingFingerprint()
-    if not F.active then
-        F.active = true
-        F.fingerprint = fp
-        F.changedAt = now
-        F.pulses = 0
+    local ops = State.GameOps
+    if type(ops) ~= "table" then return end
+
+    installFishingRepair()
+
+    if now < (F.nextDrive or 0) then return end
+    F.nextDrive = now + .25
+    F.active = true
+
+    -- Keep the exact native FishingRod portal callback installed. Tool/character
+    -- recreation can replace the listener while Auto Fish remains enabled.
+    if type(ops.verifiedEnsureFishingPortalHook) == "function" then
+        pcall(ops.verifiedEnsureFishingPortalHook)
+    end
+
+    -- The native worker owns permit acquisition, rod purchase/equip, movement,
+    -- casting and the Bite token reply. Calling it here also recovers if another
+    -- runtime path temporarily stopped servicing the fishing worker.
+    driveNativeFishing(ops)
+
+    if fishingBlockedByOtherRoute() then
+        F.lineMissingSince = nil
         return
     end
 
-    if fp ~= F.fingerprint then
-        F.fingerprint = fp
-        F.changedAt = now
-        return
-    end
+    local line, lineCheckAvailable = currentFishingLine(ops)
+    local phase = tostring(State.FishingPhase or "Idle")
 
-    local text = low(fp .. " " .. statusText())
-    local stuck = string.find(text, "waiting for bite", 1, true)
-        or string.find(text, "no bite", 1, true)
-        or string.find(text, "waiting bite", 1, true)
-        or string.find(text, "reel", 1, true)
-        or string.find(text, "casting", 1, true)
+    if line then
+        F.lastLineSeen = now
+        F.lineMissingSince = nil
+        State.FishingLineSeenAt = now
+        State.FishingLineLostAt = 0
 
-    if not stuck or now - F.changedAt < 30 or now - F.lastPulse < 45 or F.pulses >= 2 then
-        return
-    end
-
-    local control = findFishingControl()
-    if not control then return end
-
-    F.lastPulse = now
-    F.pulses += 1
-    F.internalPulse = true
-
-    task.spawn(function()
-        pcall(control.Set, false)
-        task.wait(.25)
-
-        if R.alive and not State.Destroyed
-            and not State.Flags.AutoBoss
-            and not State.Flags.AutoDungeon
-            and not State.Flags.AutoDungeonClear
-            and not State.Flags.AutoYeti
-            and not State.Flags.AutoHeartYeti
-            and not State.Flags.AutoFarmPlayers then
-            pcall(control.Set, true)
+        -- A real line is authoritative. Never toggle Auto Fish merely because
+        -- "waiting for bite" has lasted a long time; that is a valid state.
+        if phase == "Idle" or phase == "Casting" or phase == "RecastWait" then
+            State.FishingPhase = "WaitingBite"
+            State.FishingCastPendingUntil = 0
+            State.FishingStatus = "Fishing line active | waiting for bite"
         end
+        return
+    end
 
-        F.fingerprint = nil
-        F.changedAt = os.clock()
-        F.internalPulse = false
-    end)
+    if not lineCheckAvailable then
+        -- Do not invent a missing-line failure when the native detector itself
+        -- is unavailable.
+        return
+    end
+
+    if phase == "Casting" then
+        local startedAt = tonumber(State.FishingCastStartedAt) or 0
+        if startedAt > 0 and now - startedAt >= 9 then
+            resetFishingCastForRetry(now, "Fishing cast not confirmed | preparing recast")
+            task.defer(function()
+                if R.alive and State.Flags.AutoFishingReel == true then
+                    driveNativeFishing(ops)
+                end
+            end)
+        end
+        return
+    end
+
+    if phase == "WaitingBite" then
+        F.lineMissingSince = F.lineMissingSince or now
+
+        -- A one-frame/streaming miss is normal. Only recover after the fishing
+        -- line has really stayed absent.
+        if now - F.lineMissingSince >= 2 then
+            State.FishingBitePending = false
+            State.FishingCastPendingUntil = 0
+            State.FishingLineLostAt = now
+            State.FishingPhase = "RecastWait"
+            State.FishingStatus = "Fishing line ended | preparing recast"
+            F.lineMissingSince = nil
+        end
+        return
+    end
+
+    F.lineMissingSince = nil
+
+    if phase == "Catching" then
+        local submittedAt = tonumber(State.FishingCatchSubmittedAt) or 0
+
+        -- After the Bite token has been accepted, wait for normal cleanup.
+        -- If cleanup replication is lost, release only the local catch state so
+        -- the native state machine can recast.
+        if submittedAt > 0 and now - submittedAt >= 2 then
+            State.FishingBitePending = false
+            State.FishingCastPendingUntil = 0
+            State.FishingLineLostAt = now
+            State.FishingPhase = "RecastWait"
+            State.FishingStatus = "Catch complete | preparing recast"
+        elseif submittedAt <= 0 then
+            local startedAt = tonumber(State.LastFishingAction) or now
+            if now - startedAt >= 4 then
+                resetFishingCastForRetry(now, "Fishing catch state recovered | preparing recast")
+            end
+        end
+        return
+    end
+
+    if phase == "RecastWait" then
+        -- Native worker applies its own recast delay. Do not force another cast
+        -- and never send Tool_Mouse Up from this recovery layer.
+        return
+    end
+
+    if phase ~= "Idle" then
+        -- Unknown stale phase: wait briefly before returning to the native Idle
+        -- path instead of toggling the entire feature off/on.
+        F.unknownPhaseSince = F.unknownPhaseSince or now
+        if now - F.unknownPhaseSince >= 5 then
+            State.FishingPhase = "Idle"
+            State.FishingCastPendingUntil = 0
+            State.FishingBitePending = false
+            F.unknownPhaseSince = nil
+        end
+    else
+        F.unknownPhaseSince = nil
+    end
 end
+
+track(LocalPlayer.CharacterAdded:Connect(function()
+    local F = R.fishing
+    F.lineMissingSince = nil
+    F.lastLineSeen = 0
+    F.nextDrive = 0
+    F.unknownPhaseSince = nil
+    F.nativeTickBusy = false
+
+    task.delay(1, function()
+        if R.alive and not State.Destroyed and State.Flags.AutoFishingReel == true then
+            local ops = State.GameOps
+            if type(ops) == "table" then
+                installFishingRepair()
+                driveNativeFishing(ops)
+            end
+        end
+    end)
+end))
 
 -- ============================================================================
 -- SPECIAL QUESTS: RELEASE STALE PRIORITY AND RETRY EXISTING CROW LOGIC
@@ -4262,6 +4397,9 @@ task.spawn(function()
         end
         if not (State.BossOps and State.BossOps.A7DEV_CORE_LIGHT_SCAN) then
             installBossScanPerformanceRepair()
+        end
+        if not (State.GameOps and State.GameOps.A7DEV_CORE_FISHING_REPAIR) then
+            installFishingRepair()
         end
 
         safe("Route arbiter", routeArbiterTick)
