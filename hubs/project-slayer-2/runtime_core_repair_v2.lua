@@ -4518,6 +4518,368 @@ local function chestDropRecoveryTick(now)
 end
 
 -- ============================================================================
+-- PANIC: WATCH PLAYER / STAFF JOINS WITHOUT TOUCHING GAMEPLAY ROUTES
+-- ============================================================================
+
+State.Flags.Panic = State.Flags.Panic == true
+State.PanicModsAction = State.PanicModsAction or "Kick Instantly"
+State.PanicPlayersAction = State.PanicPlayersAction or "Kick Instantly"
+State.PanicWhitelistText = State.PanicWhitelistText or ""
+State.PanicStatus = State.PanicStatus or "Panic disabled"
+
+R.panicServerWhitelist = R.panicServerWhitelist or {}
+R.panicTriggered = false
+
+local PANIC_ACTIONS = {
+    "Kick Instantly",
+    "Disable Hub",
+    "Notify Only",
+    "Ignore",
+}
+
+local function panicActionIndex(value)
+    for index, action in ipairs(PANIC_ACTIONS) do
+        if action == value then return index end
+    end
+    return 1
+end
+
+local function nextPanicAction(value)
+    local index = panicActionIndex(value) + 1
+    if index > #PANIC_ACTIONS then index = 1 end
+    return PANIC_ACTIONS[index]
+end
+
+local function panicWhitelistTokens()
+    local out = {}
+    local raw = tostring(State.PanicWhitelistText or "")
+    for token in raw:gmatch("[^,%s]+") do
+        token = token:gsub("^%s+", ""):gsub("%s+$", "")
+        if token ~= "" then
+            out[#out + 1] = token
+        end
+    end
+    return out
+end
+
+local function panicWhitelisted(player)
+    if not player then return true end
+    if player == LocalPlayer then return true end
+    if R.panicServerWhitelist[player.UserId] == true then return true end
+
+    local name = low(player.Name)
+    local userId = tonumber(player.UserId)
+
+    for _, token in ipairs(panicWhitelistTokens()) do
+        if tonumber(token) == userId or low(token) == name then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function panicRoleLooksStaff(value)
+    local text = low(value)
+    for _, token in ipairs({
+        "owner", "developer", "dev", "admin", "administrator",
+        "moderator", "mod", "staff", "manager",
+    }) do
+        if string.find(text, token, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+local function panicAttributeLooksStaff(instance)
+    if not instance then return false end
+
+    for _, key in ipairs({
+        "Admin", "Moderator", "Mod", "Staff",
+        "Developer", "Dev", "Owner",
+    }) do
+        local ok, value = pcall(instance.GetAttribute, instance, key)
+        if ok then
+            if value == true then return true end
+            if type(value) == "string" and panicRoleLooksStaff(value) then
+                return true
+            end
+        end
+    end
+
+    for _, key in ipairs({"Role", "Rank", "StaffRole", "AdminRole"}) do
+        local ok, value = pcall(instance.GetAttribute, instance, key)
+        if ok and type(value) == "string" and panicRoleLooksStaff(value) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function panicIsStaff(player)
+    if not player then return false end
+
+    if panicAttributeLooksStaff(player) or panicAttributeLooksStaff(player.Character) then
+        return true
+    end
+
+    local creatorId = tonumber(game.CreatorId) or 0
+    if game.CreatorType == Enum.CreatorType.User then
+        return creatorId > 0 and player.UserId == creatorId
+    end
+
+    if game.CreatorType == Enum.CreatorType.Group and creatorId > 0 then
+        local rank = 0
+        local role = ""
+
+        pcall(function() rank = player:GetRankInGroup(creatorId) end)
+        pcall(function() role = player:GetRoleInGroup(creatorId) end)
+
+        if rank >= 200 or panicRoleLooksStaff(role) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function panicNotify(title, text)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = 5,
+        })
+    end)
+end
+
+local function panicDisableHub(reason)
+    State.PanicStatus = reason or "Panic | hub disabled"
+
+    local live = ENV.A7DEV_PROJECT_SLAYER_2
+    if type(live) == "table" and type(live.Destroy) == "function" then
+        pcall(live.Destroy)
+        return
+    end
+
+    for _, flag in ipairs({
+        "AutoFarm", "AutoBoss", "AutoAllBoss", "AutoDungeon",
+        "AutoDungeonClear", "AutoYeti", "AutoHeartYeti",
+        "AutoFishingReel", "AutoFarmPlayers", "AutoMuzanQuest",
+        "AutoCrowQuest", "AutoTrainingQuests",
+    }) do
+        State.Flags[flag] = false
+    end
+
+    if gui and gui.Parent then
+        gui.Enabled = false
+    end
+end
+
+local function panicRunAction(action, player, staff)
+    action = tostring(action or "Ignore")
+    local kind = staff and "Mod/Staff" or "Player"
+    local reason = string.format("%s joined: %s", kind, tostring(player and player.Name or "Unknown"))
+    State.PanicStatus = reason .. " | " .. action
+
+    if action == "Ignore" then
+        return
+    end
+
+    panicNotify("A7DEV Panic", State.PanicStatus)
+
+    if action == "Notify Only" then
+        return
+    end
+
+    if R.panicTriggered then return end
+    R.panicTriggered = true
+
+    if action == "Disable Hub" then
+        panicDisableHub(State.PanicStatus)
+        return
+    end
+
+    if action == "Kick Instantly" then
+        pcall(function()
+            LocalPlayer:Kick("A7DEV Panic | " .. reason)
+        end)
+    end
+end
+
+local function panicHandleJoin(player)
+    if not R.alive or State.Destroyed or State.Flags.Panic ~= true then return end
+    if panicWhitelisted(player) then
+        State.PanicStatus = "Whitelisted join: " .. tostring(player.Name)
+        return
+    end
+
+    task.spawn(function()
+        local staff = panicIsStaff(player)
+        if not R.alive or State.Destroyed or State.Flags.Panic ~= true then return end
+        if panicWhitelisted(player) then return end
+
+        local action = staff and State.PanicModsAction or State.PanicPlayersAction
+        panicRunAction(action, player, staff)
+    end)
+end
+
+local function installPanicSystem()
+    if R.panicSystemInstalled then return true end
+    R.panicSystemInstalled = true
+
+    track(Players.PlayerAdded:Connect(panicHandleJoin))
+    return true
+end
+
+local function findPanicUiColumn()
+    local page = gui and gui:FindFirstChild("Page_MISC", true)
+    if not page then return nil end
+
+    local columns = {}
+    for _, child in ipairs(page:GetChildren()) do
+        if child:IsA("ScrollingFrame") then
+            columns[#columns + 1] = child
+        end
+    end
+
+    table.sort(columns, function(a, b)
+        return a.AbsolutePosition.X < b.AbsolutePosition.X
+    end)
+
+    return columns[2] or columns[1]
+end
+
+local function installPanicUi()
+    if R.panicUiInstalled then return true end
+    if not gui or not gui.Parent then return false end
+    if not State.Runtime
+        or type(State.Runtime.createSection) ~= "function"
+        or type(State.Runtime.addToggle) ~= "function"
+        or type(State.Runtime.addButton) ~= "function"
+        or type(State.Runtime.addInput) ~= "function"
+        or type(State.Runtime.addInfo) ~= "function" then
+        return false
+    end
+
+    local existing = gui:FindFirstChild("Section_Panic", true)
+    if existing then
+        R.panicUiInstalled = true
+        return true
+    end
+
+    local column = findPanicUiColumn()
+    if not column then return false end
+
+    local section = State.Runtime.createSection(column, "Panic")
+    if not section then return false end
+    section.Name = "Section_Panic"
+    section.LayoutOrder = 5
+
+    local status = State.Runtime.addInfo(section, "Panic | " .. tostring(State.PanicStatus))
+
+    local function refreshStatus()
+        if not status or not status.Parent then return end
+
+        if State.Flags.Panic == true then
+            status.Text = "Watching: Mods, Players"
+        else
+            status.Text = "Panic disabled"
+        end
+    end
+
+    State.Runtime.addToggle(section, "Panic", State.Flags.Panic == true, function(value)
+        State.Flags.Panic = value == true
+        R.panicTriggered = false
+        State.PanicStatus = State.Flags.Panic and "Watching: Mods, Players" or "Panic disabled"
+        refreshStatus()
+    end)
+
+    local modsButton
+    modsButton = State.Runtime.addButton(
+        section,
+        "Mods Join: " .. tostring(State.PanicModsAction),
+        function()
+            State.PanicModsAction = nextPanicAction(State.PanicModsAction)
+            if modsButton then
+                modsButton.Text = "Mods Join: " .. State.PanicModsAction
+            end
+        end
+    )
+
+    local playersButton
+    playersButton = State.Runtime.addButton(
+        section,
+        "Players Join: " .. tostring(State.PanicPlayersAction),
+        function()
+            State.PanicPlayersAction = nextPanicAction(State.PanicPlayersAction)
+            if playersButton then
+                playersButton.Text = "Players Join: " .. State.PanicPlayersAction
+            end
+        end
+    )
+
+    local whitelistButton
+    local function serverWhitelistCount()
+        local count = 0
+        for userId, enabled in pairs(R.panicServerWhitelist) do
+            if enabled == true then
+                local player = Players:GetPlayerByUserId(tonumber(userId) or 0)
+                if player and player ~= LocalPlayer then count += 1 end
+            end
+        end
+        return count
+    end
+
+    local function syncWhitelistButton()
+        if not whitelistButton then return end
+        local count = serverWhitelistCount()
+        whitelistButton.Text = count > 0
+            and ("Whitelist current players: " .. tostring(count))
+            or "Whitelist current players: None"
+    end
+
+    whitelistButton = State.Runtime.addButton(
+        section,
+        "Whitelist current players: None",
+        function()
+            local count = serverWhitelistCount()
+            table.clear(R.panicServerWhitelist)
+
+            if count == 0 then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer then
+                        R.panicServerWhitelist[player.UserId] = true
+                    end
+                end
+            end
+
+            syncWhitelistButton()
+        end
+    )
+    syncWhitelistButton()
+
+    State.Runtime.addInput(
+        section,
+        "Whitelist usernames / IDs",
+        State.PanicWhitelistText,
+        function(text)
+            State.PanicWhitelistText = tostring(text or "")
+        end,
+        "name1, name2, 12345678"
+    )
+
+    refreshStatus()
+    R.panicUiInstalled = true
+    return true
+end
+
+installPanicSystem()
+installPanicUi()
+
+-- ============================================================================
 -- LOW-FREQUENCY RECOVERY SUPERVISOR
 -- ============================================================================
 
@@ -4542,6 +4904,12 @@ task.spawn(function()
         end
         if not R.dungeonPotionUiInstalled then
             installDungeonPotionUi()
+        end
+        if not R.panicSystemInstalled then
+            installPanicSystem()
+        end
+        if not R.panicUiInstalled then
+            installPanicUi()
         end
         if not (State.MobLockOps and State.MobLockOps.A7DEV_TEST_OWNERSHIP_REPAIR) then
             installFreezeOwnershipRepair()
