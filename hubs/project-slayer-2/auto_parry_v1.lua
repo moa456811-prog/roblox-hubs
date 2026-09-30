@@ -90,9 +90,11 @@ local function refreshNative(force)
     local Global = CAM and CAM:FindFirstChild("Global")
     local Client = CAM and CAM:FindFirstChild("Client")
     local controllers = Client and Client:FindFirstChild("Controllers")
+    local skillService = Global and Global:FindFirstChild("SkillService")
 
     Native.SkillController = controllers and requireSafe(controllers:FindFirstChild("Skill_Controller"))
     Native.SkillsModule = Global and requireSafe(Global:FindFirstChild("Skills_Module"))
+    Native.SkillStats = skillService and requireSafe(skillService:FindFirstChild("Stats"))
     Native.ready = true
 end
 refreshNative()
@@ -268,9 +270,25 @@ local function canBlock()
         return false
     end
 
+    -- 30/09 Skills_Module introduced a 2s loadout settle window. Do not ask
+    -- Blocking to start until the new skill source has stabilized.
+    local stats = Native.SkillStats
+    if type(stats) == "table" then
+        local attributeName = stats.LOADOUT_CHANGED_AT
+        local settle = tonumber(stats.LOADOUT_SETTLE) or 0
+        if type(attributeName) == "string" and attributeName ~= "" and settle > 0 then
+            local okAttr, changedAt = pcall(LocalPlayer.GetAttribute, LocalPlayer, attributeName)
+            if okAttr and typeof(changedAt) == "number" and os.clock() - changedAt < settle then
+                return false
+            end
+        end
+    end
+
     if Native.SkillsModule and type(Native.SkillsModule.Can_Skill) == "function" then
         local ok, allowed = pcall(Native.SkillsModule.Can_Skill, LocalPlayer, "Blocking")
-        if ok and allowed == false then return false end
+        -- The updated game returns nil while a skill is unavailable/unsettled.
+        -- Only an explicit native TRUE may start Auto Parry.
+        if not ok or allowed ~= true then return false end
     end
 
     return true
