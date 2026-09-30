@@ -745,6 +745,7 @@ local ROUTE = {
     ["Section_Activities"] = {"PLAYER:Travel", 3, 10, "Activities"},
 
     ["Section_Config"] = {"SETTINGS", 1, 10, "Configs"},
+    ["Section_Panic"] = {"SETTINGS", 2, 10, "Panic"},
 }
 
 local function setTitle(section, title)
