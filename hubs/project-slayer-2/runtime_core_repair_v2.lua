@@ -235,6 +235,7 @@ local function refreshNative(force)
     local subsets = Global and Global:FindFirstChild("Subsets")
     local gameplay = subsets and subsets:FindFirstChild("Gameplay")
     local collectibles = Global and Global:FindFirstChild("Collectibles")
+    local skillService = Global and Global:FindFirstChild("SkillService")
     local comm = ReplicatedStorage:FindFirstChild("Communication")
     local sc = comm and comm:FindFirstChild("ServerAndClient")
     local signals = sc and sc:FindFirstChild("Signals")
@@ -246,6 +247,9 @@ local function refreshNative(force)
         requireSafe(Global:FindFirstChild("Character_info_provider"))
         or requireSafe(Global:FindFirstChild("CharacterInfoProvider"))
     )
+    Native.SkillStats = skillService and requireSafe(skillService:FindFirstChild("Stats"))
+    Native.Checker = Global and requireSafe(Global:FindFirstChild("Checker"))
+    Native.MinigameSettings = Global and requireSafe(Global:FindFirstChild("MinigameSettings"))
     Native.SignalFunction = signals and requireSafe(signals:FindFirstChild("SignalFunction"))
     Native.SignalEvent = signals and requireSafe(signals:FindFirstChild("SignalEvent"))
     Native.ready = true
@@ -288,6 +292,74 @@ local function nativeFunction(...)
         return pcall(Native.SignalFunction.ToServer, ...)
     end
     return false, nil
+end
+
+
+-- ============================================================================
+-- OUWLAND 30/09 COMPATIBILITY: SKILL LOADOUT + MINIGAME LOADOUT RULES
+-- ============================================================================
+
+local function skillLoadoutSettled()
+    refreshNative()
+
+    local stats = Native.SkillStats
+    if type(stats) ~= "table" then return true end
+
+    local attributeName = stats.LOADOUT_CHANGED_AT
+    local settle = tonumber(stats.LOADOUT_SETTLE) or 0
+    if type(attributeName) ~= "string" or attributeName == "" or settle <= 0 then
+        return true
+    end
+
+    local ok, changedAt = pcall(LocalPlayer.GetAttribute, LocalPlayer, attributeName)
+    if not ok or typeof(changedAt) ~= "number" then
+        return true
+    end
+
+    return os.clock() - changedAt >= settle
+end
+
+local function minigameSidelined()
+    refreshNative()
+
+    if Native.Checker and type(Native.Checker.MinigameSidelined) == "function" then
+        local ok, sidelined = pcall(Native.Checker.MinigameSidelined, LocalPlayer)
+        if ok then return sidelined == true end
+    end
+
+    -- Exact fallback used by the 30/09 Checker module.
+    if workspace:GetAttribute("MinigameKey") == nil then
+        return false
+    end
+    if workspace:GetAttribute("MinigameState") == "Lobby" then
+        return true
+    end
+    return LocalPlayer:GetAttribute("Spectating") == true
+        or LocalPlayer:GetAttribute("MinigameLobby") ~= nil
+end
+
+local function minigameLoadoutLocked()
+    refreshNative()
+
+    local settings = Native.MinigameSettings
+    if type(settings) ~= "table" or type(settings.Get) ~= "function" then
+        return false
+    end
+
+    local ok, lockedWhileFielded = pcall(settings.Get, "LoadoutLockedWhileFielded")
+    if not ok or lockedWhileFielded ~= true then
+        return false
+    end
+    if workspace:GetAttribute("MinigameState") ~= "Fighting" then
+        return false
+    end
+    if minigameSidelined() then
+        return false
+    end
+
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    return humanoid ~= nil and humanoid.Health > 0
 end
 
 -- ============================================================================
@@ -414,6 +486,7 @@ local function installSkillGuard()
     local function combatReady()
         local f = State.Flags
         if f.AutoSkills ~= true or f.AutoAttack == false then return false end
+        if not skillLoadoutSettled() then return false end
 
         if type(State.Runtime.skillCombatActive) == "function" then
             local ok, active = pcall(State.Runtime.skillCombatActive)
@@ -451,6 +524,60 @@ local function installSkillGuard()
             end
         end
     end
+
+    return true
+end
+
+local function installQuestCooldownCompatibility()
+    local exports = State.A7DEVExports
+    local questFarm = type(exports) == "table" and exports.QuestFarm or nil
+    if type(questFarm) ~= "table" or type(questFarm.canAddQuest) ~= "function" then
+        return false
+    end
+    if questFarm.A7DEV_CORE_0930_QUEST_COOLDOWN == true then
+        return true
+    end
+
+    local originalCanAddQuest = questFarm.canAddQuest
+    local wrappedCanAddQuest
+
+    wrappedCanAddQuest = function(questName, ...)
+        local can, reasonA, reasonB, source = originalCanAddQuest(questName, ...)
+
+        -- 30/09 Quests.CanAddQuest returns reasonA=true when blocked by
+        -- max(QuestCD, QuestInfo.AcceptCooldown). Existing A7DEV already
+        -- respects the denial; this only prevents a 0.14s retry hammer.
+        if can ~= true and reasonA == true then
+            local waitFor = .45
+            refreshNative()
+            if Native.Quests and type(Native.Quests.GetQuestInfo) == "function" then
+                local ok, info = pcall(Native.Quests.GetQuestInfo, questName)
+                if ok and type(info) == "table" then
+                    waitFor = math.clamp(tonumber(info.AcceptCooldown) or waitFor, .45, 1.75)
+                end
+            end
+            State.FarmQuestBusyUntil = math.max(
+                tonumber(State.FarmQuestBusyUntil) or 0,
+                os.clock() + waitFor
+            )
+        end
+
+        return can, reasonA, reasonB, source
+    end
+
+    questFarm.A7DEV_CORE_0930_QUEST_COOLDOWN = true
+    questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_0930 = originalCanAddQuest
+    questFarm.canAddQuest = wrappedCanAddQuest
+
+    cleanup(function()
+        if questFarm.canAddQuest == wrappedCanAddQuest then
+            questFarm.canAddQuest = originalCanAddQuest
+        end
+        if questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_0930 == originalCanAddQuest then
+            questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_0930 = nil
+        end
+        questFarm.A7DEV_CORE_0930_QUEST_COOLDOWN = nil
+    end)
 
     return true
 end
@@ -1181,6 +1308,7 @@ local function dungeonHoverEnabled()
         and f.Fly ~= true
         and (f.AutoDungeon == true or f.AutoDungeonClear == true or f.DungeonKillAura == true)
         and dungeonInRun()
+        and not minigameSidelined()
 end
 
 local function installDungeonHoverOwnership()
@@ -3470,6 +3598,11 @@ end
 
 local function dungeonPotionTick(now)
     if State.Flags.AutoDungeonPotion ~= true or not dungeonInRun() then return end
+    if minigameSidelined() then return end
+    if minigameLoadoutLocked() then
+        State.DungeonPotionStatus = "Potion waiting for loadout window"
+        return
+    end
     if now - (R.dungeonPotionLastUse or -math.huge) < 4 then return end
 
     local _, humanoid = livingCharacter()
@@ -3748,6 +3881,22 @@ local function dungeonRecoveryTick(now)
         end
         State.Flags.AutoAttack = true
         State.Flags.AutoEquip = true
+
+        if minigameLoadoutLocked() then
+            -- 30/09 Checker denies equipment changes while a fielded player is
+            -- fighting. Avoid hammering Item_Equip until a legal window opens.
+            State.LastAutoEquipAction = math.max(
+                tonumber(State.LastAutoEquipAction) or 0,
+                now + .65
+            )
+        elseif now >= (R.nextDungeonLoadoutPrepare or 0) then
+            R.nextDungeonLoadoutPrepare = now + .65
+            local exports = State.A7DEVExports
+            if type(exports) == "table" and type(exports.ensureCombatTool) == "function" then
+                safe("Dungeon loadout prepare", exports.ensureCombatTool)
+            end
+        end
+
         return
     end
 
@@ -4383,6 +4532,11 @@ task.spawn(function()
         if not (State.A7DEVExports and State.A7DEVExports.A7DEV_TEST_SKILL_GUARD) then
             installSkillGuard()
         end
+        if not (State.A7DEVExports
+            and State.A7DEVExports.QuestFarm
+            and State.A7DEVExports.QuestFarm.A7DEV_CORE_0930_QUEST_COOLDOWN) then
+            installQuestCooldownCompatibility()
+        end
         if not (State.DungeonOps and State.DungeonOps.A7DEV_TEST_UI_REPAIR) then
             installDungeonUiRepair()
         end
@@ -4435,6 +4589,7 @@ task.delay(.8, function()
     applySafeDefaults()
     installSellRepair()
     installSkillGuard()
+    installQuestCooldownCompatibility()
     installDungeonUiRepair()
     installDungeonPotionUi()
     installFreezeOwnershipRepair()
