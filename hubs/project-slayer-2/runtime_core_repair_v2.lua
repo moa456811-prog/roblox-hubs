@@ -206,7 +206,7 @@ end
 local function highPriorityRoute()
     local f = State.Flags
     return f.Fly == true
-        or (R.movement and R.movement.flyRequested == true)
+        or (R.movement and R.movement.flyRoot ~= nil)
         or f.AutoBoss == true
         or f.AutoAllBoss == true
         or f.AutoDungeon == true
@@ -4628,9 +4628,8 @@ local function clearLegacyFly()
         State.FlyBG = nil
     end
 
-    -- Keep the visible toggle state in ToggleControls, but turn the old
-    -- production implementation off internally.
-    State.Flags.Fly = false
+    -- Only remove the legacy BodyVelocity/BodyGyro owner. The modern controller
+    -- keeps State.Flags.Fly synchronized with the visible toggle.
 end
 
 local function stopModernFly()
@@ -4745,6 +4744,7 @@ local function updateModernMovement()
     -- FLY
     local flyRequested = movementToggleValue("Fly (WASD/Space/Ctrl)")
     M.flyRequested = flyRequested
+    State.Flags.Fly = flyRequested
 
     if not flyRequested then
         clearLegacyFly()
