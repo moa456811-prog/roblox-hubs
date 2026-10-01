@@ -245,6 +245,9 @@ local function refreshNative(force)
     local comm = ReplicatedStorage:FindFirstChild("Communication")
     local sc = comm and comm:FindFirstChild("ServerAndClient")
     local signals = sc and sc:FindFirstChild("Signals")
+    local controllers = Client and Client:FindFirstChild("Controllers")
+    local modules = Client and Client:FindFirstChild("Modules")
+    local gamePlayModules = modules and modules:FindFirstChild("GamePlay")
 
     Native.Utility = Global and requireSafe(Global:FindFirstChild("Utility"))
     Native.Quests = gameplay and requireSafe(gameplay:FindFirstChild("Quests"))
@@ -258,6 +261,8 @@ local function refreshNative(force)
     Native.MinigameSettings = Global and requireSafe(Global:FindFirstChild("MinigameSettings"))
     Native.SignalFunction = signals and requireSafe(signals:FindFirstChild("SignalFunction"))
     Native.SignalEvent = signals and requireSafe(signals:FindFirstChild("SignalEvent"))
+    Native.SkillController = controllers and requireSafe(controllers:FindFirstChild("Skill_Controller"))
+    Native.DashHandler = gamePlayModules and requireSafe(gamePlayModules:FindFirstChild("Dash_Handler"))
     Native.ready = true
 end
 
@@ -4550,6 +4555,10 @@ R.movement = R.movement or {
     lastFlyPosition = nil,
     lastCorrectionAt = -math.huge,
     stableSince = 0,
+    correctionCount = 0,
+    nativeFallbackUntil = 0,
+    lastNativeDash = -math.huge,
+    lastNativeDoubleJump = -math.huge,
 }
 
 local function movementInputNumber(label, fallback, minValue, maxValue)
@@ -4734,6 +4743,57 @@ local function automatedMovementActive()
     return false, nil
 end
 
+local function nativeMobilityDash()
+    refreshNative()
+    local dash = Native.DashHandler
+    if type(dash) ~= "table" or type(dash.Perform) ~= "function" then
+        return false
+    end
+
+    local letter = "W"
+    if type(dash.MovementLetter) == "function" then
+        local ok, value = pcall(dash.MovementLetter)
+        if ok and type(value) == "string" then
+            letter = value
+        end
+    end
+
+    local ok, used = pcall(dash.Perform, letter)
+    return ok and used == true
+end
+
+local function nativeMobilityDoubleJump()
+    refreshNative()
+    local controller = Native.SkillController
+    if type(controller) ~= "table"
+        or type(controller.Attempt_Hold) ~= "function" then
+        return false
+    end
+
+    local ok, used = pcall(controller.Attempt_Hold, "Double Jump", "Space")
+    if ok and used == true and type(controller.StopHold) == "function" then
+        pcall(controller.StopHold, "Double Jump")
+    end
+    return ok and used == true
+end
+
+local function nativeFarmDashAssist(now)
+    if State.Flags.AutoFarm ~= true or State.Flags.Fly == true then return end
+    local M = R.movement
+    if now - (M.lastNativeDash or -math.huge) < .65 then return end
+
+    local target = State.FarmPlanTarget or State.CurrentTarget
+    local targetRoot = rootOf(target)
+    local _, humanoid, root = livingCharacter()
+    if not targetRoot or not humanoid or not root then return end
+    if (targetRoot.Position - root.Position).Magnitude < 18 then return end
+    if humanoid.MoveDirection.Magnitude < .1 then return end
+
+    if nativeMobilityDash() then
+        M.lastNativeDash = now
+    end
+end
+
 local function updateModernMovement()
     if not R.alive or State.Destroyed then return end
 
@@ -4764,10 +4824,34 @@ local function updateModernMovement()
 
     clearLegacyFly()
 
+    local now = os.clock()
     local routeBusy, routeName = automatedMovementActive()
     if routeBusy then
         if M.flyRoot then stopModernFly() end
         State.MovementCompatibilityStatus = "Fly paused while " .. tostring(routeName) .. " controls movement"
+        return
+    end
+
+    if now < (M.nativeFallbackUntil or 0) then
+        local _, humanoid = livingCharacter()
+        if humanoid then
+            if humanoid.MoveDirection.Magnitude >= .1
+                and now - (M.lastNativeDash or -math.huge) >= .65 then
+                if nativeMobilityDash() then
+                    M.lastNativeDash = now
+                end
+            end
+
+            if (UserInputService:IsKeyDown(Enum.KeyCode.Space)
+                or now < (M.jumpUntil or 0))
+                and now - (M.lastNativeDoubleJump or -math.huge) >= .9 then
+                if nativeMobilityDoubleJump() then
+                    M.lastNativeDoubleJump = now
+                end
+            end
+        end
+
+        State.MovementCompatibilityStatus = "Native air mobility fallback"
         return
     end
 
@@ -4801,7 +4885,6 @@ local function updateModernMovement()
     end
 
     local requestedSpeed = movementInputNumber("Fly speed", 14, 6, 150)
-    local now = os.clock()
 
     -- A large one-frame position jump while our requested speed is low is the
     -- signature of a server position correction. Back off instead of fighting it.
@@ -4810,9 +4893,20 @@ local function updateModernMovement()
         local frameDelta = (currentPosition - M.lastFlyPosition).Magnitude
         if frameDelta >= 12 and now - (M.lastCorrectionAt or -math.huge) >= .5 then
             M.lastCorrectionAt = now
+            M.correctionCount = (tonumber(M.correctionCount) or 0) + 1
             M.adaptiveCap = math.max(6, (tonumber(M.adaptiveCap) or 14) * .75)
             M.stableSince = now
             velocity.VectorVelocity = Vector3.zero
+
+            if M.correctionCount >= 2 then
+                M.nativeFallbackUntil = now + 5
+                stopModernFly()
+                M.flyRequested = true
+                State.Flags.Fly = true
+                State.MovementCompatibilityStatus = "Server correction | native mobility fallback"
+                return
+            end
+
             State.MovementCompatibilityStatus =
                 "Server correction detected | Fly reduced to "
                 .. string.format("%.1f", M.adaptiveCap)
@@ -5294,6 +5388,7 @@ task.spawn(function()
         end
 
         safe("Route arbiter", routeArbiterTick)
+        safe("Native farm dash assist", nativeFarmDashAssist, now)
         safe("Boss/Dungeon coordinator", coordinateExclusiveRoutes)
         safe("Boss respawn timer", scanBossRespawnTimer, now)
         safe("Global boss scan", globalBossScanTick, now)
