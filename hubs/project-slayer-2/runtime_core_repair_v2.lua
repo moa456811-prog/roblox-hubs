@@ -1,6 +1,7 @@
 -- A7DEV Project Slayer 2 | TEST CORE REPAIR V2
 -- Test branch only. Does not modify the public loader/backend.
 -- UI is intentionally untouched; this file only repairs runtime/gameplay behavior.
+-- 2026-10-01: Ouwland 30/09 movement compatibility; one movement owner only.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -205,6 +206,7 @@ end
 local function highPriorityRoute()
     local f = State.Flags
     return f.Fly == true
+        or (R.movement and R.movement.flyRequested == true)
         or f.AutoBoss == true
         or f.AutoAllBoss == true
         or f.AutoDungeon == true
@@ -1258,307 +1260,10 @@ local function stopDungeonHover()
 end
 
 -- ============================================================================
--- STABLE FLY: REPLACE LEGACY BODYVELOCITY/BODYGYRO OWNER
+-- MOVEMENT OWNERSHIP
+-- Fly/WalkSpeed ownership is centralized in the Ouwland 30/09 movement block
+-- below. Older Fly owners were removed to prevent controller fights/rubberband.
 -- ============================================================================
-
-R.stableFly = R.stableFly or {
-    root = nil,
-    humanoid = nil,
-    attachment = nil,
-    velocity = nil,
-    orientation = nil,
-    renderConn = nil,
-    autoRotate = nil,
-    smoothed = Vector3.zero,
-    mobileUpUntil = 0,
-    speedBox = nil,
-    speedConn = nil,
-}
-State.FlyStableSpeed = math.clamp(tonumber(State.FlyStableSpeed) or 55, 10, 150)
-
-local function stableFlyOwned()
-    local F = R.stableFly
-    return F.root ~= nil
-        and F.root.Parent ~= nil
-        and F.velocity ~= nil
-        and F.velocity.Parent == F.root
-        and F.orientation ~= nil
-        and F.orientation.Parent == F.root
-        and F.attachment ~= nil
-        and F.attachment.Parent == F.root
-        and F.renderConn ~= nil
-        and State.FlyBV == F.velocity
-        and State.FlyBG == F.orientation
-        and State.FlyConn == F.renderConn
-end
-
-local function stopStableFly()
-    local F = R.stableFly
-
-    if F.renderConn then
-        pcall(function() F.renderConn:Disconnect() end)
-    end
-
-    for _, object in ipairs({F.velocity, F.orientation, F.attachment}) do
-        if object then
-            pcall(function() object:Destroy() end)
-        end
-    end
-
-    if F.humanoid and F.humanoid.Parent and F.autoRotate ~= nil then
-        pcall(function()
-            F.humanoid.AutoRotate = F.autoRotate
-        end)
-    end
-
-    if State.FlyConn == F.renderConn then State.FlyConn = nil end
-    if State.FlyBV == F.velocity then State.FlyBV = nil end
-    if State.FlyBG == F.orientation then State.FlyBG = nil end
-
-    F.root = nil
-    F.humanoid = nil
-    F.attachment = nil
-    F.velocity = nil
-    F.orientation = nil
-    F.renderConn = nil
-    F.autoRotate = nil
-    F.smoothed = Vector3.zero
-end
-
-local function stableFlyCameraBasis(root)
-    local camera = workspace.CurrentCamera
-    local look = camera and camera.CFrame.LookVector or root.CFrame.LookVector
-    local right = camera and camera.CFrame.RightVector or root.CFrame.RightVector
-
-    look = Vector3.new(look.X, 0, look.Z)
-    right = Vector3.new(right.X, 0, right.Z)
-
-    if look.Magnitude < .001 then
-        local fallback = root.CFrame.LookVector
-        look = Vector3.new(fallback.X, 0, fallback.Z)
-    end
-    if right.Magnitude < .001 then
-        right = Vector3.new(-look.Z, 0, look.X)
-    end
-
-    return look.Unit, right.Unit
-end
-
-local function stableFlyTargetVelocity(humanoid, root)
-    local look, right = stableFlyCameraBasis(root)
-    local horizontal = Vector3.zero
-
-    -- Humanoid.MoveDirection follows Roblox's active control module, so this
-    -- covers keyboard, gamepad and the mobile thumbstick.
-    local move = humanoid.MoveDirection
-    if typeof(move) == "Vector3" then
-        horizontal = Vector3.new(move.X, 0, move.Z)
-    end
-
-    -- Keyboard fallback keeps the exact existing WASD behavior even when a
-    -- custom executor/control module does not update MoveDirection correctly.
-    if horizontal.Magnitude < .02 then
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then horizontal += look end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then horizontal -= look end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then horizontal += right end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then horizontal -= right end
-    end
-
-    if horizontal.Magnitude > 1 then
-        horizontal = horizontal.Unit
-    end
-
-    local vertical = 0
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vertical += 1 end
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        or UserInputService:IsKeyDown(Enum.KeyCode.RightControl) then
-        vertical -= 1
-    end
-
-    -- Mobile JumpRequest gives a short upward hold and repeats while the jump
-    -- button is held on Roblox's touch controls.
-    if os.clock() < (R.stableFly.mobileUpUntil or 0) then
-        vertical = math.max(vertical, 1)
-    end
-
-    local direction = horizontal + Vector3.new(0, vertical, 0)
-    if direction.Magnitude > 1 then
-        direction = direction.Unit
-    end
-
-    return direction * math.clamp(tonumber(State.FlyStableSpeed) or 55, 10, 150), look
-end
-
-local function startStableFly()
-    if State.Flags.Fly ~= true then
-        stopStableFly()
-        return false
-    end
-
-    local _, humanoid, root = livingCharacter()
-    if not humanoid or not root then
-        return false
-    end
-
-    local F = R.stableFly
-    if stableFlyOwned() and F.root == root then
-        return true
-    end
-
-    -- Build the new controller first. If creation fails, leave the legacy
-    -- controller untouched instead of turning Fly into a dead state.
-    local attachment = Instance.new("Attachment")
-    attachment.Name = "A7DEV_CoreFlyAttachment"
-
-    local velocity = Instance.new("LinearVelocity")
-    velocity.Name = "A7DEV_CoreFlyVelocity"
-    velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
-    velocity.Attachment0 = attachment
-    velocity.MaxForce = 1000000000
-    velocity.VectorVelocity = Vector3.zero
-
-    local orientation = Instance.new("AlignOrientation")
-    orientation.Name = "A7DEV_CoreFlyOrientation"
-    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    orientation.Attachment0 = attachment
-    orientation.RigidityEnabled = false
-    orientation.MaxTorque = 1000000000
-    orientation.MaxAngularVelocity = 18
-    orientation.Responsiveness = 32
-    orientation.CFrame = root.CFrame
-
-    -- The legacy toggle creates BodyVelocity/BodyGyro synchronously. Take
-    -- ownership after the new objects are ready so there is no long no-fly gap.
-    if State.FlyConn then
-        pcall(function() State.FlyConn:Disconnect() end)
-    end
-    if State.FlyBV then
-        pcall(function() State.FlyBV:Destroy() end)
-    end
-    if State.FlyBG then
-        pcall(function() State.FlyBG:Destroy() end)
-    end
-    stopStableFly()
-
-    attachment.Parent = root
-    velocity.Parent = root
-    orientation.Parent = root
-
-    F.root = root
-    F.humanoid = humanoid
-    F.attachment = attachment
-    F.velocity = velocity
-    F.orientation = orientation
-    F.autoRotate = humanoid.AutoRotate
-    F.smoothed = Vector3.zero
-
-    humanoid.AutoRotate = false
-    pcall(function() humanoid.PlatformStand = false end)
-
-    local renderConn
-    renderConn = RunService.RenderStepped:Connect(function(dt)
-        if not R.alive or State.Destroyed or State.Flags.Fly ~= true
-            or not root.Parent or humanoid.Health <= 0 then
-            stopStableFly()
-            return
-        end
-
-        local targetVelocity, flatLook = stableFlyTargetVelocity(humanoid, root)
-
-        -- Fast enough to feel responsive, but smooth enough to remove the
-        -- jitter/instant direction snapping of the old BodyVelocity controller.
-        local alpha = 1 - math.exp(-math.max(0, tonumber(dt) or 0) * 14)
-        F.smoothed = F.smoothed:Lerp(targetVelocity, math.clamp(alpha, .08, .45))
-
-        velocity.VectorVelocity = F.smoothed
-        orientation.CFrame = CFrame.lookAt(
-            root.Position,
-            root.Position + flatLook,
-            Vector3.yAxis
-        )
-
-        -- Kill only residual spin; LinearVelocity owns translation.
-        if root.AssemblyAngularVelocity.Magnitude > .05 then
-            root.AssemblyAngularVelocity = Vector3.zero
-        end
-    end)
-
-    F.renderConn = renderConn
-    State.FlyBV = velocity
-    State.FlyBG = orientation
-    State.FlyConn = renderConn
-    State.FlyStableStatus = "Stable Fly active"
-    return true
-end
-
-local function bindStableFlySpeedInput()
-    local F = R.stableFly
-    local section = gui and gui:FindFirstChild("Section_Fly", true)
-    if not section then return false end
-
-    local box = section:FindFirstChildWhichIsA("TextBox", true)
-    if not box then return false end
-    if F.speedBox == box and F.speedConn then return true end
-
-    if F.speedConn then
-        pcall(function() F.speedConn:Disconnect() end)
-    end
-
-    F.speedBox = box
-
-    local function sync()
-        local value = tonumber(box.Text)
-        if value then
-            State.FlyStableSpeed = math.clamp(value, 10, 150)
-        end
-    end
-
-    sync()
-    F.speedConn = box.FocusLost:Connect(sync)
-    return true
-end
-
-track(UserInputService.JumpRequest:Connect(function()
-    if State.Flags.Fly == true then
-        R.stableFly.mobileUpUntil = os.clock() + .18
-    end
-end))
-
-R.flyOwnerConn = track(RunService.Heartbeat:Connect(function()
-    if not R.alive or State.Destroyed then return end
-
-    if State.Flags.Fly == true then
-        bindStableFlySpeedInput()
-
-        local _, humanoid, root = livingCharacter()
-        if humanoid and root then
-            if not stableFlyOwned() or R.stableFly.root ~= root then
-                startStableFly()
-            end
-        end
-    elseif R.stableFly.root then
-        stopStableFly()
-    end
-end))
-
-track(LocalPlayer.CharacterAdded:Connect(function()
-    stopStableFly()
-    R.stableFly.mobileUpUntil = 0
-    task.delay(.15, function()
-        if R.alive and not State.Destroyed and State.Flags.Fly == true then
-            startStableFly()
-        end
-    end)
-end))
-
-cleanup(function()
-    stopStableFly()
-    if R.stableFly.speedConn then
-        pcall(function() R.stableFly.speedConn:Disconnect() end)
-        R.stableFly.speedConn = nil
-    end
-end)
 
 local function coordinateExclusiveRoutes()
     local f = State.Flags
@@ -1798,14 +1503,10 @@ local function updateDungeonHover(now)
 
     local errorDistance = (root.Position - goal).Magnitude
 
-    if changed and errorDistance > 10 then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = CFrame.lookAt(goal, aimPoint)
-    elseif errorDistance <= 2.25 then
-        -- Never inherit the mob's velocity: that created a feedback loop with
-        -- Bring/Freeze and made the player orbit or shake around the target.
-        root.AssemblyLinearVelocity = Vector3.zero
+    -- Never hard-snap the character with CFrame here. The updated game has
+    -- server movement validation; the single AlignPosition owner converges at
+    -- a bounded velocity instead of fighting server correction.
+    if errorDistance <= 2.25 then
         root.AssemblyAngularVelocity = Vector3.zero
     end
 end
@@ -3502,13 +3203,14 @@ local function moveSupplemental(position, tolerance)
         return true
     end
 
-    if R.utilityTween then pcall(function() R.utilityTween:Cancel() end) end
-    R.utilityTween = TweenService:Create(
-        root,
-        TweenInfo.new(math.clamp(distance / 40, .08, 5), Enum.EasingStyle.Linear),
-        {CFrame = CFrame.new(position + Vector3.new(0, 2, 0))}
-    )
-    R.utilityTween:Play()
+    if R.utilityTween then
+        pcall(function() R.utilityTween:Cancel() end)
+        R.utilityTween = nil
+    end
+
+    -- Use Roblox/game locomotion instead of tweening HumanoidRootPart.CFrame.
+    -- This keeps supplemental loot/quest movement inside normal humanoid motion.
+    hum:MoveTo(position + Vector3.new(0, 1.5, 0))
     return false
 end
 
@@ -4892,10 +4594,16 @@ local function ensureNativeSpeedOverride()
         M.speedFolder = folder
     end
 
-    local desired = movementInputNumber("WalkSpeed", 32, 8, 100)
+    local requested = movementInputNumber("WalkSpeed", 25, 8, 100)
+    -- Ouwland 30/09 Run_Handler uses 25 as the normal run speed. Keep the
+    -- override inside the native Values pipeline and never force Humanoid.WalkSpeed.
+    local desired = math.clamp(requested, 8, 25)
     if M.speedValue.Value ~= desired then
         M.speedValue.Value = desired
     end
+    State.MovementCompatibilityStatus = requested > 25
+        and "WalkSpeed capped at native run speed (25)"
+        or "WalkSpeed native override active"
 
     return true
 end
@@ -5008,6 +4716,15 @@ local function ensureModernFly()
     return true
 end
 
+local function automatedMovementActive()
+    for _, name in ipairs(ROUTE_ORDER) do
+        if routeEnabled(name) then
+            return true, name
+        end
+    end
+    return false, nil
+end
+
 local function updateModernMovement()
     if not R.alive or State.Destroyed then return end
 
@@ -5036,6 +4753,13 @@ local function updateModernMovement()
     end
 
     clearLegacyFly()
+
+    local routeBusy, routeName = automatedMovementActive()
+    if routeBusy then
+        if M.flyRoot then stopModernFly() end
+        State.MovementCompatibilityStatus = "Fly paused while " .. tostring(routeName) .. " controls movement"
+        return
+    end
 
     if not ensureModernFly() then
         return
@@ -5066,8 +4790,13 @@ local function updateModernMovement()
         vertical -= 1
     end
 
-    local speed = movementInputNumber("Fly speed", 55, 10, 150)
-    local wanted = planar * speed + Vector3.new(0, vertical * speed, 0)
+    local requestedSpeed = movementInputNumber("Fly speed", 25, 10, 150)
+    local speed = math.min(requestedSpeed, 25)
+    local verticalSpeed = math.min(speed, 18)
+    local wanted = planar * speed + Vector3.new(0, vertical * verticalSpeed, 0)
+    State.MovementCompatibilityStatus = requestedSpeed > 25
+        and "Fly compatibility cap active (25)"
+        or "Fly compatibility mode active"
 
     -- LinearVelocity holds altitude when idle and moves without CFrame warping.
     velocity.MaxForce = math.max(
@@ -5470,234 +5199,10 @@ installPanicSystem()
 installPanicUi()
 
 -- ============================================================================
--- MOVEMENT FIX: native WalkSpeed override + stable Fly
+-- MOVEMENT COMPATIBILITY NOTE
+-- The duplicate late Fly/WalkSpeed owner was removed. MOVEMENT 30/09 above is
+-- the sole movement compatibility owner for this runtime.
 -- ============================================================================
-
-R.movefix = R.movefix or {}
-
-local function movementInput(label, fallback, lo, hi)
-    local controls = State.Runtime and State.Runtime.InputControls
-    local control = type(controls) == "table" and controls[label] or nil
-    local value = control and control.Box and tonumber(control.Box.Text) or tonumber(fallback)
-    return math.clamp(value or fallback, lo, hi)
-end
-
-local function movementValuesFolder()
-    local ps = ReplicatedStorage:FindFirstChild("Player_Service")
-    local values = ps and ps:FindFirstChild("Values")
-    return values and values:FindFirstChild(LocalPlayer.Name)
-end
-
-local function clearSpeedOverride()
-    local value = R.movefix.speedValue
-    R.movefix.speedValue = nil
-    R.movefix.speedFolder = nil
-    if value and value.Parent then pcall(function() value:Destroy() end) end
-end
-
-local function updateSpeedOverride()
-    if State.Flags.SpeedLock ~= true then
-        clearSpeedOverride()
-        return
-    end
-
-    local folder = movementValuesFolder()
-    if not folder then return end
-
-    if R.movefix.speedFolder ~= folder
-        or not R.movefix.speedValue
-        or not R.movefix.speedValue.Parent then
-        clearSpeedOverride()
-        local value = Instance.new("NumberValue")
-        value.Name = "WalkSpeed"
-        value.Value = movementInput("WalkSpeed", 32, 8, 80)
-        value:SetAttribute("Priority", -100)
-        value:SetAttribute("A7DEV", true)
-        value.Parent = folder
-        R.movefix.speedValue = value
-        R.movefix.speedFolder = folder
-    end
-
-    R.movefix.speedValue.Value = movementInput("WalkSpeed", 32, 8, 80)
-end
-
-local function clearLegacyFly()
-    if State.FlyConn then
-        pcall(function() State.FlyConn:Disconnect() end)
-        State.FlyConn = nil
-    end
-    if State.FlyBV then
-        pcall(function() State.FlyBV:Destroy() end)
-        State.FlyBV = nil
-    end
-    if State.FlyBG then
-        pcall(function() State.FlyBG:Destroy() end)
-        State.FlyBG = nil
-    end
-end
-
-local function stopFlyV2()
-    local M = R.movefix
-    for _, object in ipairs({M.flyVelocity, M.flyOrientation, M.flyAttachment}) do
-        if object and object.Parent then pcall(function() object:Destroy() end) end
-    end
-    if M.flyHumanoid and M.flyHumanoid.Parent and M.flyAutoRotate ~= nil then
-        pcall(function() M.flyHumanoid.AutoRotate = M.flyAutoRotate end)
-    end
-    M.flyRoot = nil
-    M.flyHumanoid = nil
-    M.flyVelocity = nil
-    M.flyOrientation = nil
-    M.flyAttachment = nil
-    M.flyAutoRotate = nil
-end
-
-local function startFlyV2()
-    clearLegacyFly()
-
-    local _, humanoid, root = livingCharacter()
-    if not humanoid or not root then
-        stopFlyV2()
-        return
-    end
-
-    if R.movefix.flyRoot == root
-        and R.movefix.flyVelocity and R.movefix.flyVelocity.Parent
-        and R.movefix.flyOrientation and R.movefix.flyOrientation.Parent then
-        return
-    end
-
-    stopFlyV2()
-
-    R.movefix.flyRoot = root
-    R.movefix.flyHumanoid = humanoid
-    R.movefix.flyAutoRotate = humanoid.AutoRotate
-    humanoid.AutoRotate = false
-
-    local attachment = Instance.new("Attachment")
-    attachment.Name = "A7DEV_FlyAttachment_V2"
-    attachment.Parent = root
-
-    local velocity = Instance.new("LinearVelocity")
-    velocity.Name = "A7DEV_FlyVelocity_V2"
-    velocity.Attachment0 = attachment
-    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
-    velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-    velocity.ForceLimitsEnabled = false
-    velocity.VectorVelocity = Vector3.zero
-    velocity.Parent = root
-
-    local orientation = Instance.new("AlignOrientation")
-    orientation.Name = "A7DEV_FlyOrientation_V2"
-    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    orientation.Attachment0 = attachment
-    orientation.RigidityEnabled = false
-    orientation.Responsiveness = 20
-    orientation.MaxAngularVelocity = 12
-    orientation.MaxTorque = 1000000
-    orientation.CFrame = root.CFrame
-    orientation.Parent = root
-
-    R.movefix.flyAttachment = attachment
-    R.movefix.flyVelocity = velocity
-    R.movefix.flyOrientation = orientation
-end
-
-local function updateFlyV2()
-    if State.Flags.Fly ~= true then
-        if R.movefix.flyRoot then stopFlyV2() end
-        clearLegacyFly()
-        return
-    end
-
-    clearLegacyFly()
-    startFlyV2()
-
-    local root = R.movefix.flyRoot
-    local humanoid = R.movefix.flyHumanoid
-    local velocity = R.movefix.flyVelocity
-    local orientation = R.movefix.flyOrientation
-    if not root or not humanoid or humanoid.Health <= 0 or not velocity or not orientation then return end
-
-    local camera = workspace.CurrentCamera
-    if not camera then
-        velocity.VectorVelocity = Vector3.zero
-        return
-    end
-
-    local look = Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z)
-    local right = Vector3.new(camera.CFrame.RightVector.X, 0, camera.CFrame.RightVector.Z)
-    look = look.Magnitude > .001 and look.Unit or Vector3.new(0,0,-1)
-    right = right.Magnitude > .001 and right.Unit or Vector3.new(1,0,0)
-
-    local move = Vector3.zero
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += look end
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= look end
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += right end
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= right end
-    if move.Magnitude > 1 then move = move.Unit end
-
-    local y = 0
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then y += 1 end
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        or UserInputService:IsKeyDown(Enum.KeyCode.RightControl) then y -= 1 end
-
-    local configured = movementInput("Fly speed", 55, 10, 150)
-    local speed = math.min(configured, 75)
-    velocity.VectorVelocity = move * speed + Vector3.new(0, y * math.min(speed, 55), 0)
-    orientation.CFrame = CFrame.lookAt(Vector3.zero, look, Vector3.new(0,1,0))
-    root.AssemblyAngularVelocity = Vector3.zero
-end
-
-local function installMovementFix()
-    if R.movefix.installed then return true end
-    if type(State.Runtime.mainHeartbeat) ~= "function" then return false end
-
-    local original = State.Runtime.mainHeartbeat
-    local wrapped
-    wrapped = function(...)
-        local lock = State.Flags.SpeedLock == true
-        if lock then State.Flags.SpeedLock = false end
-        local result = table.pack(pcall(original, ...))
-        if lock then State.Flags.SpeedLock = true end
-        updateSpeedOverride()
-        if not result[1] then error(result[2], 0) end
-        return table.unpack(result, 2, result.n)
-    end
-
-    State.Runtime.mainHeartbeat = wrapped
-    R.movefix.originalHeartbeat = original
-    R.movefix.installed = true
-
-    track(RunService.RenderStepped:Connect(function()
-        if not R.alive or State.Destroyed then return end
-        updateSpeedOverride()
-        updateFlyV2()
-    end))
-
-    cleanup(function()
-        if State.Runtime.mainHeartbeat == wrapped then State.Runtime.mainHeartbeat = original end
-        clearSpeedOverride()
-        clearLegacyFly()
-        stopFlyV2()
-        R.movefix.installed = nil
-    end)
-
-    return true
-end
-
-installMovementFix()
-
-track(LocalPlayer.CharacterAdded:Connect(function()
-    clearSpeedOverride()
-    stopFlyV2()
-    clearLegacyFly()
-    task.delay(.8, function()
-        if not R.alive or State.Destroyed then return end
-        updateSpeedOverride()
-        if State.Flags.Fly == true then startFlyV2() end
-    end)
-end))
 
 -- ============================================================================
 -- LOW-FREQUENCY RECOVERY SUPERVISOR
