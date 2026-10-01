@@ -41,10 +41,10 @@ local GAMES = {
         short = "PS2",
         subtitle = "Anime RPG • Combat",
         key = "project-slayer-2",
-        -- Main/menu + Ouwland + Final Selection. The latter two are required
-        -- so queued race-resume loads still identify Project Slayer 2.
-        placeIds = {9093954913, 136406881576517, 17047024836},
-        fallbackUniverseId = 3418520589,
+        -- Slayers 2 by Ouw Productions: root + Ouwland + Final Selection.
+        -- Keep the real root first so the loader resolves the correct game icon.
+        placeIds = {16205713724, 136406881576517, 17047024836},
+        fallbackUniverseId = 5595353122,
     },
     {
         name = "Ride a Pet",
