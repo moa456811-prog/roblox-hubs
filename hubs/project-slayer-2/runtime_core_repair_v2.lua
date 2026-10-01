@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CollectionService = game:GetService("CollectionService")
 local UserInputService = game:GetService("UserInputService")
@@ -1612,6 +1613,7 @@ local function dungeonHoverEnabled()
     return not State.Destroyed
         and f.AutoBoss ~= true
         and f.Fly ~= true
+        and not (R.movement and R.movement.flyRequested == true)
         and (f.AutoDungeon == true or f.AutoDungeonClear == true or f.DungeonKillAura == true)
         and dungeonInRun()
         and not minigameSidelined()
@@ -4822,6 +4824,288 @@ local function chestDropRecoveryTick(now)
         State.ChestStatus = "Chest opened - collecting drops"
     end
 end
+
+-- ============================================================================
+-- MOVEMENT 30/09: NATIVE WALKSPEED OVERRIDE + MODERN FLY
+-- ============================================================================
+
+R.movement = R.movement or {
+    speedValue = nil,
+    speedFolder = nil,
+    flyRoot = nil,
+    flyHumanoid = nil,
+    flyAttachment = nil,
+    flyVelocity = nil,
+    flyOrientation = nil,
+    flyAutoRotate = nil,
+    flyRequested = false,
+    jumpUntil = 0,
+}
+
+local function movementInputNumber(label, fallback, minValue, maxValue)
+    local controls = State.Runtime and State.Runtime.InputControls
+    local input = type(controls) == "table" and controls[label] or nil
+    local box = type(input) == "table" and input.Box or nil
+    local value = tonumber(box and box.Text) or tonumber(fallback) or 0
+    return math.clamp(value, minValue, maxValue)
+end
+
+local function movementToggleValue(label)
+    local value = controlValue(label)
+    return value == true
+end
+
+local function playerMovementValues()
+    local service = ReplicatedStorage:FindFirstChild("Player_Service")
+    local values = service and service:FindFirstChild("Values")
+    return values and values:FindFirstChild(LocalPlayer.Name)
+end
+
+local function clearNativeSpeedOverride()
+    local M = R.movement
+    if M.speedValue then
+        pcall(function() M.speedValue:Destroy() end)
+    end
+    M.speedValue = nil
+    M.speedFolder = nil
+end
+
+local function ensureNativeSpeedOverride()
+    local M = R.movement
+    local folder = playerMovementValues()
+    if not folder then
+        clearNativeSpeedOverride()
+        return false
+    end
+
+    if M.speedValue and M.speedValue.Parent ~= folder then
+        clearNativeSpeedOverride()
+    end
+
+    if not M.speedValue or not M.speedValue.Parent then
+        local value = Instance.new("NumberValue")
+        value.Name = "WalkSpeed"
+        value:SetAttribute("Priority", 1000000)
+        value:SetAttribute("A7DEV_NativeSpeed", true)
+        value.Parent = folder
+        M.speedValue = value
+        M.speedFolder = folder
+    end
+
+    local desired = movementInputNumber("WalkSpeed", 32, 8, 100)
+    if M.speedValue.Value ~= desired then
+        M.speedValue.Value = desired
+    end
+
+    return true
+end
+
+local function clearLegacyFly()
+    local M = R.movement
+
+    -- The production runtime still has the old BodyVelocity/BodyGyro fly.
+    -- Never let it fight the native-style controller below.
+    local legacyConn = State.FlyConn
+    if legacyConn and legacyConn ~= M.flyConn then
+        pcall(function() legacyConn:Disconnect() end)
+    end
+    State.FlyConn = nil
+
+    if State.FlyBV then
+        pcall(function() State.FlyBV:Destroy() end)
+        State.FlyBV = nil
+    end
+    if State.FlyBG then
+        pcall(function() State.FlyBG:Destroy() end)
+        State.FlyBG = nil
+    end
+
+    -- Keep the visible toggle state in ToggleControls, but turn the old
+    -- production implementation off internally.
+    State.Flags.Fly = false
+end
+
+local function stopModernFly()
+    local M = R.movement
+
+    if M.flyHumanoid and M.flyHumanoid.Parent and M.flyAutoRotate ~= nil then
+        pcall(function()
+            M.flyHumanoid.AutoRotate = M.flyAutoRotate
+        end)
+    end
+
+    for _, object in ipairs({
+        M.flyOrientation,
+        M.flyVelocity,
+        M.flyAttachment,
+    }) do
+        if object then
+            pcall(function() object:Destroy() end)
+        end
+    end
+
+    M.flyRoot = nil
+    M.flyHumanoid = nil
+    M.flyAttachment = nil
+    M.flyVelocity = nil
+    M.flyOrientation = nil
+    M.flyAutoRotate = nil
+    M.flyRequested = false
+end
+
+local function ensureModernFly()
+    local M = R.movement
+    local character, humanoid, root = livingCharacter()
+    if not character or not humanoid or not root then
+        stopModernFly()
+        return false
+    end
+
+    if M.flyRoot == root
+        and M.flyAttachment and M.flyAttachment.Parent == root
+        and M.flyVelocity and M.flyVelocity.Parent
+        and M.flyOrientation and M.flyOrientation.Parent then
+        return true
+    end
+
+    stopModernFly()
+
+    M.flyRoot = root
+    M.flyHumanoid = humanoid
+    M.flyAutoRotate = humanoid.AutoRotate
+
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "A7DEV_FlyAttachment"
+    attachment.Parent = root
+    M.flyAttachment = attachment
+
+    local velocity = Instance.new("LinearVelocity")
+    velocity.Name = "A7DEV_FlyLinearVelocity"
+    velocity.Attachment0 = attachment
+    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    velocity.VectorVelocity = Vector3.zero
+    velocity.MaxForce = math.max(
+        30000,
+        root.AssemblyMass * workspace.Gravity * 5
+    )
+    velocity.Parent = attachment
+    M.flyVelocity = velocity
+
+    local orientation = Instance.new("AlignOrientation")
+    orientation.Name = "A7DEV_FlyOrientation"
+    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    orientation.Attachment0 = attachment
+    orientation.RigidityEnabled = false
+    orientation.MaxTorque = math.max(50000, root.AssemblyMass * 6000)
+    orientation.MaxAngularVelocity = 18
+    orientation.Responsiveness = 28
+    orientation.CFrame = root.CFrame
+    orientation.Parent = attachment
+    M.flyOrientation = orientation
+
+    root.AssemblyAngularVelocity = Vector3.zero
+    return true
+end
+
+local function updateModernMovement()
+    if not R.alive or State.Destroyed then return end
+
+    local M = R.movement
+
+    -- SPEED LOCK
+    local speedRequested = movementToggleValue("Speed Lock")
+    if speedRequested then
+        -- Stop the old direct Humanoid.WalkSpeed writer. The game's own
+        -- Humanoid_handler now owns the property every ~0.075s.
+        State.Flags.SpeedLock = false
+        ensureNativeSpeedOverride()
+    else
+        State.Flags.SpeedLock = false
+        clearNativeSpeedOverride()
+    end
+
+    -- FLY
+    local flyRequested = movementToggleValue("Fly (WASD/Space/Ctrl)")
+    M.flyRequested = flyRequested
+
+    if not flyRequested then
+        clearLegacyFly()
+        if M.flyRoot then stopModernFly() end
+        return
+    end
+
+    clearLegacyFly()
+
+    if not ensureModernFly() then
+        return
+    end
+
+    local root = M.flyRoot
+    local humanoid = M.flyHumanoid
+    local velocity = M.flyVelocity
+    local orientation = M.flyOrientation
+    if not root or not humanoid or humanoid.Health <= 0
+        or not velocity or not orientation then
+        stopModernFly()
+        return
+    end
+
+    -- Humanoid.MoveDirection already supports keyboard, controller and mobile.
+    local planar = humanoid.MoveDirection
+    planar = Vector3.new(planar.X, 0, planar.Z)
+    if planar.Magnitude > 1 then planar = planar.Unit end
+
+    local vertical = 0
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space)
+        or os.clock() < (M.jumpUntil or 0) then
+        vertical += 1
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+        or UserInputService:IsKeyDown(Enum.KeyCode.RightControl) then
+        vertical -= 1
+    end
+
+    local speed = movementInputNumber("Fly speed", 55, 10, 150)
+    local wanted = planar * speed + Vector3.new(0, vertical * speed, 0)
+
+    -- LinearVelocity holds altitude when idle and moves without CFrame warping.
+    velocity.MaxForce = math.max(
+        30000,
+        root.AssemblyMass * workspace.Gravity * 5
+    )
+    velocity.VectorVelocity = wanted
+
+    humanoid.AutoRotate = false
+    humanoid.PlatformStand = false
+
+    local camera = workspace.CurrentCamera
+    local look = camera and camera.CFrame.LookVector or root.CFrame.LookVector
+    local flatLook = Vector3.new(look.X, 0, look.Z)
+    if flatLook.Magnitude > .01 then
+        orientation.CFrame = CFrame.lookAt(Vector3.zero, flatLook.Unit)
+    end
+
+    root.AssemblyAngularVelocity = Vector3.zero
+end
+
+track(UserInputService.JumpRequest:Connect(function()
+    if movementToggleValue("Fly (WASD/Space/Ctrl)") then
+        R.movement.jumpUntil = os.clock() + .20
+    end
+end))
+
+track(RunService.RenderStepped:Connect(function()
+    local ok, err = pcall(updateModernMovement)
+    if not ok then
+        R.errors["Movement 30/09"] = tostring(err)
+    end
+end))
+
+cleanup(function()
+    clearNativeSpeedOverride()
+    stopModernFly()
+end)
 
 -- ============================================================================
 -- PANIC: WATCH PLAYER / STAFF JOINS WITHOUT TOUCHING GAMEPLAY ROUTES
