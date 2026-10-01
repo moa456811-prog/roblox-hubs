@@ -399,6 +399,10 @@ local function applySafeDefaults()
     -- explicit opt-in and is not enabled automatically.
     f.AutoSellUnlock = false
 
+    -- Ouwland 30/09 server movement validation corrects non-native traversal.
+    -- Auto routes now use normal/pathfinding movement; never force FarmNoclip.
+    f.FarmNoclip = false
+
     task.defer(function()
         if not R.alive then return end
         setControl("Auto Skills", true)
@@ -2386,7 +2390,7 @@ local function claimRoute(name)
     if spec.combat then
         State.Flags.AutoAttack = true
         State.Flags.AutoEquip = true
-        State.Flags.FarmNoclip = true
+        State.Flags.FarmNoclip = false
         setControlAny({"Auto Attack", "Auto Attack (native)"}, true)
         setControlAny({"Auto Equip", "Auto Equip Combat Tool"}, true)
     end
@@ -4542,6 +4546,10 @@ R.movement = R.movement or {
     flyAutoRotate = nil,
     flyRequested = false,
     jumpUntil = 0,
+    adaptiveCap = 14,
+    lastFlyPosition = nil,
+    lastCorrectionAt = -math.huge,
+    stableSince = 0,
 }
 
 local function movementInputNumber(label, fallback, minValue, maxValue)
@@ -4658,6 +4666,8 @@ local function stopModernFly()
     M.flyOrientation = nil
     M.flyAutoRotate = nil
     M.flyRequested = false
+    M.lastFlyPosition = nil
+    M.stableSince = 0
 end
 
 local function ensureModernFly()
@@ -4693,8 +4703,8 @@ local function ensureModernFly()
     velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
     velocity.VectorVelocity = Vector3.zero
     velocity.MaxForce = math.max(
-        30000,
-        root.AssemblyMass * workspace.Gravity * 5
+        18000,
+        root.AssemblyMass * workspace.Gravity * 1.8
     )
     velocity.Parent = attachment
     M.flyVelocity = velocity
@@ -4790,18 +4800,52 @@ local function updateModernMovement()
         vertical -= 1
     end
 
-    local requestedSpeed = movementInputNumber("Fly speed", 25, 10, 150)
-    local speed = math.min(requestedSpeed, 25)
-    local verticalSpeed = math.min(speed, 18)
-    local wanted = planar * speed + Vector3.new(0, vertical * verticalSpeed, 0)
-    State.MovementCompatibilityStatus = requestedSpeed > 25
-        and "Fly compatibility cap active (25)"
-        or "Fly compatibility mode active"
+    local requestedSpeed = movementInputNumber("Fly speed", 14, 6, 150)
+    local now = os.clock()
 
-    -- LinearVelocity holds altitude when idle and moves without CFrame warping.
+    -- A large one-frame position jump while our requested speed is low is the
+    -- signature of a server position correction. Back off instead of fighting it.
+    local currentPosition = root.Position
+    if typeof(M.lastFlyPosition) == "Vector3" then
+        local frameDelta = (currentPosition - M.lastFlyPosition).Magnitude
+        if frameDelta >= 12 and now - (M.lastCorrectionAt or -math.huge) >= .5 then
+            M.lastCorrectionAt = now
+            M.adaptiveCap = math.max(6, (tonumber(M.adaptiveCap) or 14) * .75)
+            M.stableSince = now
+            velocity.VectorVelocity = Vector3.zero
+            State.MovementCompatibilityStatus =
+                "Server correction detected | Fly reduced to "
+                .. string.format("%.1f", M.adaptiveCap)
+        end
+    else
+        M.stableSince = now
+    end
+    M.lastFlyPosition = currentPosition
+
+    -- Slowly recover speed only after a stable window with no correction.
+    if now - (M.lastCorrectionAt or -math.huge) >= 8 then
+        M.stableSince = M.stableSince > 0 and M.stableSince or now
+        if now - M.stableSince >= 4 then
+            M.adaptiveCap = math.min(18, (tonumber(M.adaptiveCap) or 14) + 1)
+            M.stableSince = now
+        end
+    end
+
+    local speed = math.min(requestedSpeed, tonumber(M.adaptiveCap) or 14)
+    local verticalSpeed = math.min(speed * .5, 7)
+    local wanted = planar * speed + Vector3.new(0, vertical * verticalSpeed, 0)
+
+    if now - (M.lastCorrectionAt or -math.huge) >= 1 then
+        State.MovementCompatibilityStatus =
+            "Fly compatibility mode | effective "
+            .. string.format("%.1f", speed)
+    end
+
+    -- Keep force close to normal character physics instead of overpowering the
+    -- assembly with a huge actuator.
     velocity.MaxForce = math.max(
-        30000,
-        root.AssemblyMass * workspace.Gravity * 5
+        18000,
+        root.AssemblyMass * workspace.Gravity * 1.8
     )
     velocity.VectorVelocity = wanted
 
