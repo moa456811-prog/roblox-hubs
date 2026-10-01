@@ -87,6 +87,15 @@ local GAMES = {
         fallbackUniverseId = 118805555015549,
     },
 
+    {
+        name = "Anime Dice",
+        short = "AD",
+        subtitle = "Anime • Dice • Simulator",
+        key = "anime-dice",
+        placeIds = {113290951185459},
+        fallbackUniverseId = 10708913337,
+    },
+
 }
 
 local C = {
