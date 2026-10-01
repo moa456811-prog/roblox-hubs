@@ -5185,6 +5185,236 @@ installPanicSystem()
 installPanicUi()
 
 -- ============================================================================
+-- MOVEMENT FIX: native WalkSpeed override + stable Fly
+-- ============================================================================
+
+R.movefix = R.movefix or {}
+
+local function movementInput(label, fallback, lo, hi)
+    local controls = State.Runtime and State.Runtime.InputControls
+    local control = type(controls) == "table" and controls[label] or nil
+    local value = control and control.Box and tonumber(control.Box.Text) or tonumber(fallback)
+    return math.clamp(value or fallback, lo, hi)
+end
+
+local function movementValuesFolder()
+    local ps = ReplicatedStorage:FindFirstChild("Player_Service")
+    local values = ps and ps:FindFirstChild("Values")
+    return values and values:FindFirstChild(LocalPlayer.Name)
+end
+
+local function clearSpeedOverride()
+    local value = R.movefix.speedValue
+    R.movefix.speedValue = nil
+    R.movefix.speedFolder = nil
+    if value and value.Parent then pcall(function() value:Destroy() end) end
+end
+
+local function updateSpeedOverride()
+    if State.Flags.SpeedLock ~= true then
+        clearSpeedOverride()
+        return
+    end
+
+    local folder = movementValuesFolder()
+    if not folder then return end
+
+    if R.movefix.speedFolder ~= folder
+        or not R.movefix.speedValue
+        or not R.movefix.speedValue.Parent then
+        clearSpeedOverride()
+        local value = Instance.new("NumberValue")
+        value.Name = "WalkSpeed"
+        value.Value = movementInput("WalkSpeed", 32, 8, 80)
+        value:SetAttribute("Priority", -100)
+        value:SetAttribute("A7DEV", true)
+        value.Parent = folder
+        R.movefix.speedValue = value
+        R.movefix.speedFolder = folder
+    end
+
+    R.movefix.speedValue.Value = movementInput("WalkSpeed", 32, 8, 80)
+end
+
+local function clearLegacyFly()
+    if State.FlyConn then
+        pcall(function() State.FlyConn:Disconnect() end)
+        State.FlyConn = nil
+    end
+    if State.FlyBV then
+        pcall(function() State.FlyBV:Destroy() end)
+        State.FlyBV = nil
+    end
+    if State.FlyBG then
+        pcall(function() State.FlyBG:Destroy() end)
+        State.FlyBG = nil
+    end
+end
+
+local function stopFlyV2()
+    local M = R.movefix
+    for _, object in ipairs({M.flyVelocity, M.flyOrientation, M.flyAttachment}) do
+        if object and object.Parent then pcall(function() object:Destroy() end) end
+    end
+    if M.flyHumanoid and M.flyHumanoid.Parent and M.flyAutoRotate ~= nil then
+        pcall(function() M.flyHumanoid.AutoRotate = M.flyAutoRotate end)
+    end
+    M.flyRoot = nil
+    M.flyHumanoid = nil
+    M.flyVelocity = nil
+    M.flyOrientation = nil
+    M.flyAttachment = nil
+    M.flyAutoRotate = nil
+end
+
+local function startFlyV2()
+    clearLegacyFly()
+
+    local _, humanoid, root = livingCharacter()
+    if not humanoid or not root then
+        stopFlyV2()
+        return
+    end
+
+    if R.movefix.flyRoot == root
+        and R.movefix.flyVelocity and R.movefix.flyVelocity.Parent
+        and R.movefix.flyOrientation and R.movefix.flyOrientation.Parent then
+        return
+    end
+
+    stopFlyV2()
+
+    R.movefix.flyRoot = root
+    R.movefix.flyHumanoid = humanoid
+    R.movefix.flyAutoRotate = humanoid.AutoRotate
+    humanoid.AutoRotate = false
+
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "A7DEV_FlyAttachment_V2"
+    attachment.Parent = root
+
+    local velocity = Instance.new("LinearVelocity")
+    velocity.Name = "A7DEV_FlyVelocity_V2"
+    velocity.Attachment0 = attachment
+    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    velocity.ForceLimitsEnabled = false
+    velocity.VectorVelocity = Vector3.zero
+    velocity.Parent = root
+
+    local orientation = Instance.new("AlignOrientation")
+    orientation.Name = "A7DEV_FlyOrientation_V2"
+    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    orientation.Attachment0 = attachment
+    orientation.RigidityEnabled = false
+    orientation.Responsiveness = 20
+    orientation.MaxAngularVelocity = 12
+    orientation.MaxTorque = 1000000
+    orientation.CFrame = root.CFrame
+    orientation.Parent = root
+
+    R.movefix.flyAttachment = attachment
+    R.movefix.flyVelocity = velocity
+    R.movefix.flyOrientation = orientation
+end
+
+local function updateFlyV2()
+    if State.Flags.Fly ~= true then
+        if R.movefix.flyRoot then stopFlyV2() end
+        clearLegacyFly()
+        return
+    end
+
+    clearLegacyFly()
+    startFlyV2()
+
+    local root = R.movefix.flyRoot
+    local humanoid = R.movefix.flyHumanoid
+    local velocity = R.movefix.flyVelocity
+    local orientation = R.movefix.flyOrientation
+    if not root or not humanoid or humanoid.Health <= 0 or not velocity or not orientation then return end
+
+    local camera = workspace.CurrentCamera
+    if not camera then
+        velocity.VectorVelocity = Vector3.zero
+        return
+    end
+
+    local look = Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z)
+    local right = Vector3.new(camera.CFrame.RightVector.X, 0, camera.CFrame.RightVector.Z)
+    look = look.Magnitude > .001 and look.Unit or Vector3.new(0,0,-1)
+    right = right.Magnitude > .001 and right.Unit or Vector3.new(1,0,0)
+
+    local move = Vector3.zero
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += look end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= look end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += right end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= right end
+    if move.Magnitude > 1 then move = move.Unit end
+
+    local y = 0
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then y += 1 end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+        or UserInputService:IsKeyDown(Enum.KeyCode.RightControl) then y -= 1 end
+
+    local configured = movementInput("Fly speed", 55, 10, 150)
+    local speed = math.min(configured, 75)
+    velocity.VectorVelocity = move * speed + Vector3.new(0, y * math.min(speed, 55), 0)
+    orientation.CFrame = CFrame.lookAt(Vector3.zero, look, Vector3.new(0,1,0))
+    root.AssemblyAngularVelocity = Vector3.zero
+end
+
+local function installMovementFix()
+    if R.movefix.installed then return true end
+    if type(State.Runtime.mainHeartbeat) ~= "function" then return false end
+
+    local original = State.Runtime.mainHeartbeat
+    local wrapped
+    wrapped = function(...)
+        local lock = State.Flags.SpeedLock == true
+        if lock then State.Flags.SpeedLock = false end
+        local result = table.pack(pcall(original, ...))
+        if lock then State.Flags.SpeedLock = true end
+        updateSpeedOverride()
+        if not result[1] then error(result[2], 0) end
+        return table.unpack(result, 2, result.n)
+    end
+
+    State.Runtime.mainHeartbeat = wrapped
+    R.movefix.originalHeartbeat = original
+    R.movefix.installed = true
+
+    track(RunService.RenderStepped:Connect(function()
+        if not R.alive or State.Destroyed then return end
+        updateSpeedOverride()
+        updateFlyV2()
+    end))
+
+    cleanup(function()
+        if State.Runtime.mainHeartbeat == wrapped then State.Runtime.mainHeartbeat = original end
+        clearSpeedOverride()
+        clearLegacyFly()
+        stopFlyV2()
+        R.movefix.installed = nil
+    end)
+
+    return true
+end
+
+installMovementFix()
+
+track(LocalPlayer.CharacterAdded:Connect(function()
+    clearSpeedOverride()
+    stopFlyV2()
+    clearLegacyFly()
+    task.delay(.8, function()
+        if not R.alive or State.Destroyed then return end
+        updateSpeedOverride()
+        if State.Flags.Fly == true then startFlyV2() end
+    end)
+end))
+
+-- ============================================================================
 -- LOW-FREQUENCY RECOVERY SUPERVISOR
 -- ============================================================================
 
