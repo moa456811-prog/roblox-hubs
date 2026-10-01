@@ -37,11 +37,11 @@ local GAMES = {
         fallbackUniverseId = 3317771874,
     },
     {
-        name = "Project Slayer 2",
-        short = "PS2",
+        name = "Slayer 2",
+        short = "S2",
         subtitle = "Anime RPG • Combat",
         key = "project-slayer-2",
-        -- Slayers 2 by Ouw Productions: root + Ouwland + Final Selection.
+        -- Slayer 2 by Ouw Productions: root + Ouwland + Final Selection.
         -- Keep the real root first so the loader resolves the correct game icon.
         placeIds = {16205713724, 136406881576517, 17047024836},
         fallbackUniverseId = 5595353122,
