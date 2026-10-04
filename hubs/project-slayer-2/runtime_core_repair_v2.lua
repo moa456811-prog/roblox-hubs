@@ -950,6 +950,127 @@ local function installQuestCooldownCompatibility()
 end
 
 -- ============================================================================
+-- DIRECT FARM / BOSS TELEPORT
+-- ============================================================================
+
+State.A7DEVDirectTargetTeleport = true
+State.A7DEVDirectTargetTeleportDistance = tonumber(State.A7DEVDirectTargetTeleportDistance) or 4
+R.directTargetTeleport = R.directTargetTeleport or {
+    installed = false,
+    lastAt = -math.huge,
+    lastTarget = nil,
+}
+
+local function directTargetTeleport(target, source)
+    if State.A7DEVDirectTargetTeleport ~= true then return false end
+    if not aliveModel(target) then return false end
+
+    source = tostring(source or "")
+    local isBoss = source == "Boss"
+        or State.Flags.AutoBoss == true
+        or State.Flags.AutoAllBoss == true
+    local isFarm = source == "Farm"
+        or source == "FarmQuest"
+        or State.Flags.AutoFarm == true
+
+    if not isBoss and not isFarm then return false end
+
+    local character, humanoid, root = livingCharacter()
+    local targetRoot = rootOf(target)
+    if not character or not humanoid or not root or not targetRoot then
+        return false
+    end
+
+    local now = os.clock()
+    local distance = math.clamp(
+        tonumber(State.A7DEVDirectTargetTeleportDistance) or 4,
+        2.5,
+        8
+    )
+
+    local targetPosition = targetRoot.Position
+    local behind = targetPosition - targetRoot.CFrame.LookVector * distance
+
+    -- Keep almost the same Y as the target so M1 stays in normal contact range.
+    local destination = Vector3.new(behind.X, targetPosition.Y + 0.35, behind.Z)
+
+    if (root.Position - destination).Magnitude <= 1.25
+        and R.directTargetTeleport.lastTarget == target then
+        return true
+    end
+
+    -- Direct snap instead of Humanoid:MoveTo/pathfinding.
+    if now - (R.directTargetTeleport.lastAt or -math.huge) < .055
+        and R.directTargetTeleport.lastTarget == target then
+        return true
+    end
+
+    R.directTargetTeleport.lastAt = now
+    R.directTargetTeleport.lastTarget = target
+
+    if (root.Position - destination).Magnitude >= 100 then
+        task.spawn(function()
+            pcall(function()
+                LocalPlayer:RequestStreamAroundAsync(targetPosition)
+            end)
+        end)
+    end
+
+    local targetCF = CFrame.lookAt(destination, targetPosition)
+    local ok = pcall(function()
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        character:PivotTo(targetCF)
+        root.CFrame = targetCF
+    end)
+
+    if ok then
+        State.FarmMoveTarget = target
+        State.FarmMoveGoal = destination
+        State.SmartFarmLastReposition = now
+        return true
+    end
+    return false
+end
+
+local function installDirectFarmBossTeleport()
+    if R.directTargetTeleport.installed then return true end
+    if type(State.Runtime.farmCombatTick) ~= "function" then return false end
+
+    local original = State.Runtime.farmCombatTick
+    local wrapped
+
+    wrapped = function(now, ...)
+        local target = State.FarmPlanTarget
+        if not aliveModel(target) then target = State.CurrentTarget end
+        local source = State.FarmPlanSource
+
+        if aliveModel(target) then
+            directTargetTeleport(target, source)
+        end
+
+        return original(now, ...)
+    end
+
+    State.Runtime.farmCombatTick = wrapped
+    R.directTargetTeleport.original = original
+    R.directTargetTeleport.installed = true
+
+    cleanup(function()
+        if State.Runtime.farmCombatTick == wrapped then
+            State.Runtime.farmCombatTick = original
+        end
+        R.directTargetTeleport.installed = false
+        R.directTargetTeleport.original = nil
+        R.directTargetTeleport.lastTarget = nil
+    end)
+
+    return true
+end
+
+installDirectFarmBossTeleport()
+
+-- ============================================================================
 -- FARM RECOVERY: NO MORE PERMANENT "SCANNING TARGETS" DEADLOCK
 -- ============================================================================
 
@@ -5130,6 +5251,7 @@ local function nativeMobilityDoubleJump()
 end
 
 local function nativeFarmDashAssist(now)
+    if State.A7DEVDirectTargetTeleport == true then return end
     if State.Flags.AutoFarm ~= true then return end
     local M = R.movement
     if M.flyRoot ~= nil then return end
@@ -5714,6 +5836,9 @@ task.spawn(function()
             and State.A7DEVExports.QuestFarm
             and State.A7DEVExports.QuestFarm.A7DEV_CORE_1004_QUEST_COOLDOWN) then
             installQuestCooldownCompatibility()
+        end
+        if not R.directTargetTeleport.installed then
+            installDirectFarmBossTeleport()
         end
         if not (State.DungeonOps and State.DungeonOps.A7DEV_TEST_UI_REPAIR) then
             installDungeonUiRepair()
