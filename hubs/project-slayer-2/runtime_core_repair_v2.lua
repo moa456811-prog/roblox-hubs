@@ -2,6 +2,7 @@
 -- Test branch only. Does not modify the public loader/backend.
 -- UI is intentionally untouched; this file only repairs runtime/gameplay behavior.
 -- 2026-10-01: Ouwland 30/09 movement compatibility; one movement owner only.
+-- 2026-10-04: Ouwland update compatibility; multi-bag inventory + verified native server bridge.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -112,6 +113,8 @@ end
 State.Flags = State.Flags or {}
 State.Runtime = State.Runtime or {}
 State.A7DEVTestCore = R
+State.OuwlandCompatibilityVersion = "2026-10-04"
+State.OuwlandNativeServerBridge = true
 
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local gui
@@ -250,7 +253,11 @@ local function refreshNative(force)
     local gamePlayModules = modules and modules:FindFirstChild("GamePlay")
 
     Native.Utility = Global and requireSafe(Global:FindFirstChild("Utility"))
+    Native.GameSettings = Global and requireSafe(Global:FindFirstChild("gameSettings"))
+    Native.Crafting = Global and requireSafe(Global:FindFirstChild("Crafting"))
     Native.Quests = gameplay and requireSafe(gameplay:FindFirstChild("Quests"))
+    Native.BossHunts = gameplay and gameplay:FindFirstChild("Quests")
+        and requireSafe(gameplay.Quests:FindFirstChild("BossHunts"))
     Native.Items = collectibles and requireSafe(collectibles:FindFirstChild("Items"))
     Native.CharacterInfo = Global and (
         requireSafe(Global:FindFirstChild("Character_info_provider"))
@@ -274,18 +281,56 @@ local function playerData()
     end
 end
 
-local function inventoryFolder()
+local function inventoryBags()
+    refreshNative()
+
+    if Native.CharacterInfo and type(Native.CharacterInfo.GetItemBags) == "function" then
+        local ok, bags = pcall(Native.CharacterInfo.GetItemBags, LocalPlayer)
+        if ok and type(bags) == "table" and #bags > 0 then
+            return bags
+        end
+    end
+
     local data = playerData()
+    if data and Native.Utility and type(Native.Utility.ItemBags) == "function" then
+        local ok, bags = pcall(Native.Utility.ItemBags, data)
+        if ok and type(bags) == "table" and #bags > 0 then
+            return bags
+        end
+    end
+
+    local out = {}
     local inventory = data and data:FindFirstChild("Inventory")
-    return inventory and inventory:FindFirstChild("Inventory")
+    local slotBag = inventory and inventory:FindFirstChild("Inventory")
+    if slotBag then out[#out + 1] = slotBag end
+
+    local accountRoot = data and data.Parent and data.Parent.Parent
+    local accountItems = accountRoot and accountRoot:FindFirstChild("AccountItems")
+    local accountBag = accountItems and accountItems:FindFirstChild("Inventory")
+    if accountBag and accountBag ~= slotBag then out[#out + 1] = accountBag end
+
+    return out
+end
+
+local function inventoryFolder()
+    return inventoryBags()[1]
+end
+
+local function inventoryEntries()
+    local out = {}
+    for _, bag in ipairs(inventoryBags()) do
+        if bag and bag.Parent then
+            for _, item in ipairs(bag:GetChildren()) do
+                out[#out + 1] = item
+            end
+        end
+    end
+    return out
 end
 
 local function itemAmount(name)
-    local inv = inventoryFolder()
-    if not inv then return 0 end
-
     local total = 0
-    for _, item in ipairs(inv:GetChildren()) do
+    for _, item in ipairs(inventoryEntries()) do
         if low(item.Name) == low(name) then
             local amount = item:FindFirstChild("Amount")
             total += math.max(1, math.floor(tonumber(amount and amount.Value) or 1))
@@ -294,15 +339,100 @@ local function itemAmount(name)
     return total
 end
 
-local function nativeFunction(...)
+local VERIFIED_FUNCTION_ACTIONS = {
+    ["ClanSpin"] = true,
+    ["CraftRecipe"] = true,
+    ["Create Faction"] = true,
+    ["Create Party"] = true,
+    ["DeleteItems"] = true,
+    ["HandleLoadoutActions"] = true,
+    ["MaterialExchange"] = true,
+    ["PurchaseSelection"] = true,
+    ["Remove From Party"] = true,
+    ["SellItems"] = true,
+    ["TeleportServer"] = true,
+    ["UnlockSkillTreeNode"] = true,
+    ["server_skill_controller_signaler"] = true,
+}
+
+local VERIFIED_EVENT_ACTIONS = {
+    ["AddQuest"] = true,
+    ["BossHuntsRequest"] = true,
+    ["CancelSkill"] = true,
+    ["ClanSpinComplete"] = true,
+    ["Combat_Service"] = true,
+    ["CrowDismiss"] = true,
+    ["FinalSelection_Completion_Helper"] = true,
+    ["GauntletGiveSchematic"] = true,
+    ["GauntletStatuesBegin"] = true,
+    ["HandleLoadoutActions"] = true,
+    ["Item_Equip"] = true,
+    ["MuzanGiveBell"] = true,
+    ["MuzanLairAssign"] = true,
+    ["Onboarding"] = true,
+    ["PurchaseFromShop"] = true,
+    ["QuestProgress"] = true,
+    ["RemoveQuest"] = true,
+    ["SeriesCapstone"] = true,
+    ["SeriesTrade"] = true,
+    ["ServerBrowserRequest"] = true,
+    ["Tool_Mouse"] = true,
+    ["Toolbar_Equip"] = true,
+    ["TravelShrine"] = true,
+    ["VisitRegion"] = true,
+    ["WagasaGiveSchematic"] = true,
+    ["server_skill_controller_signaler"] = true,
+    ["training_signaler"] = true,
+}
+
+local function nativeFunction(action, ...)
     refreshNative()
+    if VERIFIED_FUNCTION_ACTIONS[tostring(action)] ~= true then
+        return false, "unverified native function action"
+    end
     if not Native.SignalFunction or type(Native.SignalFunction.ToServer) ~= "function" then
         refreshNative(true)
     end
     if Native.SignalFunction and type(Native.SignalFunction.ToServer) == "function" then
-        return pcall(Native.SignalFunction.ToServer, ...)
+        return pcall(Native.SignalFunction.ToServer, action, ...)
     end
-    return false, nil
+    return false, "SignalFunction unavailable"
+end
+
+local function nativeEvent(action, ...)
+    refreshNative()
+    if VERIFIED_EVENT_ACTIONS[tostring(action)] ~= true then
+        return false, "unverified native event action"
+    end
+    if not Native.SignalEvent or type(Native.SignalEvent.ToServer) ~= "function" then
+        refreshNative(true)
+    end
+    if Native.SignalEvent and type(Native.SignalEvent.ToServer) == "function" then
+        return pcall(Native.SignalEvent.ToServer, action, ...)
+    end
+    return false, "SignalEvent unavailable"
+end
+
+State.A7DEVNativeServer = State.A7DEVNativeServer or {}
+State.A7DEVNativeServer.Function = nativeFunction
+State.A7DEVNativeServer.Event = nativeEvent
+State.A7DEVNativeServer.FunctionActions = VERIFIED_FUNCTION_ACTIONS
+State.A7DEVNativeServer.EventActions = VERIFIED_EVENT_ACTIONS
+State.A7DEVNativeServer.Version = "Ouwland-2026-10-04"
+
+function State.A7DEVNativeServer.CraftRecipe(recipeId)
+    if type(recipeId) ~= "string" or recipeId == "" then
+        return false, "invalid recipe id"
+    end
+
+    local ok, result = nativeFunction("CraftRecipe", recipeId)
+    local accepted = ok and type(result) == "table" and result.Ok == true
+    return accepted, result
+end
+
+function State.A7DEVNativeServer.ClaimBossHunt(huntId)
+    if huntId == nil then return false, "invalid hunt id" end
+    return nativeEvent("BossHuntsRequest", {action = "Claim", id = huntId})
 end
 
 
@@ -431,6 +561,42 @@ local function installSellRepair()
 
     ops.A7DEV_TEST_REPAIR = true
     ops.A7DEV_TEST_ORIGINAL_SELL = ops.sell
+    ops.A7DEV_TEST_ORIGINAL_GATHER = ops.gather
+
+    if type(ops.isSellableConfig) == "function" then
+        ops.gather = function()
+            local counts, blocked = {}, {}
+
+            for _, item in ipairs(inventoryEntries()) do
+                local name = tostring(item.Name or "")
+                if name ~= "" then
+                    if item:FindFirstChild("NoSave") ~= nil
+                        or item:FindFirstChild("QuestGrant") ~= nil then
+                        blocked[name] = true
+                    end
+
+                    local okSellable, sellable = pcall(ops.isSellableConfig, name)
+                    if okSellable and sellable == true then
+                        local amountObject = item:FindFirstChild("Amount")
+                        local amount = amountObject and tonumber(amountObject.Value) or 1
+                        amount = math.max(1, math.floor(amount or 1))
+                        counts[name] = (counts[name] or 0) + amount
+                    end
+                end
+            end
+
+            local out = {}
+            for name, owned in pairs(counts) do
+                if blocked[name] ~= true and owned > 0 then
+                    out[#out + 1] = {Name = name, Owned = owned}
+                end
+            end
+            table.sort(out, function(a, b)
+                return low(a.Name) < low(b.Name)
+            end)
+            return out
+        end
+    end
 
     ops.sell = function()
         if ops.Busy then return false end
@@ -485,6 +651,14 @@ local function installSellRepair()
         State.SellStatus = "Sale not confirmed | no teleport used"
         return false
     end
+
+    cleanup(function()
+        if ops.A7DEV_TEST_ORIGINAL_GATHER
+            and ops.gather ~= ops.A7DEV_TEST_ORIGINAL_GATHER then
+            ops.gather = ops.A7DEV_TEST_ORIGINAL_GATHER
+        end
+        ops.A7DEV_TEST_ORIGINAL_GATHER = nil
+    end)
 
     return true
 end
@@ -549,7 +723,7 @@ local function installQuestCooldownCompatibility()
     if type(questFarm) ~= "table" or type(questFarm.canAddQuest) ~= "function" then
         return false
     end
-    if questFarm.A7DEV_CORE_0930_QUEST_COOLDOWN == true then
+    if questFarm.A7DEV_CORE_1004_QUEST_COOLDOWN == true then
         return true
     end
 
@@ -559,39 +733,49 @@ local function installQuestCooldownCompatibility()
     wrappedCanAddQuest = function(questName, ...)
         local can, reasonA, reasonB, source = originalCanAddQuest(questName, ...)
 
-        -- 30/09 Quests.CanAddQuest returns reasonA=true when blocked by
-        -- max(QuestCD, QuestInfo.AcceptCooldown). Existing A7DEV already
-        -- respects the denial; this only prevents a 0.14s retry hammer.
+        -- 04/10 Quests.CanAddQuest still gates acceptance with
+        -- max(QuestCD, QuestInfo.AcceptCooldown), but QuestCD is now 10 seconds.
+        -- Respect the authoritative cooldown instead of hammering AddQuest.
         if can ~= true and reasonA == true then
-            local waitFor = .45
             refreshNative()
+
+            local questCD = 10
+            if Native.Quests and tonumber(Native.Quests.QuestCD) then
+                questCD = math.max(0, tonumber(Native.Quests.QuestCD))
+            end
+
+            local acceptCooldown = 0
             if Native.Quests and type(Native.Quests.GetQuestInfo) == "function" then
                 local ok, info = pcall(Native.Quests.GetQuestInfo, questName)
                 if ok and type(info) == "table" then
-                    waitFor = math.clamp(tonumber(info.AcceptCooldown) or waitFor, .45, 1.75)
+                    acceptCooldown = math.max(0, tonumber(info.AcceptCooldown) or 0)
                 end
             end
+
+            local waitFor = math.clamp(math.max(questCD, acceptCooldown), .45, 15)
             State.FarmQuestBusyUntil = math.max(
                 tonumber(State.FarmQuestBusyUntil) or 0,
                 os.clock() + waitFor
             )
+            State.FarmQuestStatus = "Quest cooldown | retry in "
+                .. tostring(math.ceil(waitFor)) .. "s"
         end
 
         return can, reasonA, reasonB, source
     end
 
-    questFarm.A7DEV_CORE_0930_QUEST_COOLDOWN = true
-    questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_0930 = originalCanAddQuest
+    questFarm.A7DEV_CORE_1004_QUEST_COOLDOWN = true
+    questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_1004 = originalCanAddQuest
     questFarm.canAddQuest = wrappedCanAddQuest
 
     cleanup(function()
         if questFarm.canAddQuest == wrappedCanAddQuest then
             questFarm.canAddQuest = originalCanAddQuest
         end
-        if questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_0930 == originalCanAddQuest then
-            questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_0930 = nil
+        if questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_1004 == originalCanAddQuest then
+            questFarm.A7DEV_CORE_ORIGINAL_CAN_ADD_1004 = nil
         end
-        questFarm.A7DEV_CORE_0930_QUEST_COOLDOWN = nil
+        questFarm.A7DEV_CORE_1004_QUEST_COOLDOWN = nil
     end)
 
     return true
@@ -5359,7 +5543,7 @@ task.spawn(function()
         end
         if not (State.A7DEVExports
             and State.A7DEVExports.QuestFarm
-            and State.A7DEVExports.QuestFarm.A7DEV_CORE_0930_QUEST_COOLDOWN) then
+            and State.A7DEVExports.QuestFarm.A7DEV_CORE_1004_QUEST_COOLDOWN) then
             installQuestCooldownCompatibility()
         end
         if not (State.DungeonOps and State.DungeonOps.A7DEV_TEST_UI_REPAIR) then
