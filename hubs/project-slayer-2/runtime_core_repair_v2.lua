@@ -5059,8 +5059,9 @@ local function nativeMobilityDoubleJump()
 end
 
 local function nativeFarmDashAssist(now)
-    if State.Flags.AutoFarm ~= true or State.Flags.Fly == true then return end
+    if State.Flags.AutoFarm ~= true then return end
     local M = R.movement
+    if M.flyRoot ~= nil then return end
     if now - (M.lastNativeDash or -math.huge) < .30 then return end
 
     local target = State.FarmPlanTarget or State.CurrentTarget
