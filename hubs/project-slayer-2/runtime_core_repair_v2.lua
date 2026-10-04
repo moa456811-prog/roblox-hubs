@@ -519,6 +519,76 @@ end
 
 
 -- ============================================================================
+-- OUWLAND 04/10: MULTI-BAG COMPATIBILITY FOR EXPORTED GAME OPS
+-- ============================================================================
+
+local function installInventoryBagCompatibility()
+    local ops = State.GameOps
+    if type(ops) ~= "table" then return false end
+    if ops.A7DEV_CORE_1004_ITEMBAGS == true then return true end
+
+    local originalBestRod = ops.verifiedBestFishingRod
+    local originalInventoryHas = ops.verifiedFishingInventoryHas
+
+    local wrappedBestRod
+    if type(originalBestRod) == "function" then
+        wrappedBestRod = function()
+            local best, bestScore
+            for _, item in ipairs(inventoryEntries()) do
+                local n = low(item.Name)
+                local score
+                if n == "legendary fishing rod" then
+                    score = 400
+                elseif n == "rare fishing rod" then
+                    score = 300
+                elseif n == "basic fishing rod" or n == "fishing rod" then
+                    score = 200
+                elseif string.find(n, "fishing rod", 1, true) then
+                    score = 100
+                end
+
+                if score and (not bestScore or score > bestScore) then
+                    best, bestScore = item, score
+                end
+            end
+            return best
+        end
+        ops.verifiedBestFishingRod = wrappedBestRod
+    end
+
+    local wrappedInventoryHas
+    if type(originalInventoryHas) == "function" then
+        wrappedInventoryHas = function(name)
+            name = tostring(name or "")
+            if name == "" then return nil end
+            for _, item in ipairs(inventoryEntries()) do
+                if item.Name == name then return item end
+            end
+            return nil
+        end
+        ops.verifiedFishingInventoryHas = wrappedInventoryHas
+    end
+
+    ops.A7DEV_CORE_1004_ITEMBAGS = true
+    ops.A7DEV_CORE_ORIGINAL_BEST_ROD_1004 = originalBestRod
+    ops.A7DEV_CORE_ORIGINAL_FISH_HAS_1004 = originalInventoryHas
+
+    cleanup(function()
+        if wrappedBestRod and ops.verifiedBestFishingRod == wrappedBestRod then
+            ops.verifiedBestFishingRod = originalBestRod
+        end
+        if wrappedInventoryHas and ops.verifiedFishingInventoryHas == wrappedInventoryHas then
+            ops.verifiedFishingInventoryHas = originalInventoryHas
+        end
+        ops.A7DEV_CORE_1004_ITEMBAGS = nil
+        ops.A7DEV_CORE_ORIGINAL_BEST_ROD_1004 = nil
+        ops.A7DEV_CORE_ORIGINAL_FISH_HAS_1004 = nil
+    end)
+
+    return true
+end
+
+-- ============================================================================
 -- OUWLAND 30/09 COMPATIBILITY: SKILL LOADOUT + MINIGAME LOADOUT RULES
 -- ============================================================================
 
@@ -631,6 +701,7 @@ local function applySafeDefaults()
 end
 
 applySafeDefaults()
+installInventoryBagCompatibility()
 
 -- ============================================================================
 -- AUTO SELL: CONFIRM SERVER RESULT / NO IMPLICIT SELLER TRAVEL
@@ -5664,6 +5735,9 @@ task.spawn(function()
         end
         if not (State.BossOps and State.BossOps.A7DEV_CORE_LIGHT_SCAN) then
             installBossScanPerformanceRepair()
+        end
+        if not (State.GameOps and State.GameOps.A7DEV_CORE_1004_ITEMBAGS) then
+            installInventoryBagCompatibility()
         end
         if not (State.GameOps and State.GameOps.A7DEV_CORE_FISHING_REPAIR) then
             installFishingRepair()
