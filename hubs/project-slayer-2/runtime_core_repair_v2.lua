@@ -208,8 +208,7 @@ end
 
 local function highPriorityRoute()
     local f = State.Flags
-    return f.Fly == true
-        or (R.movement and R.movement.flyRoot ~= nil)
+    return (R.movement and R.movement.flyRoot ~= nil)
         or f.AutoBoss == true
         or f.AutoAllBoss == true
         or f.AutoDungeon == true
@@ -425,10 +424,93 @@ function State.A7DEVNativeServer.CraftRecipe(recipeId)
         return false, "invalid recipe id"
     end
 
+    refreshNative()
+
+    local recipe
+    if Native.Crafting and type(Native.Crafting.Get) == "function" then
+        local okRecipe, value = pcall(Native.Crafting.Get, recipeId)
+        if okRecipe then recipe = value end
+    end
+
+    local resultName = type(recipe) == "table" and tostring(recipe.result or "") or ""
+    local before = resultName ~= "" and itemAmount(resultName) or nil
+
     local ok, result = nativeFunction("CraftRecipe", recipeId)
     local accepted = ok and type(result) == "table" and result.Ok == true
-    return accepted, result
+    if not accepted then
+        return false, result
+    end
+
+    if resultName ~= "" and before ~= nil then
+        local deadline = os.clock() + 1.2
+        repeat
+            if itemAmount(resultName) > before then
+                return true, result
+            end
+            task.wait(.06)
+        until os.clock() >= deadline
+    end
+
+    -- Result.Ok=true is the native server acknowledgement even if replication
+    -- of the new inventory entry arrives after this helper returns.
+    return true, result
 end
+
+function State.A7DEVNativeServer.CraftResult(resultName)
+    resultName = tostring(resultName or "")
+    if resultName == "" then return false, "invalid crafting result" end
+
+    refreshNative()
+    if not Native.Crafting or type(Native.Crafting.ForStation) ~= "function" then
+        return false, "Crafting.ForStation unavailable"
+    end
+
+    local okRecipes, recipes = pcall(Native.Crafting.ForStation, "Ouwland")
+    if not okRecipes or type(recipes) ~= "table" then
+        return false, "Ouwland crafting catalog unavailable"
+    end
+
+    local candidates = {}
+    for recipeId, recipe in pairs(recipes) do
+        if type(recipeId) == "string"
+            and type(recipe) == "table"
+            and tostring(recipe.result or "") == resultName then
+            candidates[#candidates + 1] = {id = recipeId, recipe = recipe}
+        end
+    end
+    table.sort(candidates, function(a, b) return a.id < b.id end)
+
+    if #candidates == 0 then
+        return false, "recipe not found"
+    end
+
+    -- Prefer a variant whose required base item is actually held. The server
+    -- remains authoritative for all other material/price requirements.
+    for _, candidate in ipairs(candidates) do
+        local required = candidate.recipe.required
+        local first = type(required) == "table" and required[1] or nil
+        if type(first) ~= "table"
+            or type(first.name) ~= "string"
+            or itemAmount(first.name) >= math.max(1, tonumber(first.amount) or 1) then
+            local ok, result = State.A7DEVNativeServer.CraftRecipe(candidate.id)
+            if ok then return true, result, candidate.id end
+        end
+    end
+
+    -- If no base variant is currently held, return the real candidate list
+    -- instead of sending blind CraftRecipe requests.
+    local ids = {}
+    for _, candidate in ipairs(candidates) do ids[#ids + 1] = candidate.id end
+    return false, "required base weapon/material missing", ids
+end
+
+function State.A7DEVNativeServer.CraftNightfallKatana()
+    return State.A7DEVNativeServer.CraftResult("Nightfall Katana")
+end
+
+State.GameOps = State.GameOps or {}
+State.GameOps.verifiedCraftRecipe = State.A7DEVNativeServer.CraftRecipe
+State.GameOps.verifiedCraftResult = State.A7DEVNativeServer.CraftResult
 
 function State.A7DEVNativeServer.ClaimBossHunt(huntId)
     if huntId == nil then return false, "invalid hunt id" end
@@ -752,13 +834,28 @@ local function installQuestCooldownCompatibility()
                 end
             end
 
-            local waitFor = math.clamp(math.max(questCD, acceptCooldown), .45, 15)
+            local totalCooldown = math.max(questCD, acceptCooldown)
+            local waitFor = totalCooldown
+
+            local data = playerData()
+            local lastTime = data and data:FindFirstChild("Quests")
+                and data.Quests:FindFirstChild("LastTime")
+            if lastTime and lastTime:IsA("ValueBase")
+                and Native.Utility and type(Native.Utility.Tick) == "function" then
+                local okTick, currentTick = pcall(Native.Utility.Tick)
+                if okTick and tonumber(currentTick) then
+                    local elapsed = tonumber(currentTick) - (tonumber(lastTime.Value) or 0)
+                    waitFor = math.max(.15, totalCooldown - elapsed + .05)
+                end
+            end
+
+            waitFor = math.clamp(waitFor, .15, 15)
             State.FarmQuestBusyUntil = math.max(
                 tonumber(State.FarmQuestBusyUntil) or 0,
                 os.clock() + waitFor
             )
             State.FarmQuestStatus = "Quest cooldown | retry in "
-                .. tostring(math.ceil(waitFor)) .. "s"
+                .. string.format("%.1fs", waitFor)
         end
 
         return can, reasonA, reasonB, source
@@ -4964,7 +5061,7 @@ end
 local function nativeFarmDashAssist(now)
     if State.Flags.AutoFarm ~= true or State.Flags.Fly == true then return end
     local M = R.movement
-    if now - (M.lastNativeDash or -math.huge) < .65 then return end
+    if now - (M.lastNativeDash or -math.huge) < .30 then return end
 
     local target = State.FarmPlanTarget or State.CurrentTarget
     local targetRoot = rootOf(target)
@@ -5020,7 +5117,7 @@ local function updateModernMovement()
         local _, humanoid = livingCharacter()
         if humanoid then
             if humanoid.MoveDirection.Magnitude >= .1
-                and now - (M.lastNativeDash or -math.huge) >= .65 then
+                and now - (M.lastNativeDash or -math.huge) >= .30 then
                 if nativeMobilityDash() then
                     M.lastNativeDash = now
                 end
