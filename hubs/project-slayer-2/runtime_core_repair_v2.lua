@@ -208,8 +208,7 @@ end
 
 local function highPriorityRoute()
     local f = State.Flags
-    return (R.movement and R.movement.flyRoot ~= nil)
-        or f.AutoBoss == true
+    return f.AutoBoss == true
         or f.AutoAllBoss == true
         or f.AutoDungeon == true
         or f.AutoDungeonClear == true
@@ -950,7 +949,7 @@ local function installQuestCooldownCompatibility()
 end
 
 -- ============================================================================
--- DIRECT FARM / BOSS TELEPORT
+-- DIRECT FARM / BOSS TELEPORT + QUEST TARGET STREAMING
 -- ============================================================================
 
 State.A7DEVDirectTargetTeleport = true
@@ -959,7 +958,147 @@ R.directTargetTeleport = R.directTargetTeleport or {
     installed = false,
     lastAt = -math.huge,
     lastTarget = nil,
+    lastPlannerTeleportAt = -math.huge,
+    lastAreaTeleportAt = -math.huge,
+    lastRegistryScanAt = -math.huge,
 }
+
+local function directNameKey(value)
+    return low(value):gsub("[^%w]", "")
+end
+
+local function directTargetMatches(model, expected)
+    if not model or not expected then return false end
+    local wanted = directNameKey(expected)
+    if wanted == "" then return false end
+
+    local candidates = {model.Name}
+    for _, attr in ipairs({
+        "Title","NpcCode","NPCCode","Code","DisplayName",
+        "EnemyType","MobType","CharacterName","NpcName","NPCName"
+    }) do
+        local ok, value = pcall(model.GetAttribute, model, attr)
+        if ok and value ~= nil then candidates[#candidates + 1] = tostring(value) end
+    end
+
+    for _, candidate in ipairs(candidates) do
+        local key = directNameKey(candidate)
+        if key == wanted
+            or (#key >= 4 and #wanted >= 4
+                and (string.find(key, wanted, 1, true)
+                    or string.find(wanted, key, 1, true))) then
+            return true
+        end
+    end
+    return false
+end
+
+local function directFindExpectedTarget(expected)
+    if type(expected) ~= "string" or expected == "" then return nil end
+
+    -- Fast path: use the base runtime's event-driven NPC registry.
+    local registry = State.NPCRegistry
+    if type(registry) == "table" then
+        for model, entry in pairs(registry) do
+            if aliveModel(model) and directTargetMatches(model, expected) then
+                return model
+            end
+            if type(entry) == "table" and type(entry.Aliases) == "table" then
+                for _, alias in ipairs(entry.Aliases) do
+                    local a = directNameKey(alias)
+                    local w = directNameKey(expected)
+                    if a ~= "" and w ~= ""
+                        and (a == w or string.find(a, w, 1, true)
+                            or string.find(w, a, 1, true)) then
+                        if aliveModel(model) then return model end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Bounded fallback scan only when the registry has not caught the spawn yet.
+    local now = os.clock()
+    if now - (R.directTargetTeleport.lastRegistryScanAt or -math.huge) < .45 then
+        return nil
+    end
+    R.directTargetTeleport.lastRegistryScanAt = now
+
+    local humanoids = workspace:FindFirstChild("Humanoids")
+    local roots = {humanoids, workspace:FindFirstChild("Debree")}
+    for _, scanRoot in ipairs(roots) do
+        if scanRoot then
+            for _, object in ipairs(scanRoot:GetDescendants()) do
+                if object:IsA("Model")
+                    and aliveModel(object)
+                    and directTargetMatches(object, expected) then
+                    return object
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function directRememberedPosition(expected)
+    if type(expected) ~= "string" or expected == "" then return nil end
+    local memory = State.NPCPositionMemory
+    if type(memory) ~= "table" then return nil end
+
+    local wanted = directNameKey(expected)
+    local _, _, root = livingCharacter()
+    local reference = root and root.Position
+    local best, bestDistance
+
+    local function consider(bucket)
+        if type(bucket) ~= "table" then return end
+        for _, pos in ipairs(bucket) do
+            if typeof(pos) == "Vector3" then
+                local distance = reference and (reference - pos).Magnitude or 0
+                if not bestDistance or distance < bestDistance then
+                    best, bestDistance = pos, distance
+                end
+            end
+        end
+    end
+
+    for alias, bucket in pairs(memory) do
+        local key = directNameKey(alias)
+        if key == wanted
+            or (#key >= 4 and #wanted >= 4
+                and (string.find(key, wanted, 1, true)
+                    or string.find(wanted, key, 1, true))) then
+            consider(bucket)
+        end
+    end
+
+    return best
+end
+
+local function directTeleportCF(targetCF, streamPosition)
+    local character, humanoid, root = livingCharacter()
+    if not character or not humanoid or not root or typeof(targetCF) ~= "CFrame" then
+        return false
+    end
+
+    local streamPos = typeof(streamPosition) == "Vector3"
+        and streamPosition or targetCF.Position
+
+    if (root.Position - streamPos).Magnitude >= 80 then
+        task.spawn(function()
+            pcall(function()
+                LocalPlayer:RequestStreamAroundAsync(streamPos)
+            end)
+        end)
+    end
+
+    return pcall(function()
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        character:PivotTo(targetCF)
+        root.CFrame = targetCF
+    end)
+end
 
 local function directTargetTeleport(target, source)
     if State.A7DEVDirectTargetTeleport ~= true then return false end
@@ -975,11 +1114,9 @@ local function directTargetTeleport(target, source)
 
     if not isBoss and not isFarm then return false end
 
-    local character, humanoid, root = livingCharacter()
+    local _, _, root = livingCharacter()
     local targetRoot = rootOf(target)
-    if not character or not humanoid or not root or not targetRoot then
-        return false
-    end
+    if not root or not targetRoot then return false end
 
     local now = os.clock()
     local distance = math.clamp(
@@ -990,8 +1127,6 @@ local function directTargetTeleport(target, source)
 
     local targetPosition = targetRoot.Position
     local behind = targetPosition - targetRoot.CFrame.LookVector * distance
-
-    -- Keep almost the same Y as the target so M1 stays in normal contact range.
     local destination = Vector3.new(behind.X, targetPosition.Y + 0.35, behind.Z)
 
     if (root.Position - destination).Magnitude <= 1.25
@@ -999,8 +1134,7 @@ local function directTargetTeleport(target, source)
         return true
     end
 
-    -- Direct snap instead of Humanoid:MoveTo/pathfinding.
-    if now - (R.directTargetTeleport.lastAt or -math.huge) < .055
+    if now - (R.directTargetTeleport.lastAt or -math.huge) < .045
         and R.directTargetTeleport.lastTarget == target then
         return true
     end
@@ -1008,21 +1142,8 @@ local function directTargetTeleport(target, source)
     R.directTargetTeleport.lastAt = now
     R.directTargetTeleport.lastTarget = target
 
-    if (root.Position - destination).Magnitude >= 100 then
-        task.spawn(function()
-            pcall(function()
-                LocalPlayer:RequestStreamAroundAsync(targetPosition)
-            end)
-        end)
-    end
-
     local targetCF = CFrame.lookAt(destination, targetPosition)
-    local ok = pcall(function()
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        character:PivotTo(targetCF)
-        root.CFrame = targetCF
-    end)
+    local ok = directTeleportCF(targetCF, targetPosition)
 
     if ok then
         State.FarmMoveTarget = target
@@ -1033,35 +1154,112 @@ local function directTargetTeleport(target, source)
     return false
 end
 
+local function directQuestFarmTravel(now)
+    if State.Flags.AutoFarm ~= true then return false end
+    if aliveModel(State.FarmPlanTarget) then
+        return directTargetTeleport(State.FarmPlanTarget, State.FarmPlanSource)
+    end
+    if aliveModel(State.CurrentTarget) then
+        return directTargetTeleport(State.CurrentTarget, State.FarmPlanSource)
+    end
+
+    local expected = tostring(
+        State.FarmQuestResolvedTargetName
+        or State.ProgressionQuestTarget
+        or State.FarmQuestTarget
+        or ""
+    )
+    if expected == "" then return false end
+
+    local live = directFindExpectedTarget(expected)
+    if live then
+        State.CurrentTarget = live
+        State.FarmPlanTarget = live
+        State.FarmPlanSource = "FarmQuest"
+        State.FarmPlannerForce = false
+        return directTargetTeleport(live, "FarmQuest")
+    end
+
+    local remembered = directRememberedPosition(expected)
+    if typeof(remembered) ~= "Vector3" then return false end
+
+    if now - (R.directTargetTeleport.lastAreaTeleportAt or -math.huge) < .65 then
+        return false
+    end
+    R.directTargetTeleport.lastAreaTeleportAt = now
+
+    local _, _, root = livingCharacter()
+    if not root then return false end
+
+    -- Directly enter the remembered spawn area so the expected quest mob streams.
+    local destination = remembered + Vector3.new(0, 3.5, 0)
+    local look = remembered + Vector3.new(0, 0.5, 0)
+    local ok = directTeleportCF(CFrame.lookAt(destination, look), remembered)
+    if ok then
+        State.FarmQuestPhase = "TargetWait"
+        State.FarmQuestStatus = "Teleporting to quest mob: " .. expected
+        State.FarmPlannerForce = true
+        State.FarmPlannerLastTick = 0
+    end
+    return ok
+end
+
 local function installDirectFarmBossTeleport()
     if R.directTargetTeleport.installed then return true end
-    if type(State.Runtime.farmCombatTick) ~= "function" then return false end
+    if type(State.Runtime.farmCombatTick) ~= "function"
+        or type(State.Runtime.farmPlannerTick) ~= "function" then
+        return false
+    end
 
-    local original = State.Runtime.farmCombatTick
-    local wrapped
+    local originalCombat = State.Runtime.farmCombatTick
+    local originalPlanner = State.Runtime.farmPlannerTick
+    local wrappedCombat
+    local wrappedPlanner
 
-    wrapped = function(now, ...)
+    wrappedPlanner = function(now, ...)
+        local result = table.pack(pcall(originalPlanner, now, ...))
+        if not result[1] then error(result[2], 0) end
+
+        if State.Flags.AutoFarm == true then
+            directQuestFarmTravel(tonumber(now) or os.clock())
+        elseif aliveModel(State.FarmPlanTarget)
+            and (State.Flags.AutoBoss == true or State.Flags.AutoAllBoss == true) then
+            directTargetTeleport(State.FarmPlanTarget, State.FarmPlanSource)
+        end
+
+        return table.unpack(result, 2, result.n)
+    end
+
+    wrappedCombat = function(now, ...)
         local target = State.FarmPlanTarget
         if not aliveModel(target) then target = State.CurrentTarget end
         local source = State.FarmPlanSource
 
         if aliveModel(target) then
             directTargetTeleport(target, source)
+        elseif State.Flags.AutoFarm == true then
+            directQuestFarmTravel(tonumber(now) or os.clock())
         end
 
-        return original(now, ...)
+        return originalCombat(now, ...)
     end
 
-    State.Runtime.farmCombatTick = wrapped
-    R.directTargetTeleport.original = original
+    State.Runtime.farmPlannerTick = wrappedPlanner
+    State.Runtime.farmCombatTick = wrappedCombat
+    R.directTargetTeleport.originalPlanner = originalPlanner
+    R.directTargetTeleport.originalCombat = originalCombat
     R.directTargetTeleport.installed = true
 
     cleanup(function()
-        if State.Runtime.farmCombatTick == wrapped then
-            State.Runtime.farmCombatTick = original
+        if State.Runtime.farmPlannerTick == wrappedPlanner then
+            State.Runtime.farmPlannerTick = originalPlanner
+        end
+        if State.Runtime.farmCombatTick == wrappedCombat then
+            State.Runtime.farmCombatTick = originalCombat
         end
         R.directTargetTeleport.installed = false
-        R.directTargetTeleport.original = nil
+        R.directTargetTeleport.originalPlanner = nil
+        R.directTargetTeleport.originalCombat = nil
         R.directTargetTeleport.lastTarget = nil
     end)
 
@@ -5010,28 +5208,12 @@ local function chestDropRecoveryTick(now)
 end
 
 -- ============================================================================
--- MOVEMENT 30/09: NATIVE WALKSPEED OVERRIDE + MODERN FLY
+-- MOVEMENT: TELEPORT-ONLY MODE (FLY REMOVED)
 -- ============================================================================
 
 R.movement = R.movement or {
     speedValue = nil,
     speedFolder = nil,
-    flyRoot = nil,
-    flyHumanoid = nil,
-    flyAttachment = nil,
-    flyVelocity = nil,
-    flyOrientation = nil,
-    flyAutoRotate = nil,
-    flyRequested = false,
-    jumpUntil = 0,
-    adaptiveCap = 14,
-    lastFlyPosition = nil,
-    lastCorrectionAt = -math.huge,
-    stableSince = 0,
-    correctionCount = 0,
-    nativeFallbackUntil = 0,
-    lastNativeDash = -math.huge,
-    lastNativeDoubleJump = -math.huge,
 }
 
 local function movementInputNumber(label, fallback, minValue, maxValue)
@@ -5042,17 +5224,6 @@ local function movementInputNumber(label, fallback, minValue, maxValue)
     return math.clamp(value, minValue, maxValue)
 end
 
-local function movementToggleValue(label)
-    local value = controlValue(label)
-    return value == true
-end
-
-local function playerMovementValues()
-    local service = ReplicatedStorage:FindFirstChild("Player_Service")
-    local values = service and service:FindFirstChild("Values")
-    return values and values:FindFirstChild(LocalPlayer.Name)
-end
-
 local function clearNativeSpeedOverride()
     local M = R.movement
     if M.speedValue then
@@ -5060,6 +5231,12 @@ local function clearNativeSpeedOverride()
     end
     M.speedValue = nil
     M.speedFolder = nil
+end
+
+local function playerMovementValues()
+    local service = ReplicatedStorage:FindFirstChild("Player_Service")
+    local values = service and service:FindFirstChild("Values")
+    return values and values:FindFirstChild(LocalPlayer.Name)
 end
 
 local function ensureNativeSpeedOverride()
@@ -5085,30 +5262,20 @@ local function ensureNativeSpeedOverride()
     end
 
     local requested = movementInputNumber("WalkSpeed", 25, 8, 100)
-    -- Ouwland 30/09 Run_Handler uses 25 as the normal run speed. Keep the
-    -- override inside the native Values pipeline and never force Humanoid.WalkSpeed.
     local desired = math.clamp(requested, 8, 25)
     if M.speedValue.Value ~= desired then
         M.speedValue.Value = desired
     end
-    State.MovementCompatibilityStatus = requested > 25
-        and "WalkSpeed capped at native run speed (25)"
-        or "WalkSpeed native override active"
-
     return true
 end
 
-local function clearLegacyFly()
-    local M = R.movement
+local function removeFlyCompletely()
+    State.Flags.Fly = false
 
-    -- The production runtime still has the old BodyVelocity/BodyGyro fly.
-    -- Never let it fight the native-style controller below.
-    local legacyConn = State.FlyConn
-    if legacyConn and legacyConn ~= M.flyConn then
-        pcall(function() legacyConn:Disconnect() end)
+    if State.FlyConn then
+        pcall(function() State.FlyConn:Disconnect() end)
+        State.FlyConn = nil
     end
-    State.FlyConn = nil
-
     if State.FlyBV then
         pcall(function() State.FlyBV:Destroy() end)
         State.FlyBV = nil
@@ -5118,335 +5285,55 @@ local function clearLegacyFly()
         State.FlyBG = nil
     end
 
-    -- Only remove the legacy BodyVelocity/BodyGyro owner. The modern controller
-    -- keeps State.Flags.Fly synchronized with the visible toggle.
+    local toggles = State.Runtime and State.Runtime.ToggleControls
+    local flyControl = type(toggles) == "table" and toggles["Fly (WASD/Space/Ctrl)"] or nil
+    if flyControl then
+        if type(flyControl.Set) == "function" then pcall(flyControl.Set, false, true) end
+        if flyControl.Row then pcall(function() flyControl.Row:Destroy() end) end
+        toggles["Fly (WASD/Space/Ctrl)"] = nil
+    end
+
+    local inputs = State.Runtime and State.Runtime.InputControls
+    local flySpeed = type(inputs) == "table" and inputs["Fly speed"] or nil
+    if flySpeed then
+        local box = flySpeed.Box
+        local row = box and box.Parent
+        if row then pcall(function() row:Destroy() end) end
+        inputs["Fly speed"] = nil
+    end
+
+    if gui then
+        local section = gui:FindFirstChild("Section_Fly", true)
+        if section then pcall(function() section:Destroy() end) end
+    end
+
+    State.FlyRemoved = true
+    State.MovementCompatibilityStatus = "Teleport-only movement"
 end
 
-local function stopModernFly()
-    local M = R.movement
+removeFlyCompletely()
 
-    if M.flyHumanoid and M.flyHumanoid.Parent and M.flyAutoRotate ~= nil then
-        pcall(function()
-            M.flyHumanoid.AutoRotate = M.flyAutoRotate
-        end)
-    end
-
-    for _, object in ipairs({
-        M.flyOrientation,
-        M.flyVelocity,
-        M.flyAttachment,
-    }) do
-        if object then
-            pcall(function() object:Destroy() end)
-        end
-    end
-
-    M.flyRoot = nil
-    M.flyHumanoid = nil
-    M.flyAttachment = nil
-    M.flyVelocity = nil
-    M.flyOrientation = nil
-    M.flyAutoRotate = nil
-    M.flyRequested = false
-    M.lastFlyPosition = nil
-    M.stableSince = 0
-end
-
-local function ensureModernFly()
-    local M = R.movement
-    local character, humanoid, root = livingCharacter()
-    if not character or not humanoid or not root then
-        stopModernFly()
-        return false
-    end
-
-    if M.flyRoot == root
-        and M.flyAttachment and M.flyAttachment.Parent == root
-        and M.flyVelocity and M.flyVelocity.Parent
-        and M.flyOrientation and M.flyOrientation.Parent then
-        return true
-    end
-
-    stopModernFly()
-
-    M.flyRoot = root
-    M.flyHumanoid = humanoid
-    M.flyAutoRotate = humanoid.AutoRotate
-
-    local attachment = Instance.new("Attachment")
-    attachment.Name = "A7DEV_FlyAttachment"
-    attachment.Parent = root
-    M.flyAttachment = attachment
-
-    local velocity = Instance.new("LinearVelocity")
-    velocity.Name = "A7DEV_FlyLinearVelocity"
-    velocity.Attachment0 = attachment
-    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
-    velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-    velocity.VectorVelocity = Vector3.zero
-    velocity.MaxForce = math.max(
-        18000,
-        root.AssemblyMass * workspace.Gravity * 1.8
-    )
-    velocity.Parent = attachment
-    M.flyVelocity = velocity
-
-    local orientation = Instance.new("AlignOrientation")
-    orientation.Name = "A7DEV_FlyOrientation"
-    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    orientation.Attachment0 = attachment
-    orientation.RigidityEnabled = false
-    orientation.MaxTorque = math.max(50000, root.AssemblyMass * 6000)
-    orientation.MaxAngularVelocity = 18
-    orientation.Responsiveness = 28
-    orientation.CFrame = root.CFrame
-    orientation.Parent = attachment
-    M.flyOrientation = orientation
-
-    root.AssemblyAngularVelocity = Vector3.zero
-    return true
-end
-
-local function automatedMovementActive()
-    for _, name in ipairs(ROUTE_ORDER) do
-        if routeEnabled(name) then
-            return true, name
-        end
-    end
-    return false, nil
-end
-
-local function nativeMobilityDash()
-    refreshNative()
-    local dash = Native.DashHandler
-    if type(dash) ~= "table" or type(dash.Perform) ~= "function" then
-        return false
-    end
-
-    local letter = "W"
-    if type(dash.MovementLetter) == "function" then
-        local ok, value = pcall(dash.MovementLetter)
-        if ok and type(value) == "string" then
-            letter = value
-        end
-    end
-
-    local ok, used = pcall(dash.Perform, letter)
-    return ok and used == true
-end
-
-local function nativeMobilityDoubleJump()
-    refreshNative()
-    local controller = Native.SkillController
-    if type(controller) ~= "table"
-        or type(controller.Attempt_Hold) ~= "function" then
-        return false
-    end
-
-    local ok, used = pcall(controller.Attempt_Hold, "Double Jump", "Space")
-    if ok and used == true and type(controller.StopHold) == "function" then
-        pcall(controller.StopHold, "Double Jump")
-    end
-    return ok and used == true
-end
-
-local function nativeFarmDashAssist(now)
-    if State.A7DEVDirectTargetTeleport == true then return end
-    if State.Flags.AutoFarm ~= true then return end
-    local M = R.movement
-    if M.flyRoot ~= nil then return end
-    if now - (M.lastNativeDash or -math.huge) < .30 then return end
-
-    local target = State.FarmPlanTarget or State.CurrentTarget
-    local targetRoot = rootOf(target)
-    local _, humanoid, root = livingCharacter()
-    if not targetRoot or not humanoid or not root then return end
-    if (targetRoot.Position - root.Position).Magnitude < 18 then return end
-    if humanoid.MoveDirection.Magnitude < .1 then return end
-
-    if nativeMobilityDash() then
-        M.lastNativeDash = now
-    end
-end
-
-local function updateModernMovement()
+track(RunService.Heartbeat:Connect(function()
     if not R.alive or State.Destroyed then return end
 
-    local M = R.movement
+    -- Keep legacy/config code from reactivating Fly after profile/config loads.
+    if State.Flags.Fly == true or State.FlyConn or State.FlyBV or State.FlyBG then
+        removeFlyCompletely()
+    end
 
-    -- SPEED LOCK
-    local speedRequested = movementToggleValue("Speed Lock")
+    local speedRequested = controlValue("Speed Lock") == true
     if speedRequested then
-        -- Stop the old direct Humanoid.WalkSpeed writer. The game's own
-        -- Humanoid_handler now owns the property every ~0.075s.
         State.Flags.SpeedLock = false
         ensureNativeSpeedOverride()
     else
         State.Flags.SpeedLock = false
         clearNativeSpeedOverride()
     end
-
-    -- FLY
-    local flyRequested = movementToggleValue("Fly (WASD/Space/Ctrl)")
-    M.flyRequested = flyRequested
-    State.Flags.Fly = flyRequested
-
-    if not flyRequested then
-        clearLegacyFly()
-        if M.flyRoot then stopModernFly() end
-        return
-    end
-
-    clearLegacyFly()
-
-    local now = os.clock()
-    local routeBusy, routeName = automatedMovementActive()
-    if routeBusy then
-        if M.flyRoot then stopModernFly() end
-        State.MovementCompatibilityStatus = "Fly paused while " .. tostring(routeName) .. " controls movement"
-        return
-    end
-
-    if now < (M.nativeFallbackUntil or 0) then
-        local _, humanoid = livingCharacter()
-        if humanoid then
-            if humanoid.MoveDirection.Magnitude >= .1
-                and now - (M.lastNativeDash or -math.huge) >= .30 then
-                if nativeMobilityDash() then
-                    M.lastNativeDash = now
-                end
-            end
-
-            if (UserInputService:IsKeyDown(Enum.KeyCode.Space)
-                or now < (M.jumpUntil or 0))
-                and now - (M.lastNativeDoubleJump or -math.huge) >= .9 then
-                if nativeMobilityDoubleJump() then
-                    M.lastNativeDoubleJump = now
-                end
-            end
-        end
-
-        State.MovementCompatibilityStatus = "Native air mobility fallback"
-        return
-    end
-
-    if not ensureModernFly() then
-        return
-    end
-
-    local root = M.flyRoot
-    local humanoid = M.flyHumanoid
-    local velocity = M.flyVelocity
-    local orientation = M.flyOrientation
-    if not root or not humanoid or humanoid.Health <= 0
-        or not velocity or not orientation then
-        stopModernFly()
-        return
-    end
-
-    -- Humanoid.MoveDirection already supports keyboard, controller and mobile.
-    local planar = humanoid.MoveDirection
-    planar = Vector3.new(planar.X, 0, planar.Z)
-    if planar.Magnitude > 1 then planar = planar.Unit end
-
-    local vertical = 0
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space)
-        or os.clock() < (M.jumpUntil or 0) then
-        vertical += 1
-    end
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-        or UserInputService:IsKeyDown(Enum.KeyCode.RightControl) then
-        vertical -= 1
-    end
-
-    local requestedSpeed = movementInputNumber("Fly speed", 14, 6, 150)
-
-    -- A large one-frame position jump while our requested speed is low is the
-    -- signature of a server position correction. Back off instead of fighting it.
-    local currentPosition = root.Position
-    if typeof(M.lastFlyPosition) == "Vector3" then
-        local frameDelta = (currentPosition - M.lastFlyPosition).Magnitude
-        if frameDelta >= 12 and now - (M.lastCorrectionAt or -math.huge) >= .5 then
-            M.lastCorrectionAt = now
-            M.correctionCount = (tonumber(M.correctionCount) or 0) + 1
-            M.adaptiveCap = math.max(6, (tonumber(M.adaptiveCap) or 14) * .75)
-            M.stableSince = now
-            velocity.VectorVelocity = Vector3.zero
-
-            if M.correctionCount >= 2 then
-                M.nativeFallbackUntil = now + 5
-                stopModernFly()
-                M.flyRequested = true
-                State.Flags.Fly = true
-                State.MovementCompatibilityStatus = "Server correction | native mobility fallback"
-                return
-            end
-
-            State.MovementCompatibilityStatus =
-                "Server correction detected | Fly reduced to "
-                .. string.format("%.1f", M.adaptiveCap)
-        end
-    else
-        M.stableSince = now
-    end
-    M.lastFlyPosition = currentPosition
-
-    -- Slowly recover speed only after a stable window with no correction.
-    if now - (M.lastCorrectionAt or -math.huge) >= 8 then
-        M.stableSince = M.stableSince > 0 and M.stableSince or now
-        if now - M.stableSince >= 4 then
-            M.adaptiveCap = math.min(18, (tonumber(M.adaptiveCap) or 14) + 1)
-            M.stableSince = now
-        end
-    end
-
-    local speed = math.min(requestedSpeed, tonumber(M.adaptiveCap) or 14)
-    local verticalSpeed = math.min(speed * .5, 7)
-    local wanted = planar * speed + Vector3.new(0, vertical * verticalSpeed, 0)
-
-    if now - (M.lastCorrectionAt or -math.huge) >= 1 then
-        State.MovementCompatibilityStatus =
-            "Fly compatibility mode | effective "
-            .. string.format("%.1f", speed)
-    end
-
-    -- Keep force close to normal character physics instead of overpowering the
-    -- assembly with a huge actuator.
-    velocity.MaxForce = math.max(
-        18000,
-        root.AssemblyMass * workspace.Gravity * 1.8
-    )
-    velocity.VectorVelocity = wanted
-
-    humanoid.AutoRotate = false
-    humanoid.PlatformStand = false
-
-    local camera = workspace.CurrentCamera
-    local look = camera and camera.CFrame.LookVector or root.CFrame.LookVector
-    local flatLook = Vector3.new(look.X, 0, look.Z)
-    if flatLook.Magnitude > .01 then
-        orientation.CFrame = CFrame.lookAt(Vector3.zero, flatLook.Unit)
-    end
-
-    root.AssemblyAngularVelocity = Vector3.zero
-end
-
-track(UserInputService.JumpRequest:Connect(function()
-    if movementToggleValue("Fly (WASD/Space/Ctrl)") then
-        R.movement.jumpUntil = os.clock() + .20
-    end
-end))
-
-track(RunService.RenderStepped:Connect(function()
-    local ok, err = pcall(updateModernMovement)
-    if not ok then
-        R.errors["Movement 30/09"] = tostring(err)
-    end
 end))
 
 cleanup(function()
     clearNativeSpeedOverride()
-    stopModernFly()
+    removeFlyCompletely()
 end)
 
 -- ============================================================================
