@@ -1163,12 +1163,18 @@ local function directQuestFarmTravel(now)
         return directTargetTeleport(State.CurrentTarget, State.FarmPlanSource)
     end
 
-    local expected = tostring(
-        State.FarmQuestResolvedTargetName
-        or State.ProgressionQuestTarget
-        or State.FarmQuestTarget
-        or ""
-    )
+    local expected = ""
+    for _, candidate in ipairs({
+        State.FarmQuestResolvedTargetName,
+        State.ProgressionQuestTarget,
+        State.FarmQuestTarget,
+    }) do
+        candidate = tostring(candidate or "")
+        if candidate ~= "" then
+            expected = candidate
+            break
+        end
+    end
     if expected == "" then return false end
 
     local live = directFindExpectedTarget(expected)
@@ -5756,7 +5762,6 @@ task.spawn(function()
         end
 
         safe("Route arbiter", routeArbiterTick)
-        safe("Native farm dash assist", nativeFarmDashAssist, now)
         safe("Boss/Dungeon coordinator", coordinateExclusiveRoutes)
         safe("Boss respawn timer", scanBossRespawnTimer, now)
         safe("Global boss scan", globalBossScanTick, now)
@@ -5794,6 +5799,8 @@ task.delay(.8, function()
     installDungeonPotionUi()
     installFreezeOwnershipRepair()
     installYetiPriorityRepair()
+    removeFlyCompletely()
+    installDirectFarmBossTeleport()
 end)
 
 if gui then
