@@ -83,17 +83,54 @@ local function low(value)
     return string.lower(tostring(value or ""))
 end
 
+R.safeState = R.safeState or {}
+
 local function safe(tag, fn, ...)
     if type(fn) ~= "function" then
         return false, nil
     end
-    local ok, a, b, c, d = pcall(fn, ...)
-    if not ok then
-        R.errors[tag] = tostring(a)
-        warn("[A7DEV TEST CORE] " .. tostring(tag) .. ": " .. tostring(a))
+
+    tag = tostring(tag or "unknown")
+    local now = os.clock()
+    local state = R.safeState[tag]
+    if type(state) ~= "table" then
+        state = {
+            failures = 0,
+            blockedUntil = 0,
+            lastWarn = -math.huge,
+            lastOk = 0,
+        }
+        R.safeState[tag] = state
+    end
+
+    -- A broken optional subsystem must not monopolize the shared supervisor.
+    if now < (state.blockedUntil or 0) then
         return false, nil
     end
-    return true, a, b, c, d
+
+    local ok, a, b, c, d = pcall(fn, ...)
+    if ok then
+        state.failures = 0
+        state.blockedUntil = 0
+        state.lastOk = now
+        R.errors[tag] = nil
+        return true, a, b, c, d
+    end
+
+    state.failures = (tonumber(state.failures) or 0) + 1
+    R.errors[tag] = tostring(a)
+
+    if now - (state.lastWarn or -math.huge) >= 2 then
+        state.lastWarn = now
+        warn("[A7DEV CORE] " .. tag .. ": " .. tostring(a))
+    end
+
+    if state.failures >= 3 then
+        local level = math.min(4, state.failures - 3)
+        state.blockedUntil = now + math.min(6, 0.75 * (2 ^ level))
+    end
+
+    return false, nil
 end
 
 local State
@@ -115,6 +152,10 @@ State.Runtime = State.Runtime or {}
 State.A7DEVTestCore = R
 State.OuwlandCompatibilityVersion = "2026-10-04"
 State.OuwlandNativeServerBridge = true
+State.A7DEVRuntimeHealth = State.A7DEVRuntimeHealth or {}
+State.A7DEVRuntimeHealth.Version = "V53-ROBUST"
+State.A7DEVRuntimeHealth.Errors = R.errors
+State.A7DEVRuntimeHealth.Recoveries = R.recoveries
 
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local gui
@@ -961,6 +1002,12 @@ R.directTargetTeleport = R.directTargetTeleport or {
     lastPlannerTeleportAt = -math.huge,
     lastAreaTeleportAt = -math.huge,
     lastRegistryScanAt = -math.huge,
+    teleportBusy = false,
+    failures = 0,
+    lastSuccessAt = 0,
+    lastFailureAt = 0,
+    wrappedPlanner = nil,
+    wrappedCombat = nil,
 }
 
 local function directNameKey(value)
@@ -1024,16 +1071,27 @@ local function directFindExpectedTarget(expected)
     end
     R.directTargetTeleport.lastRegistryScanAt = now
 
+    local roots = {}
     local humanoids = workspace:FindFirstChild("Humanoids")
-    local roots = {humanoids, workspace:FindFirstChild("Debree")}
+    if humanoids then roots[#roots + 1] = humanoids end
+
+    local debris = workspace:FindFirstChild("Debree")
+    local regions = debris and debris:FindFirstChild("Regions")
+    if regions then
+        for _, region in ipairs(regions:GetChildren()) do
+            local active = region:FindFirstChild("ActiveNpcs", true)
+            local stationary = region:FindFirstChild("StationaryNpcs", true)
+            if active then roots[#roots + 1] = active end
+            if stationary then roots[#roots + 1] = stationary end
+        end
+    end
+
     for _, scanRoot in ipairs(roots) do
-        if scanRoot then
-            for _, object in ipairs(scanRoot:GetDescendants()) do
-                if object:IsA("Model")
-                    and aliveModel(object)
-                    and directTargetMatches(object, expected) then
-                    return object
-                end
+        for _, object in ipairs(scanRoot:GetDescendants()) do
+            if object:IsA("Model")
+                and aliveModel(object)
+                and directTargetMatches(object, expected) then
+                return object
             end
         end
     end
@@ -1076,13 +1134,28 @@ local function directRememberedPosition(expected)
 end
 
 local function directTeleportCF(targetCF, streamPosition)
+    local D = R.directTargetTeleport
+    if D.teleportBusy then return false end
+
     local character, humanoid, root = livingCharacter()
     if not character or not humanoid or not root or typeof(targetCF) ~= "CFrame" then
         return false
     end
 
+    local targetPosition = targetCF.Position
+    local function finite(value)
+        return typeof(value) == "number"
+            and value == value
+            and math.abs(value) < 10000000
+    end
+    if not finite(targetPosition.X)
+        or not finite(targetPosition.Y)
+        or not finite(targetPosition.Z) then
+        return false
+    end
+
     local streamPos = typeof(streamPosition) == "Vector3"
-        and streamPosition or targetCF.Position
+        and streamPosition or targetPosition
 
     if (root.Position - streamPos).Magnitude >= 80 then
         task.spawn(function()
@@ -1092,12 +1165,45 @@ local function directTeleportCF(targetCF, streamPosition)
         end)
     end
 
-    return pcall(function()
+    D.teleportBusy = true
+    local ok, err = pcall(function()
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         character:PivotTo(targetCF)
-        root.CFrame = targetCF
+
+        -- Some executors update PivotTo one physics step late; setting the root
+        -- to the same CFrame is a compatibility mirror, not a second destination.
+        if root.Parent and character.Parent then
+            root.CFrame = targetCF
+        end
     end)
+    D.teleportBusy = false
+
+    if not ok then
+        D.failures = (tonumber(D.failures) or 0) + 1
+        D.lastFailureAt = os.clock()
+        R.errors["Direct teleport"] = tostring(err)
+
+        if D.failures >= 3 then
+            State.FarmPlannerForce = true
+            State.FarmPlannerLastTick = 0
+            if State.FarmPlanTarget and not aliveModel(State.FarmPlanTarget) then
+                State.FarmPlanTarget = nil
+            end
+            if State.CurrentTarget and not aliveModel(State.CurrentTarget) then
+                State.CurrentTarget = nil
+            end
+            D.failures = 0
+        end
+        return false
+    end
+
+    D.failures = 0
+    D.lastSuccessAt = os.clock()
+    State.A7DEVRuntimeHealth.LastTeleportAt = D.lastSuccessAt
+    State.A7DEVRuntimeHealth.LastTeleportPosition = targetPosition
+    R.errors["Direct teleport"] = nil
+    return true
 end
 
 local function directTargetTeleport(target, source)
@@ -1165,9 +1271,9 @@ local function directQuestFarmTravel(now)
 
     local expected = ""
     for _, candidate in ipairs({
-        State.FarmQuestResolvedTargetName,
         State.ProgressionQuestTarget,
         State.FarmQuestTarget,
+        State.FarmQuestResolvedTargetName,
     }) do
         candidate = tostring(candidate or "")
         if candidate ~= "" then
@@ -1211,14 +1317,34 @@ local function directQuestFarmTravel(now)
 end
 
 local function installDirectFarmBossTeleport()
-    if R.directTargetTeleport.installed then return true end
-    if type(State.Runtime.farmCombatTick) ~= "function"
-        or type(State.Runtime.farmPlannerTick) ~= "function" then
+    local D = R.directTargetTeleport
+    local currentCombat = State.Runtime.farmCombatTick
+    local currentPlanner = State.Runtime.farmPlannerTick
+
+    if type(currentCombat) ~= "function"
+        or type(currentPlanner) ~= "function" then
+        D.installed = false
         return false
     end
 
-    local originalCombat = State.Runtime.farmCombatTick
-    local originalPlanner = State.Runtime.farmPlannerTick
+    if D.installed
+        and currentCombat == D.wrappedCombat
+        and currentPlanner == D.wrappedPlanner then
+        return true
+    end
+
+    -- The base runtime can replace callbacks after respawn/config recovery.
+    -- Re-wrap the current base functions instead of trusting a stale boolean.
+    local originalCombat = currentCombat
+    local originalPlanner = currentPlanner
+
+    if currentCombat == D.wrappedCombat and type(D.originalCombat) == "function" then
+        originalCombat = D.originalCombat
+    end
+    if currentPlanner == D.wrappedPlanner and type(D.originalPlanner) == "function" then
+        originalPlanner = D.originalPlanner
+    end
+
     local wrappedCombat
     local wrappedPlanner
 
@@ -1252,22 +1378,34 @@ local function installDirectFarmBossTeleport()
 
     State.Runtime.farmPlannerTick = wrappedPlanner
     State.Runtime.farmCombatTick = wrappedCombat
-    R.directTargetTeleport.originalPlanner = originalPlanner
-    R.directTargetTeleport.originalCombat = originalCombat
-    R.directTargetTeleport.installed = true
 
-    cleanup(function()
-        if State.Runtime.farmPlannerTick == wrappedPlanner then
-            State.Runtime.farmPlannerTick = originalPlanner
-        end
-        if State.Runtime.farmCombatTick == wrappedCombat then
-            State.Runtime.farmCombatTick = originalCombat
-        end
-        R.directTargetTeleport.installed = false
-        R.directTargetTeleport.originalPlanner = nil
-        R.directTargetTeleport.originalCombat = nil
-        R.directTargetTeleport.lastTarget = nil
-    end)
+    D.originalPlanner = originalPlanner
+    D.originalCombat = originalCombat
+    D.wrappedPlanner = wrappedPlanner
+    D.wrappedCombat = wrappedCombat
+    D.installed = true
+
+    -- One cleanup registration is enough for all future self-heals.
+    if D.cleanupRegistered ~= true then
+        D.cleanupRegistered = true
+        cleanup(function()
+            if State.Runtime.farmPlannerTick == D.wrappedPlanner
+                and type(D.originalPlanner) == "function" then
+                State.Runtime.farmPlannerTick = D.originalPlanner
+            end
+            if State.Runtime.farmCombatTick == D.wrappedCombat
+                and type(D.originalCombat) == "function" then
+                State.Runtime.farmCombatTick = D.originalCombat
+            end
+            D.installed = false
+            D.originalPlanner = nil
+            D.originalCombat = nil
+            D.wrappedPlanner = nil
+            D.wrappedCombat = nil
+            D.lastTarget = nil
+            D.teleportBusy = false
+        end)
+    end
 
     return true
 end
@@ -2209,8 +2347,40 @@ end))
 
 track(LocalPlayer.CharacterAdded:Connect(function()
     stopDungeonHover()
+
     R.farmNoTargetSince = nil
     R.bossNoTargetSince = nil
+
+    local D = R.directTargetTeleport
+    D.lastAt = -math.huge
+    D.lastTarget = nil
+    D.lastAreaTeleportAt = -math.huge
+    D.lastRegistryScanAt = -math.huge
+    D.teleportBusy = false
+    D.failures = 0
+
+    State.CurrentTarget = nil
+    State.FarmPlanTarget = nil
+    State.FarmPlanSource = nil
+    State.SmartFarmTarget = nil
+    State.FarmPlannerForce = true
+    State.FarmPlannerLastTick = 0
+    State.FarmCombatLastTick = 0
+
+    if State.CurrentBoss and not aliveModel(State.CurrentBoss) then
+        State.CurrentBoss = nil
+    end
+    if State.BossLock and not aliveModel(State.BossLock) then
+        State.BossLock = nil
+    end
+
+    task.delay(.45, function()
+        if not R.alive or State.Destroyed then return end
+        installDirectFarmBossTeleport()
+        if type(State.Runtime.mainHeartbeat) == "function" then
+            safe("Respawn recovery heartbeat", State.Runtime.mainHeartbeat)
+        end
+    end)
 end))
 
 cleanup(stopDungeonHover)
@@ -5706,8 +5876,8 @@ installPanicUi()
 
 -- ============================================================================
 -- MOVEMENT COMPATIBILITY NOTE
--- The duplicate late Fly/WalkSpeed owner was removed. MOVEMENT 30/09 above is
--- the sole movement compatibility owner for this runtime.
+-- Fly is removed. Player movement is teleport-only for A7DEV Farm/Boss routes;
+-- WalkSpeed remains isolated in its native value override.
 -- ============================================================================
 
 -- ============================================================================
@@ -5718,6 +5888,10 @@ local installDeadline = os.clock() + 12
 task.spawn(function()
     while R.alive and not State.Destroyed do
         local now = os.clock()
+        State.A7DEVRuntimeHealth.LastSupervisorAt = now
+        State.A7DEVRuntimeHealth.ActiveRoute = R.routeOwner
+        State.A7DEVRuntimeHealth.FarmRecoveries = R.recoveries.farm or 0
+        State.A7DEVRuntimeHealth.BossRecoveries = R.recoveries.boss or 0
 
         if not State.SellOps or not State.SellOps.A7DEV_TEST_REPAIR then
             installSellRepair()
@@ -5730,8 +5904,10 @@ task.spawn(function()
             and State.A7DEVExports.QuestFarm.A7DEV_CORE_1004_QUEST_COOLDOWN) then
             installQuestCooldownCompatibility()
         end
-        if not R.directTargetTeleport.installed then
-            installDirectFarmBossTeleport()
+        if not R.directTargetTeleport.installed
+            or State.Runtime.farmPlannerTick ~= R.directTargetTeleport.wrappedPlanner
+            or State.Runtime.farmCombatTick ~= R.directTargetTeleport.wrappedCombat then
+            safe("Direct teleport hook", installDirectFarmBossTeleport)
         end
         if not (State.DungeonOps and State.DungeonOps.A7DEV_TEST_UI_REPAIR) then
             installDungeonUiRepair()
