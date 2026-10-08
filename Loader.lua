@@ -95,6 +95,15 @@ local GAMES = {
         placeIds = {113290951185459},
         fallbackUniverseId = 10708913337,
     },
+    {
+        name = "Anime Zero",
+        short = "AZ",
+        subtitle = "Anime RPG • Lobby + Dungeon",
+        key = "anime-zero",
+        -- Lobby + gameplay PlaceIds. Both routes use the same protected unified build.
+        placeIds = {114574503491412, 109151342576374},
+        fallbackUniverseId = 114574503491412,
+    },
 
 }
 
