@@ -861,7 +861,7 @@ local function installSellRepair()
 end
 
 -- ============================================================================
--- AUTO SKILLS: KEEP DEFAULT ON, BUT NEVER CAST AT IDLE
+-- AUTO SELL: INTERNAL RETRY SCHEDULER (NO SELLER TELEPORT)
 -- ============================================================================
 
 R.nextInternalSellTick = R.nextInternalSellTick or 0
