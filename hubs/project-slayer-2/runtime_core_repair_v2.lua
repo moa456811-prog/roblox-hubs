@@ -153,7 +153,7 @@ State.A7DEVTestCore = R
 State.OuwlandCompatibilityVersion = "2026-10-04"
 State.OuwlandNativeServerBridge = true
 State.A7DEVRuntimeHealth = State.A7DEVRuntimeHealth or {}
-State.A7DEVRuntimeHealth.Version = "V53-ROBUST"
+State.A7DEVRuntimeHealth.Version = "V53-ROBUST+SECONDARY-1009"
 State.A7DEVRuntimeHealth.Errors = R.errors
 State.A7DEVRuntimeHealth.Recoveries = R.recoveries
 
@@ -794,11 +794,11 @@ local function installSellRepair()
     ops.sell = function()
         if ops.Busy then return false end
 
+        -- Try the verified internal SellItems route first. The server remains
+        -- authoritative; do not force a Ginzo teleport just because an older
+        -- client-side seller quest state is missing or stale.
         local okState, sellerState = pcall(ops.sellerState)
-        if not okState or tostring(sellerState) ~= "Done" then
-            State.SellStatus = "Seller locked | Auto Sell stays internal"
-            return false
-        end
+        sellerState = okState and tostring(sellerState) or "Unknown"
 
         local okSelection, selected, count, requestedUnits = pcall(ops.selection)
         if not okSelection or type(selected) ~= "table" then
@@ -841,7 +841,11 @@ local function installSellRepair()
             return true
         end
 
-        State.SellStatus = "Sale not confirmed | no teleport used"
+        if sellerState ~= "Done" then
+            State.SellStatus = "Sale rejected | seller unlock may be required"
+        else
+            State.SellStatus = "Sale not confirmed | no teleport used"
+        end
         return false
     end
 
@@ -3255,10 +3259,18 @@ local function claimRoute(name)
 end
 
 local function routeArbiterTick()
+    local activeRoutes = {}
+
     for _, name in ipairs(ROUTE_ORDER) do
         local current = routeEnabled(name)
+        if current then
+            activeRoutes[#activeRoutes + 1] = name
+        end
+
         local previous = R.routePrev[name]
         if previous == nil then
+            -- Bootstrap is observational only: never disable another feature
+            -- just because a saved config restored before the repair overlay.
             R.routePrev[name] = current
         elseif current and not previous then
             claimRoute(name)
@@ -3269,6 +3281,13 @@ local function routeArbiterTick()
 
     if R.routeOwner and not routeEnabled(R.routeOwner) then
         R.routeOwner = nil
+    end
+
+    -- If exactly one movement route is already enabled at startup/recovery,
+    -- adopt it without touching its flags. This prevents secondary features
+    -- from running with no owner after config restore/respawn.
+    if not R.routeOwner and #activeRoutes == 1 and routeEnabled(activeRoutes[1]) then
+        R.routeOwner = activeRoutes[1]
     end
 end
 
@@ -4200,8 +4219,15 @@ R.lanternAcquire = R.lanternAcquire or {
 }
 
 local function hasSupportedLantern()
-    local inv = inventoryFolder()
-    return inv and (inv:FindFirstChild("Everburn Lantern") or inv:FindFirstChild("Emberheart Lantern")) ~= nil
+    -- Ouwland now exposes more than one item bag. Looking only at the first
+    -- Inventory folder can make Auto Lantern restart Yeti even when owned.
+    for _, item in ipairs(inventoryEntries()) do
+        local name = low(item.Name)
+        if name == "everburn lantern" or name == "emberheart lantern" then
+            return true
+        end
+    end
+    return false
 end
 
 local function restoreLanternOwnedFlags()
@@ -4465,6 +4491,7 @@ end
 local function dungeonPotionTick(now)
     if State.Flags.AutoDungeonPotion ~= true or not dungeonInRun() then return end
     if minigameSidelined() then return end
+    if R.dungeonPotionConfirming then return end
     if minigameLoadoutLocked() then
         State.DungeonPotionStatus = "Potion waiting for loadout window"
         return
@@ -4483,9 +4510,34 @@ local function dungeonPotionTick(now)
         return
     end
 
+    local potionName = tostring(potion.Name)
+    local beforeHealth = humanoid.Health
+    local beforeAmount = itemAmount(potionName)
+
     R.dungeonPotionLastUse = now
     if useDungeonPotion(potion) then
-        State.DungeonPotionStatus = "Used " .. tostring(potion.Name)
+        R.dungeonPotionConfirming = true
+        R.dungeonPotionConfirmEpoch = (R.dungeonPotionConfirmEpoch or 0) + 1
+        local epoch = R.dungeonPotionConfirmEpoch
+        State.DungeonPotionStatus = "Potion sent | confirming"
+
+        task.delay(.55, function()
+            if not R.alive or epoch ~= R.dungeonPotionConfirmEpoch then return end
+            R.dungeonPotionConfirming = false
+
+            local _, currentHumanoid = livingCharacter()
+            local healed = currentHumanoid and currentHumanoid.Health > beforeHealth + .5
+            local consumed = itemAmount(potionName) < beforeAmount
+
+            if healed or consumed then
+                State.DungeonPotionStatus = "Used " .. potionName
+            else
+                -- Input success is not server confirmation. Permit a bounded
+                -- retry instead of pretending the potion was consumed.
+                State.DungeonPotionStatus = "Potion not confirmed | retry"
+                R.dungeonPotionLastUse = os.clock() - 3.25
+            end
+        end)
     else
         State.DungeonPotionStatus = "Potion use retry"
     end
@@ -4509,12 +4561,19 @@ local function pointChestText(chest)
     end
 
     for _, object in ipairs(chest:GetDescendants()) do
-        parts[#parts + 1] = tostring(object.Name or "")
-
         if object:IsA("ProximityPrompt") then
             parts[#parts + 1] = tostring(object.ActionText or "")
             parts[#parts + 1] = tostring(object.ObjectText or "")
         elseif object:IsA("ValueBase") then
+            -- Value names can be useful metadata (RewardType, Points, etc.),
+            -- unlike arbitrary descendant names such as PointLight.
+            local objectName = low(object.Name)
+            if string.find(objectName, "reward", 1, true)
+                or string.find(objectName, "currency", 1, true)
+                or string.find(objectName, "point", 1, true)
+                or string.find(objectName, "token", 1, true) then
+                parts[#parts + 1] = tostring(object.Name or "")
+            end
             parts[#parts + 1] = tostring(object.Value or "")
         end
     end
@@ -4531,8 +4590,19 @@ end
 
 local function isDungeonPointChest(chest)
     if not chest or not chest.Parent then return false end
+    if R.dungeonPointChests[chest] == true then return true end
+
     local text = pointChestText(chest)
-    return string.find(text, "point", 1, true) ~= nil
+    local words = " " .. text:gsub("[^%w]+", " ") .. " "
+    local isPoint = string.find(words, " point ", 1, true) ~= nil
+        or string.find(words, " points ", 1, true) ~= nil
+        or string.find(text, "dungeonpoint", 1, true) ~= nil
+        or string.find(text, "ouwigaharapoint", 1, true) ~= nil
+
+    if isPoint then
+        R.dungeonPointChests[chest] = true
+    end
+    return isPoint
 end
 
 local function blockDungeonPointChest(chest, now)
@@ -4902,6 +4972,7 @@ local function fishingRecoveryTick(now)
     if State.Flags.AutoFishingReel ~= true then
         F.active = false
         F.lineMissingSince = nil
+        F.unknownPhaseSince = nil
         F.lastLineSeen = 0
         F.nextDrive = 0
         return
@@ -4916,6 +4987,15 @@ local function fishingRecoveryTick(now)
     F.nextDrive = now + .25
     F.active = true
 
+    -- Never tick Fishing before checking movement/quest ownership. The old
+    -- order could cast/equip for one frame while Farm, Boss, Dungeon or a
+    -- special quest was active.
+    if fishingBlockedByOtherRoute() then
+        F.lineMissingSince = nil
+        F.unknownPhaseSince = nil
+        return
+    end
+
     -- Keep the exact native FishingRod portal callback installed. Tool/character
     -- recreation can replace the listener while Auto Fish remains enabled.
     if type(ops.verifiedEnsureFishingPortalHook) == "function" then
@@ -4926,11 +5006,6 @@ local function fishingRecoveryTick(now)
     -- casting and the Bite token reply. Calling it here also recovers if another
     -- runtime path temporarily stopped servicing the fishing worker.
     driveNativeFishing(ops)
-
-    if fishingBlockedByOtherRoute() then
-        F.lineMissingSince = nil
-        return
-    end
 
     local line, lineCheckAvailable = currentFishingLine(ops)
     local phase = tostring(State.FishingPhase or "Idle")
