@@ -864,6 +864,36 @@ end
 -- AUTO SKILLS: KEEP DEFAULT ON, BUT NEVER CAST AT IDLE
 -- ============================================================================
 
+R.nextInternalSellTick = R.nextInternalSellTick or 0
+
+local function autoSellInternalTick(now)
+    if State.Flags.AutoSell ~= true then return end
+    if now < (R.nextInternalSellTick or 0) then return end
+
+    local ops = State.SellOps
+    if type(ops) ~= "table" then return end
+
+    -- The legacy worker waits for the old Ginzo quest state before it ever
+    -- calls sell(). Core V2 owns a second, movement-free path that tries the
+    -- verified internal SellItems action and lets the server accept/reject it.
+    installSellRepair()
+    if type(ops.sell) ~= "function" or ops.Busy then return end
+    if now - (tonumber(ops.Last) or 0) < 2.5 then return end
+
+    local okSelection, _, count = pcall(ops.selection)
+    if not okSelection or (tonumber(count) or 0) < 1 then
+        R.nextInternalSellTick = now + 1.0
+        return
+    end
+
+    R.nextInternalSellTick = now + 2.5
+    safe("Auto Sell internal", ops.sell)
+end
+
+-- ============================================================================
+-- AUTO SKILLS: KEEP DEFAULT ON, BUT NEVER CAST AT IDLE
+-- ============================================================================
+
 local function installSkillGuard()
     local exports = State.A7DEVExports
     if type(exports) ~= "table" or exports.A7DEV_TEST_SKILL_GUARD then return false end
@@ -1222,7 +1252,16 @@ local function directTargetTeleport(target, source)
         or source == "FarmQuest"
         or State.Flags.AutoFarm == true
 
-    if not isBoss and not isFarm then return false end
+    -- Secondary combat features reuse the same verified farmCombatTick but
+    -- publish their own source names. Accept only the source that matches an
+    -- explicitly enabled feature; this adds movement for those modes without
+    -- changing the working Farm/Boss decision path above.
+    local isSecondary = (source == "Player" and State.Flags.AutoFarmPlayers == true)
+        or (source == "Training" and State.Flags.AutoTrainingQuests == true)
+        or (source == "MuzanQuest" and State.Flags.AutoMuzanQuest == true)
+        or (source == "Quest" and State.Flags.AutoCrowQuest == true)
+
+    if not isBoss and not isFarm and not isSecondary then return false end
 
     local _, _, root = livingCharacter()
     local targetRoot = rootOf(target)
@@ -4687,7 +4726,9 @@ local function dungeonAutoStartTick(now)
         State.Flags.AutoDungeon = true
         State.Flags.AutoAttack = true
         State.Flags.AutoEquip = true
-        State.Flags.FarmNoclip = true
+        -- Ouwland movement validation is incompatible with forced noclip.
+        -- Dungeon owns its own hover/position constraints below.
+        State.Flags.FarmNoclip = false
 
         setControl("Auto Dungeon (Ouwigahara)", true)
         setControl("Auto Dungeon", true)
@@ -6021,6 +6062,7 @@ task.spawn(function()
         safe("Yeti loot", yetiLootTick, now)
         safe("Yeti resolver recovery", yetiResolverRecovery, now)
         safe("Lantern acquisition", lanternAcquireTick)
+        safe("Auto Sell internal", autoSellInternalTick, now)
         safe("Player recovery", playerRecoveryTick, now)
         safe("Dungeon auto start", dungeonAutoStartTick, now)
         safe("Dungeon recovery", dungeonRecoveryTick, now)
