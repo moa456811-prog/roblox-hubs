@@ -16,7 +16,7 @@ function fix(){return head('Fix your current script','Paste an error or describe
 function history(){let h=H();return head('Your scripts','Scripts saved in this browser. Reopen, copy or delete them.')+'<section class="card">'+(h.length?h.map((x,i)=>'<div class="historyitem"><div><b>'+E(x.game||'Roblox script')+'</b><small>'+E(x.date)+' · '+x.code.split('\n').length+' lines</small></div><div><button data-open="'+i+'">Open</button> <button data-copy="'+i+'">Copy</button> <button data-delete="'+i+'">Delete</button></div></div>').join(''):'<div class="empty"><h3>No scripts yet</h3><p>Your generated scripts will appear here.</p><a href="/create" data-link class="primary">Create your first script</a></div>')+'</section>'}
 function render(){root.innerHTML=nav()+'<main>'+({"/":home,"/create":create,"/learn":learn,"/fix":fix,"/history":history}[S.page]||home)()+(S.msg?'<div class="notice">'+E(S.msg)+'</div>':'')+'</main><footer>ScriptRush · Roblox Script AI · Free test</footer><div id="modal" class="modal"><div><b>'+E(S.title)+'</b><button data-a="close">Close</button><button data-a="copy">Copy</button></div><pre>'+E(S.output)+'</pre></div>';window.SR_bind?.()}
 window.SR_render=render;
-window.SR_goto=p=>{S.page=p;history.pushState(null,'',p);S.msg='';render();scrollTo(0,0)};
+window.SR_goto=p=>{S.page=p;window.history.pushState(null,'',p);S.msg='';render();scrollTo(0,0)};
 window.addEventListener('popstate',()=>{S.page=location.pathname;render()});
 render();
 })();
