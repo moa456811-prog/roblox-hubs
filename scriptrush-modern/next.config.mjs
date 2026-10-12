@@ -1,0 +1,1 @@
+export default {async rewrites(){return {beforeFiles:[{source:"/api/scanner",destination:"https://scriptrush-live-scanner.vercel.app/api/scanner"},{source:"/api/:path*",destination:"https://scriptrush-api.vercel.app/api/:path*"}]}}};
