@@ -63,6 +63,19 @@ test("renderer uses exact visual values with navigation below the header and lis
   assert.ok(lua.includes('selectPage("settings")'));
 });
 
+test("untitled compositions omit the title label while exact customized names stay escaped", () => {
+  const unnamed = sample(); unnamed.window.title = "";
+  const lua = renderHubComposition(parseHubComposition(JSON.stringify(unnamed)));
+  assert.doesNotMatch(lua, /make\("TextLabel", "Title", header\)|ScriptRush|A7DEV|a7med_o6t|Created by/);
+  assert.match(lua, /local guiName = "GeneratedHub"/);
+  assert.match(lua, /header\.Active = true/);
+  assert.match(lua, /button\("CloseButton", "Close", header\)/);
+  const named = sample(); named.window.title = 'My "Custom" Hub';
+  const customized = renderHubComposition(parseHubComposition(JSON.stringify(named)));
+  assert.ok(customized.includes('title.Text = ' + luaString(named.window.title)));
+  assert.doesNotMatch(customized, /A7DEV|a7med_o6t|Created by/);
+});
+
 test("numeric controls validate their own TextBox and update the current character only on Apply", () => {
   const lua = renderHubComposition(sample());
   assert.ok(lua.includes("local value = tonumber(item1_1Input.Text)"));

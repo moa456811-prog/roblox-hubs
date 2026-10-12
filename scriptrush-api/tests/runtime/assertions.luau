@@ -124,9 +124,27 @@ local presetHub=__scenario=="preset-hub"
 local utilityHub=__scenario=="full-hub" or presetHub
 local expectedWidth=presetHub and 680 or (__scenario=="full-hub" and 480 or 420)
 local expectedHeight=presetHub and 460 or (__scenario=="full-hub" and 360 or 280)
-local titleText=presetHub and "A7DEV" or (__scenario=="full-hub" and "Aurora Hub" or "Aurora Panel")
-local title=findText(titleText,"TextLabel",true)
-check("requested exact title is visible",title~=nil,titleText)
+local titleText=__scenario=="full-hub" and "Aurora Hub" or "Aurora Panel"
+local title=not presetHub and findText(titleText,"TextLabel",true) or nil
+local headerForTabs=title
+if presetHub then
+    local unwantedTitle=false
+    local unwantedBranding=false
+    local function branded(value)
+        local text=string.lower(value)
+        return string.find(text,"a7dev",1,true)~=nil or string.find(text,"a7med",1,true)~=nil or string.find(text,"scriptrush",1,true)~=nil or string.find(text,"created by",1,true)~=nil
+    end
+    for _,object in ipairs(live("GuiObject",false)) do
+        if object:IsA("TextLabel") and string.lower(object.Name)=="title" then unwantedTitle=true end
+        if branded(object.Name) or branded(textOf(object)) then unwantedBranding=true end
+        if object:IsA("Frame") and object.Name=="Header" then headerForTabs=object end
+    end
+    if gui and branded(gui.Name) then unwantedBranding=true end
+    check("preset creates no automatic Title TextLabel",not unwantedTitle)
+    check("preset contains no private branding or creator credit",not unwantedBranding)
+else
+    check("requested exact title is visible",title~=nil,titleText)
+end
 local panel
 for _,object in ipairs(live("GuiObject",true)) do
     local _,_,w,h=__rect(object)
@@ -135,12 +153,12 @@ end
 check("requested exact window size is applied to a visible panel",panel~=nil,expectedWidth.."x"..expectedHeight)
 local navy=Color3.fromRGB(18,24,42)
 local cyan=Color3.fromRGB(85,221,255)
-local presetBackground=Color3.fromRGB(22,22,28)
-local presetAccent=Color3.fromRGB(170,140,215)
+local presetBackground=Color3.fromRGB(22,24,29)
+local presetAccent=Color3.fromRGB(146,157,174)
 local initialBackground=presetHub and presetBackground or navy
 local initialAccent=presetHub and presetAccent or cyan
-check(presetHub and "preset charcoal is applied to the window" or "requested navy is applied to the window",panel~=nil and panel.BackgroundColor3==initialBackground)
-check(presetHub and "preset purple accent is visibly applied" or "requested cyan accent is visibly applied",colorEvidence(initialAccent,true)~=nil,colorEvidence(initialAccent,true))
+check(presetHub and "preset neutral charcoal is applied to the window" or "requested navy is applied to the window",panel~=nil and panel.BackgroundColor3==initialBackground)
+check(presetHub and "preset neutral gray accent is visibly applied" or "requested cyan accent is visibly applied",colorEvidence(initialAccent,true)~=nil,colorEvidence(initialAccent,true))
 __observations.initialVisibleButtons=visibleButtonSummary()
 
 if not utilityHub then
@@ -188,12 +206,12 @@ else
             check("preset page "..name.." exists",presetPages[name]~=nil)
         end
         local allSeparate=true
-        local belowHeader=true
+        local belowHeader=headerForTabs~=nil
         local alignedLeft=true
         for index,name in ipairs(names) do
             local current=tabs[name]
             if current then
-                if title and overlaps(current,title) then belowHeader=false end
+                if headerForTabs and overlaps(current,headerForTabs) then belowHeader=false end
                 local x=select(1,__rect(current))
                 for otherIndex=index+1,#names do
                     local other=tabs[names[otherIndex]]
@@ -261,7 +279,7 @@ else
     check("all three requested tabs exist",movement~=nil and session~=nil and settings~=nil)
     if movement and session and settings then
         check("three tab buttons do not overlap",not overlaps(movement,session) and not overlaps(session,settings) and not overlaps(movement,settings))
-        if title then check("tabs are laid out below the header",not overlaps(movement,title) and not overlaps(session,title) and not overlaps(settings,title)) end
+        if headerForTabs then check("tabs are laid out below the header",not overlaps(movement,headerForTabs) and not overlaps(session,headerForTabs) and not overlaps(settings,headerForTabs)) end
     end
     check("no teleport occurs during initialization",#__teleports==0)
     if movement then check("Movement tab has an active callback",click(movement)) end
@@ -319,7 +337,7 @@ else
         check("alternate theme visibly includes a purple accent",purple)
     end
     click(theme)
-    check(presetHub and "Theme toggle returns to preset initial charcoal and purple" or "Theme toggle returns to requested initial navy",panel~=nil and panel.BackgroundColor3==initialBackground and (not presetHub or colorEvidence(presetAccent,true)~=nil))
+    check(presetHub and "Theme toggle returns to preset initial neutral charcoal and gray" or "Theme toggle returns to requested initial navy",panel~=nil and panel.BackgroundColor3==initialBackground and (not presetHub or colorEvidence(presetAccent,true)~=nil))
     local draggableCandidates={}
     for _,connection in ipairs(__allConnections) do if connection.Connected and connection.name=="InputBegan" and type(connection.owner)=="table" and rawget(connection.owner,"__class") and __visible(connection.owner) then table.insert(draggableCandidates,connection.owner) end end
     local dragged=false

@@ -10,10 +10,11 @@ const englishUI = await readFile(path.join(here,"fixture-english-ui.lua"),"utf8"
 // Independent positive control adapted from the small handwritten utility
 // fixture. It does not import the product's local-preset builder/renderer.
 const presetHub = fullHub
-  .replace('local navy=Color3.fromRGB(18,24,42)', 'local navy=Color3.fromRGB(22,22,28)')
-  .replace('local cyan=Color3.fromRGB(85,221,255)', 'local cyan=Color3.fromRGB(170,140,215)')
+  .replace('local navy=Color3.fromRGB(18,24,42)', 'local navy=Color3.fromRGB(22,24,29)')
+  .replace('local cyan=Color3.fromRGB(85,221,255)', 'local cyan=Color3.fromRGB(146,157,174)')
   .replace('UDim2.fromOffset(480,360)', 'UDim2.fromOffset(680,460)')
-  .replace('Text="Aurora Hub"', 'Text="A7DEV"')
+  .replace('gui.Name="FixtureFullHub"', 'gui.Name="GeneratedHub"')
+  .replace(/^make\("TextLabel",header,\{Text="Aurora Hub"[^\r\n]*\r?\n/m, '')
   .replace('{"Movement","Session","Settings"}', '{"Home","Farm","Boss","Quests","Loot","Movement","Session","Settings"}')
   .replace('Size=UDim2.new(1,-20,1,-96),Position=UDim2.fromOffset(10,86)', 'Size=UDim2.new(1,-182,1,-66),Position=UDim2.fromOffset(172,46)')
   .replace('10+(index-1)*150,46', '10,46+(index-1)*40')
@@ -39,9 +40,12 @@ await mkdir(outputDir,{recursive:true});
 const cases=[
   {name:"valid-full-hub",source:fullHub,scenario:"full-hub",passed:true},
   {name:"valid-preset-hub",source:presetHub,scenario:"preset-hub",passed:true},
+  {name:"preset-rejects-added-branding",source:presetHub.replace('local pages={}','make("TextLabel",header,{Name="Signature",Text="A7DEV",Size=UDim2.fromOffset(100,30)})\nlocal pages={}'),scenario:"preset-hub",failure:"preset contains no private branding or creator credit"},
+  {name:"preset-rejects-hidden-creator-credit",source:presetHub.replace('local pages={}','make("TextLabel",header,{Name="Signature",Text="Created by a7med_o6t",Visible=false,Size=UDim2.fromOffset(100,30)})\nlocal pages={}'),scenario:"preset-hub",failure:"preset contains no private branding or creator credit"},
+  {name:"preset-rejects-automatic-title",source:presetHub.replace('local pages={}','make("TextLabel",header,{Name="Title",Text="Universal Hub",Visible=false,Size=UDim2.fromOffset(100,30)})\nlocal pages={}'),scenario:"preset-hub",failure:"preset creates no automatic Title TextLabel"},
   {name:"preset-rejects-old-three-tab-hub",source:fullHub,scenario:"preset-hub",failure:"requested exact window size"},
   {name:"preset-rejects-missing-farm-tab",source:presetHub.replace('"Home","Farm"','"Home",""'),scenario:"preset-hub",failure:"preset tab Farm exists"},
-  {name:"preset-rejects-wrong-default-palette",source:presetHub.replace('local navy=Color3.fromRGB(22,22,28)','local navy=Color3.fromRGB(18,24,42)'),scenario:"preset-hub",failure:"preset charcoal is applied"},
+  {name:"preset-rejects-wrong-default-palette",source:presetHub.replace('local navy=Color3.fromRGB(22,24,29)','local navy=Color3.fromRGB(18,24,42)'),scenario:"preset-hub",failure:"preset neutral charcoal is applied"},
   {name:"preset-rejects-enabled-unknown-actions",source:presetHub.replace('Interactable=false,Active=false','Interactable=true,Active=true'),scenario:"preset-hub",failure:"unverified Auto Farm control is disabled"},
   {name:"preset-rejects-wired-unknown-actions",source:presetHub.replace('make("TextButton",row,{Text=feature.label','local unavailableButton=make("TextButton",row,{Text=feature.label').replace('    make("TextLabel",row,{Name="UnavailableReason"','    own(unavailableButton.Activated,function() Teleport:Teleport(game.PlaceId,player) end)\n    make("TextLabel",row,{Name="UnavailableReason"'),scenario:"preset-hub",failure:"unverified Auto Farm has no wired action"},
   {name:"preset-rejects-generic-quest-reason",source:presetHub.replace('Needs game profile: quest acceptance, progress and rewards.','Needs game profile.'),scenario:"preset-hub",failure:"unverified Quest Farm shows its precise"},

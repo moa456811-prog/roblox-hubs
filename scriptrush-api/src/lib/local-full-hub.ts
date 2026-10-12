@@ -4,7 +4,6 @@ import { parseHubComposition, validateCompositionCoverage, type HubComposition }
 import { renderHubComposition } from "./hub-composer.ts";
 import { reviewScript } from "./script-output.ts";
 import { englishUiIssues } from "./ui-language.ts";
-import { A7DEV_GUIDE_SOURCE } from "./a7dev-generation-guide.ts";
 
 // This is the shipped preset, not a fuzzy intent matcher. Any additional user
 // requirements, edited preset, diagnostic or script correction stays on the AI
@@ -60,7 +59,7 @@ export type LocalFullHub = { script: string; contract: GenerationContract; cover
 export function buildLocalFullHub(context: GenerationContext): LocalFullHub | null {
   if (context.patch || context.diagnostic.trim() || !isLocalFullHubPrompt(context.prompt) || !observationOnlySources(context.sources)) return null;
   const gameName = typeof context.game.name === "string" && context.game.name.trim() ? context.game.name.trim().slice(0, 240) : "Roblox Game";
-  const identityText = (name: string) => `A7DEV\nCreated by a7med_o6t\nGame: ${name}\nCore version: 1.1`;
+  const identityText = (name: string) => `Game: ${name}`;
   const feature = (id: string, label: string, behavior: string): GenerationContract["features"][number] => ({ id, label, behavior, availability: "supported", evidence: "Audited standard Roblox client/UI implementation; no game-specific adapter required.", interaction: true });
   const contract: GenerationContract = {
     fullHub: true,
@@ -69,17 +68,17 @@ export function buildLocalFullHub(context: GenerationContext): LocalFullHub | nu
       feature("walk-speed", "Walk Speed", "Validate 8 to 32 and apply WalkSpeed to the current local Humanoid."),
       feature("jump-power", "Jump Power", "Validate 20 to 75, enable UseJumpPower and apply JumpPower to the current local Humanoid."),
       feature("rejoin", "Rejoin", "Rejoin the current place only when its button is clicked."),
-      feature("theme", "Theme", "Switch the actual panel and control colors between Purple and Cyan palettes."),
+      feature("theme", "Theme", "Switch the actual panel and control colors between Neutral and Cyan palettes."),
       feature("ui-lifecycle", "Hub Interface", "Rounded draggable tabbed UI, minimize and restore, close the complete ScreenGui and disconnect owned connections."),
     ],
-    ui: { instructions: "A7DEV default charcoal/purple 680x460 rounded panel, English sidebar navigation and visible game/profile status. Every unavailable feature has its own explanation.", requiredText: ["A7DEV", "Home", "Farm", "Boss", "Quests", "Loot", "Movement", "Session", "Settings", "Close", "Minimize", "Restore"] },
+    ui: { instructions: "Unbranded, untitled neutral charcoal/gray 680x460 rounded panel, English sidebar navigation and visible game/profile status. No creator credits or reference-skill identity. Every unavailable feature has its own explanation.", requiredText: ["Home", "Farm", "Boss", "Quests", "Loot", "Movement", "Session", "Settings", "Close", "Minimize", "Restore"] },
   };
   const disabledPage = (index: number, id: string, label: string) => ({ id, label, featureIds: [], items: [{ ...unavailable[index], kind: "disabled" as const, featureIds: [unavailable[index].id] }] });
   const spec = parseHubComposition(JSON.stringify({
     window: {
-      title: "A7DEV", width: 680, height: 460, radius: 12, draggable: true, navigation: "left", font: "Gotham", textSize: 14,
+      title: "", width: 680, height: 460, radius: 12, draggable: true, navigation: "left", font: "Gotham", textSize: 14,
       closeLabel: "Close", minimizeLabel: "Minimize", restoreLabel: "Restore", featureIds: ["ui-lifecycle"],
-      palette: { background: [22, 22, 28], foreground: [240, 238, 248], accent: [170, 140, 215], control: [34, 34, 44], muted: [165, 160, 180] },
+      palette: { background: [22, 24, 29], foreground: [240, 242, 245], accent: [146, 157, 174], control: [34, 38, 45], muted: [165, 173, 185] },
       alternatePalette: { background: [18, 24, 42], foreground: [240, 245, 255], accent: [85, 221, 255], control: [30, 43, 68], muted: [175, 191, 213] },
     },
     pages: [
@@ -93,15 +92,15 @@ export function buildLocalFullHub(context: GenerationContext): LocalFullHub | nu
         { id: "jump-power", kind: "number", featureIds: ["jump-power"], label: "Jump Power", description: "Enable jump power on the current character. Valid range: 20 to 75.", applyLabel: "Apply", min: 20, max: 75, initial: 50, action: "jump-power", code: "" },
       ] },
       { id: "session", label: "Session", featureIds: [], items: [{ id: "rejoin", kind: "button", featureIds: ["rejoin"], label: "Rejoin", description: "Reconnect to this place when clicked.", action: "rejoin", code: "" }] },
-      { id: "settings", label: "Settings", featureIds: [], items: [{ id: "theme", kind: "toggle", featureIds: ["theme"], label: "Theme", description: "Switch between Purple and Cyan.", onLabel: "Cyan", offLabel: "Purple", initial: false, action: "theme", code: "" }] },
+      { id: "settings", label: "Settings", featureIds: [], items: [{ id: "theme", kind: "toggle", featureIds: ["theme"], label: "Theme", description: "Switch between Neutral and Cyan.", onLabel: "Cyan", offLabel: "Neutral", initial: false, action: "theme", code: "" }] },
     ],
   }));
-  const script = "-- A7DEV Core V1.1\n-- Created by a7med_o6t\n-- Built by ScriptRush; game adapters require confirmed evidence.\n\n" + renderHubComposition(spec);
+  const script = renderHubComposition(spec);
   // Only this known proper-name slot is exempt from functional language checks.
   // The displayed game name remains exact, including French words and Unicode.
   const languageSpec = { ...spec, pages: spec.pages.map(page => ({ ...page, items: page.items.map(item => item.id === "identity" && item.kind === "text" ? { ...item, text: identityText("Roblox Game") } : item) })) };
   const issues = [...validateCompositionCoverage(spec, contract), ...englishUiIssues(languageSpec), ...reviewScript(script, "", false)];
   if (issues.length) throw new Error("LOCAL_HUB_VALIDATION_FAILED: " + issues.join("; "));
   const coverage: Coverage = { uiVerified: true, features: contract.features.map(item => ({ id: item.id, label: item.label, status: item.availability === "needs-runtime" ? "unavailable" : "implemented", ...(item.availability === "needs-runtime" ? { reason: item.evidence } : {}) })) };
-  return { script, spec, contract, coverage, profile: { game: { name: gameName, placeId: context.game.placeId ?? null, universeId: context.game.universeId ?? null }, method: A7DEV_GUIDE_SOURCE, gameAdapters: "unverified", unknowns: unavailable.map(item => ({ feature: item.id, reason: item.reason })) } };
+  return { script, spec, contract, coverage, profile: { game: { name: gameName, placeId: context.game.placeId ?? null, universeId: context.game.universeId ?? null }, gameAdapters: "unverified", unknowns: unavailable.map(item => ({ feature: item.id, reason: item.reason })) } };
 }

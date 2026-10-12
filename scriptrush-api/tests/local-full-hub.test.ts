@@ -31,7 +31,10 @@ test("Full Hub button succeeds with zero model calls and independently usable lo
   assert.match(result.script, /humanoid\.WalkSpeed = value/);
   assert.match(result.script, /humanoid\.UseJumpPower = true/);
   assert.match(result.script, /TeleportService:Teleport\(game.PlaceId, player\)/);
-  assert.match(result.script, /Created by a7med_o6t/);
+  assert.doesNotMatch(result.script, /A7DEV|a7med_o6t|ScriptRush|Created by|Core version/);
+  assert.doesNotMatch(result.script, /make\("TextLabel", "Title", header\)/);
+  assert.equal(buildLocalFullHub(context())!.spec.window.title, "");
+  assert.equal(result.profile?.method, undefined);
 });
 
 test("scanner counts and claimed research support never enable game actions", async () => {
@@ -99,7 +102,7 @@ test("code fields inside otherwise observational JSON never get silently discard
 test("game display names are Lua-escaped and do not inject code", () => {
   const result = buildLocalFullHub(context({ game: { name: 'Odd " Game\nprint("bad")', placeId: "1" } }))!;
   assert.match(result.script, /Odd \\" Game\\010print\(\\"bad\\"\)/);
-  assert.equal(result.contract.ui.requiredText[0], "A7DEV");
+  assert.equal(result.contract.ui.requiredText[0], "Home");
 });
 
 test("French game proper names remain exact without rejecting the English functional UI", async () => {

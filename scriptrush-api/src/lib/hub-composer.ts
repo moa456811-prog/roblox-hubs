@@ -9,7 +9,7 @@ const palette = (value: HubComposition["window"]["palette"]) => `{ ${Object.entr
 const indented = (text: string, spaces: number) => text.split("\n").map(line => " ".repeat(spaces) + line).join("\n");
 
 /** Compose real feature handlers around a fixed, verified ownership and layout implementation.
- * All visual values and requested controls come from the validated model spec, never a fallback hub.
+ * All visual values and requested controls come from the validated composition.
  */
 export function renderHubComposition(spec: HubComposition): string {
   const w = spec.window;
@@ -37,7 +37,7 @@ local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local guiName = ${luaString("ScriptRush_" + w.title)}
+local guiName = ${luaString(w.title ? "GeneratedHub_" + w.title : "GeneratedHub")}
 local previousGui = playerGui:FindFirstChild(guiName)
 if previousGui then previousGui:Destroy() end
 local gui = Instance.new("ScreenGui")
@@ -124,14 +124,14 @@ round(panel)
 local header = make("Frame", "Header", panel)
 header.Size = UDim2.new(1, 0, 0, ${headerHeight})
 header.BackgroundTransparency = 1
-local title = make("TextLabel", "Title", header)
+${w.title ? `local title = make("TextLabel", "Title", header)
 title.Position = UDim2.fromOffset(16, 0)
 title.Size = UDim2.new(1, -${stackedHeader ? 32 : 32 + controlsWidth}, 0, ${titleHeight})
 title.Text = ${luaString(w.title)}
 title.TextWrapped = true
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.BackgroundTransparency = 1
-textStyle(title)
+textStyle(title)` : ""}
 local restoreButton = button("RestoreButton", ${luaString(w.restoreLabel)}, gui)
 restoreButton.Size = UDim2.fromOffset(${Math.min(w.width - 24, Math.max(120, w.restoreLabel.length * 8 + 28))}, 36)
 restoreButton.Position = UDim2.fromOffset(16, 16)
