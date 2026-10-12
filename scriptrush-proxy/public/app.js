@@ -22,6 +22,13 @@
   };
 
   const steps = ["Understanding", "Researching", "Planning", "Writing", "Checking", "Finalizing"];
+  const examples = [
+    ["Auto Farm", "Build a robust Auto Farm for this game with target discovery, movement, respawn recovery and cleanup."],
+    ["Auto Boss", "Build an Auto Boss system only for bosses confirmed by game research or the live scanner."],
+    ["Full Hub", "Build one complete script with the strongest confirmed features for this game and a compact black and white Roblox UI."],
+    ["Improve", "Improve the current game script while keeping working features stable and avoiding invented systems."],
+  ];
+
   const esc = (value) => String(value || "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[char]);
@@ -132,8 +139,8 @@
     const request = (fix ? state.error : state.prompt).trim();
     state.notice = "";
 
-    if (!state.game.trim()) state.notice = "Add the game name or link.";
-    else if (!request) state.notice = fix ? "Paste the error or requested change." : "Describe the script.";
+    if (!state.game.trim()) state.notice = "Add the game name or Roblox link first.";
+    else if (!request) state.notice = fix ? "Paste the error or requested change." : "Describe what the script should do.";
     else if (fix && !state.current.trim()) state.notice = "Paste or generate a script first.";
 
     if (state.notice) {
@@ -148,9 +155,9 @@
 
     try {
       await researchGame();
-      setStage("Planning features", 2);
+      setStage("Selecting confirmed features", 2);
       await new Promise((resolve) => setTimeout(resolve, 250));
-      setStage(fix ? "Patching current script" : "Writing script", 3);
+      setStage(fix ? "Patching current script" : "Writing one Luau script", 3);
 
       const body = {
         game: state.game.trim(),
@@ -182,7 +189,7 @@
       if (fix) state.error = "";
       else state.prompt = "";
     } catch (error) {
-      state.notice = error?.name === "AbortError" ? "Stopped." : error?.message || "Generation failed.";
+      state.notice = error?.name === "AbortError" ? "Generation stopped. Your request was preserved." : error?.message || "Generation failed.";
     } finally {
       state.busy = false;
       state.controller = null;
@@ -195,7 +202,7 @@
     if (state.busy) return;
     state.notice = "";
     state.busy = true;
-    state.stage = "Preparing live scanner";
+    state.stage = "Preparing live in-game scanner";
     startProgress();
     render();
     try {
@@ -224,7 +231,7 @@
       state.profile = JSON.stringify(profile);
       localStorage.setItem("scriptrush_runtime_profile", state.profile);
       if (profile.game.placeId) state.place = String(profile.game.placeId);
-      state.notice = "Game learned.";
+      state.notice = "Game profile imported. Future scripts can use the detected game systems.";
       saveGame();
     } catch {
       state.notice = "Invalid scanner report.";
@@ -243,20 +250,51 @@
     render();
   }
 
+  function introHtml() {
+    const compact = state.output || state.busy ? " compact" : "";
+    return `<section class="intro${compact}">
+      <div class="intro-copy">
+        <span class="eyebrow">ROBLOX SCRIPT AI</span>
+        <h1>Generate and repair Roblox scripts.</h1>
+        <p>Choose a game, describe what you want, and get one Luau script ready to copy into your executor. For better accuracy, ScriptRush can scan the live game first.</p>
+        <div class="promise-row"><span>One complete script</span><span>No account</span><span>Files optional</span></div>
+      </div>
+      <div class="how-row"><div><b>1</b><span>Select the game</span></div><div><b>2</b><span>Scan it if needed</span></div><div><b>3</b><span>Generate or fix</span></div></div>
+    </section>`;
+  }
+
+  function actionHtml() {
+    const actions = [
+      ["generate", "Create script", "Research the game and generate one complete executor-ready script."],
+      ["learn", "Learn the game", "Run a read-only scanner inside the live Roblox game for more accurate features."],
+      ["fix", "Fix current script", "Paste an error and patch the same script without replacing working systems."],
+    ];
+    return `<section class="action-grid">${actions.map(([key, title, text], index) => `<button data-tab="${key}" class="action-card ${state.tab === key ? "active" : ""}"><i>0${index + 1}</i><b>${title}</b><span>${text}</span><em>Open</em></button>`).join("")}</section>`;
+  }
+
+  function gameHtml() {
+    return `<section class="game-block">
+      <div class="block-title"><span>GAME</span><b>Which Roblox game?</b><small>Name, link or Place ID</small></div>
+      <div class="game-row"><input id="game" value="${esc(state.game)}" placeholder="Blox Fruits or https://www.roblox.com/games/..."><input id="place" value="${esc(state.place)}" placeholder="Place ID"></div>
+      ${state.profile ? '<div class="profile-chip">● Live game profile loaded</div>' : ""}
+    </section>`;
+  }
+
   function progressHtml() {
     if (!state.busy) return "";
     return `<section class="progress-card">
       <div class="progress-head"><span class="spinner"></span><b id="stage">${esc(state.stage)}</b><em id="elapsed">${state.elapsed}s</em></div>
       <div class="progress-track"><i id="progress-fill" style="width:${10 + state.step * 17}%"></i></div>
       <div class="progress-steps">${steps.map((step, index) => `<span class="${index <= state.step ? "done" : ""}">${esc(step)}</span>`).join("")}</div>
-      <button class="text-button" data-action="stop">Stop</button>
+      <button class="text-button" data-action="stop">Stop generation</button>
     </section>`;
   }
 
   function outputHtml() {
     if (!state.output) return "";
+    const lines = state.output.split("\n").length;
     return `<section class="output-card">
-      <header><span>${esc(state.title)}</span><div><button data-action="copy">${state.copied ? "Copied" : "Copy"}</button><button data-action="expand">Expand</button></div></header>
+      <header><div><span>${esc(state.title)}</span><small>${lines} lines · one complete script</small></div><div><button data-action="copy">${state.copied ? "Copied" : "Copy"}</button><button data-action="expand">Full screen</button></div></header>
       <pre><code>${esc(state.output)}</code></pre>
     </section>`;
   }
@@ -264,40 +302,46 @@
   function panelHtml() {
     if (state.tab === "generate") {
       return `<section class="panel">
-        <textarea id="prompt" placeholder="What should the script do?">${esc(state.prompt)}</textarea>
-        <footer><label class="file-button">Add files<input id="files" type="file" multiple accept=".lua,.luau,.txt,.log,.json,.md"></label><span>${state.files.length ? state.files.length + " added" : state.profile ? "Game profile ready" : "Files optional"}</span><button class="primary" data-action="generate">Generate</button></footer>
+        <div class="panel-heading"><span>CREATE</span><div><b>What should the script do?</b><small>Be specific, or choose an example. ScriptRush returns one script, not several files.</small></div></div>
+        <div class="example-row">${examples.map(([label, prompt]) => `<button data-prompt="${esc(prompt)}">${label}</button>`).join("")}</div>
+        <textarea id="prompt" placeholder="Example: Build Auto Farm and Auto Boss. Use only features confirmed for this game.">${esc(state.prompt)}</textarea>
+        <footer><label class="file-button">Add files<input id="files" type="file" multiple accept=".lua,.luau,.txt,.log,.json,.md"></label><span>${state.files.length ? state.files.length + " added" : state.profile ? "Live game profile ready" : "Optional"}</span><button class="primary" data-action="generate">Generate script</button></footer>
       </section>`;
     }
 
     if (state.tab === "learn") {
       return `<section class="panel learn-panel">
+        <div class="panel-heading"><span>SCAN</span><div><b>Learn the real game systems</b><small>Use this when public research is not enough or the generated features are inaccurate.</small></div></div>
+        <div class="scanner-callout"><b>Run inside the Roblox game with your executor — not Roblox Studio.</b><span>The scanner is read-only. It detects client-visible NPCs, bosses, quests, loot, UI, tools and state changes.</span></div>
         <button class="primary wide" data-action="scanner">Get live scanner</button>
-        <div class="mini-steps"><span>Copy</span><span>Run in game</span><span>Paste report</span></div>
-        <textarea id="report" placeholder="Paste [SCRIPTRUSH_RUNTIME_PROFILE] report">${esc(state.profile)}</textarea>
-        <button class="secondary wide" data-action="import">Import report</button>
-        ${state.profile ? '<div class="profile-ready">● Game profile ready</div>' : ""}
+        <div class="mini-steps"><span><b>1</b> Copy scanner</span><span><b>2</b> Run in game</span><span><b>3</b> Paste report</span></div>
+        <textarea id="report" placeholder="Paste the [SCRIPTRUSH_RUNTIME_PROFILE] report here">${esc(state.profile)}</textarea>
+        <button class="secondary wide" data-action="import">Import game profile</button>
+        ${state.profile ? '<div class="profile-ready">● Game learned — the profile will be included automatically</div>' : ""}
       </section>`;
     }
 
     return `<section class="panel fix-panel">
-      <textarea id="error" placeholder="Paste the error or describe the change">${esc(state.error)}</textarea>
-      <div class="current-row"><span>${state.current ? "Current script loaded" : "No current script"}</span>${state.current ? '<button data-action="clear">Clear</button>' : ""}</div>
-      <textarea id="current" class="script-input" placeholder="Paste the script to fix">${esc(state.current)}</textarea>
-      <button class="primary wide" data-action="fix">Fix current script</button>
+      <div class="panel-heading"><span>FIX</span><div><b>Repair the current script</b><small>Paste the error or requested change. ScriptRush patches this same script and preserves unrelated working features.</small></div></div>
+      <textarea id="error" placeholder="Paste the error, stack trace, or describe the change">${esc(state.error)}</textarea>
+      <div class="current-row"><span>${state.current ? "Current script loaded" : "No current script yet"}</span>${state.current ? '<button data-action="clear">Clear</button>' : ""}</div>
+      <textarea id="current" class="script-input" placeholder="Paste the script to fix, or generate one first">${esc(state.current)}</textarea>
+      <button class="primary wide" data-action="fix">Fix this script</button>
     </section>`;
   }
 
   function render() {
-    root.innerHTML = `<header class="topbar"><div class="brand"><i>S</i><b>ScriptRush</b></div><span>Test</span></header>
+    root.innerHTML = `<header class="topbar"><div class="brand"><i>S</i><div><b>ScriptRush</b><small>Roblox script builder</small></div></div><span>Free test</span></header>
       <main class="workspace">
-        <section class="game-row"><input id="game" value="${esc(state.game)}" placeholder="Game name or Roblox link"><input id="place" value="${esc(state.place)}" placeholder="Place ID"></section>
-        <nav>${[["generate","Generate"],["learn","Learn game"],["fix","Fix script"]].map(([key,label]) => `<button data-tab="${key}" class="${state.tab === key ? "active" : ""}">${label}</button>`).join("")}</nav>
+        ${introHtml()}
+        ${actionHtml()}
+        ${gameHtml()}
         ${state.notice ? `<div class="notice">${esc(state.notice)}</div>` : ""}
         ${panelHtml()}
         ${progressHtml()}
         ${outputHtml()}
       </main>
-      <div id="modal" class="modal hidden"><header><span>${esc(state.title)}</span><div><button data-action="copy">${state.copied ? "Copied" : "Copy"}</button><button data-action="close">Close</button></div></header><pre><code>${esc(state.output)}</code></pre></div>`;
+      <div id="modal" class="modal hidden"><header><div><span>${esc(state.title)}</span><small>${state.output ? state.output.split("\n").length : 0} lines</small></div><div><button data-action="copy">${state.copied ? "Copied" : "Copy"}</button><button data-action="close">Close</button></div></header><pre><code>${esc(state.output)}</code></pre></div>`;
 
     const game = document.getElementById("game");
     const place = document.getElementById("place");
@@ -318,6 +362,15 @@
         state.tab = button.dataset.tab;
         state.notice = "";
         render();
+        document.querySelector(".game-block")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+    });
+
+    root.querySelectorAll("[data-prompt]").forEach((button) => {
+      button.onclick = () => {
+        state.prompt = button.dataset.prompt || "";
+        render();
+        document.getElementById("prompt")?.focus();
       };
     });
 
