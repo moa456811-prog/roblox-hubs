@@ -3,7 +3,7 @@ import { extractCode, providerErrorCode, reviewScript } from "./script-output.ts
 import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema, parseHubComposition, validateCompositionCoverage, type HubComposition } from "./hub-spec.ts";
 import { renderHubComposition } from "./hub-composer.ts";
 import { groundCompositionReview } from "./composition-evidence.ts";
-import { englishUiIssues, SCRIPT_UI_LANGUAGE_POLICY } from "./ui-language.ts";
+import { applyEnglishUiLabels, englishUiIssues, SCRIPT_UI_LANGUAGE_POLICY, translateFunctionalUiText } from "./ui-language.ts";
 
 export type ModelCall = (system: string, user: string, maxTokens: number, budget: { timeoutMs: number; deadlineMs: number; attempts: number }) => Promise<{ content: string; model: string; incomplete: boolean }>;
 export type GenerationContext = {
@@ -14,6 +14,30 @@ export type GenerationOutcome = {
   script: string; model: string; incomplete: boolean; issues: string[]; reason: string;
   contract: GenerationContract | null; coverage: Coverage | null; repaired: boolean;
 };
+
+/** Ordered visible fields allow known translations to retain their actual UI role. */
+function compositionUiTexts(spec: HubComposition): string[] {
+  return [spec.window.title, spec.window.closeLabel || "", spec.window.minimizeLabel || "", spec.window.restoreLabel,
+    ...spec.pages.flatMap(page => [page.label, ...page.items.flatMap(item => {
+      if (item.kind === "text") return [item.text];
+      if (item.kind === "disabled") return [item.label, item.reason];
+      return [item.label, item.description, ...(item.kind === "number" ? [item.applyLabel] : item.kind === "toggle" ? [item.onLabel, item.offLabel] : [])];
+    })])];
+}
+
+/** Normalize only known functional translations actually present in the English composition. */
+function englishRequiredText(required: string[], before: HubComposition, after: HubComposition): string[] {
+  const originals = compositionUiTexts(before), translated = compositionUiTexts(after);
+  return required.map(text => {
+    if (text === before.window.title) return text;
+    const index = originals.findIndex((value, at) => value === text && translated[at] !== value);
+    if (index >= 0) return translated[index];
+    // A model may have already translated its spec while leaving the planner's
+    // quoted French label unchanged. Never require an absent invented translation.
+    return [translateFunctionalUiText(text, "label"), translateFunctionalUiText(text, "content")]
+      .find(value => value !== text && translated.includes(value)) || text;
+  });
+}
 
 /** Plan -> compose or implement -> inspect coverage -> targeted repair -> recheck.
  * Every stage shares a wall-clock deadline; an unreviewed partial hub is an error.
@@ -40,7 +64,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
       planned = await request(PLANNER_SYSTEM, original + correction, 5000, Math.min(40_000, remaining - 180_000));
       outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures);
     }
-    const requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
+    let requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
     const complex = outcome.contract.fullHub || outcome.contract.features.length > 2 || context.currentScript.length > 16_000;
     const tokens = complex ? Math.min(24_000, Math.max(14_000, Math.ceil(context.currentScript.length / 3))) : 8000;
     // Fresh hubs share tested UI primitives. The model still supplies the whole
@@ -48,7 +72,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
     // keep their implementation in fix mode instead of being rebuilt by a template.
     const composed = !context.patch && (outcome.contract.fullHub || /\b(?:ui|interface|panel|window|tabs?|onglets?|fenêtre)\b/i.test(context.prompt));
     const writer = composed ? HUB_COMPOSER_SYSTEM : GENERATOR_SYSTEM;
-    const writerRequirements = composed ? `${requirements}\n\nHUB COMPOSITION JSON SCHEMA:\n${JSON.stringify(hubCompositionJsonSchema)}` : requirements;
+    let writerRequirements = composed ? `${requirements}\n\nHUB COMPOSITION JSON SCHEMA:\n${JSON.stringify(hubCompositionJsonSchema)}` : requirements;
     let compositionText = "";
     let composition: HubComposition | null = null;
     let compositionIssues: string[] = [];
@@ -57,7 +81,13 @@ export async function generateCompleteScript(context: GenerationContext, call: M
       if (!composed) { outcome.script = extractCode(content); return; }
       compositionText = content;
       try {
-        const spec = parseHubComposition(content);
+        const beforeTranslation = parseHubComposition(content);
+        const spec = applyEnglishUiLabels(beforeTranslation);
+        const requiredText = englishRequiredText(outcome.contract!.ui.requiredText, beforeTranslation, spec);
+        outcome.contract = { ...outcome.contract!, ui: { ...outcome.contract!.ui, requiredText } };
+        requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
+        writerRequirements = `${requirements}\n\nHUB COMPOSITION JSON SCHEMA:\n${JSON.stringify(hubCompositionJsonSchema)}`;
+        compositionText = JSON.stringify(spec);
         composition = spec;
         compositionIssues = [...validateCompositionCoverage(spec, outcome.contract!), ...englishUiIssues(spec)];
         outcome.script = renderHubComposition(spec);

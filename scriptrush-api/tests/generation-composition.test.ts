@@ -95,3 +95,39 @@ test("malformed planner JSON or shape gets one full-context correction before co
     assert.deepEqual(outcome.contract?.features.map(feature => feature.id), ["speed", "close"]);
   }
 });
+
+test("French quoted required labels follow actual English composition while an identical custom title is preserved", async () => {
+  const frenchPlan = {
+    features: [{ id: "interface", label: "Interface", behavior: "Create a draggable UI window with two working tabs and Close", availability: "supported", evidence: "Standard UI API", interaction: true }],
+    ui: { instructions: "420 by 280 navy/cyan panel, exact custom title Bienvenue, two real pages", requiredText: ["Bienvenue", "Accueil", "Réglages", "Paramètres", "Fermer"] },
+  };
+  const frenchSpec: HubComposition = {
+    ...structuredClone(spec),
+    window: { ...structuredClone(spec.window), title: "Bienvenue", width: 420, height: 280, navigation: "left", closeLabel: "Fermer", restoreLabel: "Restaurer", featureIds: ["interface"] },
+    pages: [
+      { id: "home", label: "Accueil", featureIds: [], items: [{ id: "welcome", kind: "text", featureIds: [], text: "Bienvenue" }] },
+      { id: "settings", label: "Réglages", featureIds: [], items: [{ id: "preferences", kind: "text", featureIds: [], text: "Paramètres" }] },
+    ],
+  };
+  let reviews = 0;
+  const call: ModelCall = async (system, user) => {
+    if (system === PLANNER_SYSTEM) return { content: JSON.stringify(frenchPlan), model: "test-provider", incomplete: false };
+    if (system.startsWith(HUB_COMPOSER_SYSTEM)) return { content: JSON.stringify(frenchSpec), model: "test-provider", incomplete: false };
+    reviews++;
+    const submittedPlan = JSON.parse(user.split("REQUIREMENTS:\n")[1].split("\n\nORIGINAL USER REQUEST")[0]);
+    assert.deepEqual(submittedPlan.ui.requiredText, ["Bienvenue", "Home", "Settings", "Preferences", "Close"]);
+    assert.deepEqual(submittedPlan.features, frenchPlan.features, "language preference must not rewrite behavior requirements");
+    return { content: JSON.stringify({ missingRequirements: [], scopeIssues: [], ui: { passed: true, issues: [], evidence: ["selection error"] }, features: [{ id: "interface", status: "implemented", reason: "English UI matches the requested layout and behavior", behaviorEvidence: "selection error", controlEvidence: "selection error" }] }), model: "test-provider", incomplete: false };
+  };
+  const original = structuredClone(frenchSpec);
+  const outcome = await generateCompleteScript({ ...input, prompt: 'Crée une interface 420 par 280, titre exact "Bienvenue", onglets "Accueil" et "Réglages", contenus "Bienvenue" et "Paramètres", bouton "Fermer".', supportedFeatures: [] }, call, Date.now() + 285000);
+  assert.equal(outcome.reason, "");
+  assert.equal(outcome.coverage?.uiVerified, true);
+  assert.equal(outcome.repaired, false);
+  assert.equal(reviews, 1);
+  assert.deepEqual(outcome.contract?.ui.requiredText, ["Bienvenue", "Home", "Settings", "Preferences", "Close"]);
+  assert.ok(outcome.script.includes('title.Text = "Bienvenue"'));
+  for (const text of ["Home", "Settings", "Welcome", "Preferences", "Close"]) assert.ok(outcome.script.includes(`"${text}"`));
+  for (const text of ["Accueil", "Réglages", "Paramètres", "Fermer"]) assert.equal(outcome.script.includes(`"${text}"`), false);
+  assert.deepEqual(frenchSpec, original, "translation must not mutate the model input object");
+});
