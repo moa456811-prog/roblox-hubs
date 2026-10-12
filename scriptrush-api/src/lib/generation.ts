@@ -23,7 +23,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
     return result;
   };
   try {
-    const planned = await request(PLANNER_SYSTEM, original, 3600, 35_000);
+    const planned = await request(PLANNER_SYSTEM, original, 5000, 70_000);
     outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures);
     const requirements = `REQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
     const complex = outcome.contract.fullHub || outcome.contract.features.length > 2 || context.currentScript.length > 16_000;
@@ -35,13 +35,13 @@ export async function generateCompleteScript(context: GenerationContext, call: M
       const staticIssues = reviewScript(outcome.script, context.currentScript, context.patch);
       if (outcome.incomplete) staticIssues.push("provider response was incomplete");
       if (staticIssues.length) { outcome.issues = staticIssues; return; }
-      const inspected = await request(REVIEW_SYSTEM, `${requirements}\n\nACTUAL GENERATED SCRIPT:\n${outcome.script}`, Math.min(7000, 1800 + outcome.contract!.features.length * 600), 40_000);
+      const inspected = await request(REVIEW_SYSTEM, `${requirements}\n\nACTUAL GENERATED SCRIPT:\n${outcome.script}`, Math.min(10_000, 2200 + outcome.contract!.features.length * 800), 60_000);
       const assessment = assessContract(outcome.contract!, inspected.content, outcome.script, context.prompt);
       outcome.issues = assessment.issues; outcome.coverage = assessment.coverage;
     };
     await inspect();
-    if (outcome.issues.length && outcome.script && deadlineMs - Date.now() > 50_000) {
-      const repaired = await call(`${GENERATOR_SYSTEM}\nREPAIR MODE: Repair every listed omission/UI issue while preserving all already working features. Return the FULL corrected script.`, `${requirements}\n\nACCEPTANCE FAILURES:\n${outcome.issues.join("\n")}\n\nSCRIPT TO REPAIR:\n${outcome.script}`, tokens, { timeoutMs: Math.max(1000, Math.min(110_000, deadlineMs - Date.now() - 40_000)), deadlineMs, attempts: 1 });
+    if (outcome.issues.length && outcome.script && deadlineMs - Date.now() > 70_000) {
+      const repaired = await call(`${GENERATOR_SYSTEM}\nREPAIR MODE: Repair every listed omission/UI issue while preserving all already working features. Return the FULL corrected script.`, `${requirements}\n\nACCEPTANCE FAILURES:\n${outcome.issues.join("\n")}\n\nSCRIPT TO REPAIR:\n${outcome.script}`, tokens, { timeoutMs: Math.max(1000, Math.min(110_000, deadlineMs - Date.now() - 60_000)), deadlineMs, attempts: 1 });
       outcome.script = extractCode(repaired.content); outcome.model = repaired.model; outcome.incomplete = repaired.incomplete; outcome.repaired = true;
       outcome.coverage = null;
       await inspect();

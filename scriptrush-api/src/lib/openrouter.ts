@@ -20,7 +20,7 @@ async function requestOnce(key: string, system: string, user: string, maxTokens:
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Title": "ScriptRush" },
-      body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, ...(compactStage(system) ? { response_format: { type: "json_object" } } : {}), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+      body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, ...(compactStage(system) ? { response_format: { type: "json_object" }, reasoning: { enabled: false } } : { reasoning: { effort: "low", exclude: true } }), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
     });
     if (!response.ok) {
       if (response.status === 429) throw new Error("RATE_LIMITED");
