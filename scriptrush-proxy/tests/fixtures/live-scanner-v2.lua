@@ -1,4 +1,4 @@
-const SCANNER = String.raw`-- ScriptRush Live Game Intelligence Scanner
+-- ScriptRush Live Game Intelligence Scanner
 -- Read-only: observes client-visible instances and never calls game remotes.
 
 local Players = game:GetService("Players")
@@ -582,10 +582,3 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 setStatus("Ready • run inside the live game")
-`;
-
-export async function GET() {
-  return Response.json({ script: SCANNER, version: "2.0", runtime: "live-client" }, {
-    headers: { "cache-control": "no-store, max-age=0" },
-  });
-}
