@@ -1,6 +1,7 @@
 import "server-only";
 import { generationResponseFormat } from "./generation-contract.ts";
 import { selectProvider, type ProviderConfig } from "./provider-config.ts";
+import { readProviderCompletion } from "./provider-response.ts";
 
 type ProviderResult = { content: string; model: string; incomplete: boolean };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,15 +16,18 @@ async function requestOnce(provider: ProviderConfig, system: string, user: strin
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const responseFormat = generationResponseFormat(system) || (compactStage(system) ? { type: "json_object" } : null);
+    const schemaFormat = generationResponseFormat(system);
+    // APInex forwards portable JSON mode reliably; its schema passthrough may
+    // echo a schema wrapper instead of the values. Validate values locally.
+    const responseFormat = schemaFormat && provider.name === "apinex" ? { type: "json_object" } : schemaFormat || (compactStage(system) ? { type: "json_object" } : null);
+    const instructions = system + (responseFormat && provider.name === "apinex" ? "\nReturn the actual value object in the exact shape shown above. Never return a JSON schema or wrap the values in properties/type/required." : "");
     const response = await fetch(provider.endpoint, {
       method: "POST",
       signal: controller.signal,
       redirect: "error",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}`, ...(provider.name === "openrouter" ? { "X-Title": "ScriptRush" } : {}) },
-      // The free model supports disabling reasoning. Reserve the output budget
-      // for the requested code/JSON instead of an invisible reasoning-only result.
-      body: JSON.stringify({ model: provider.model, temperature: 0.06, max_tokens: maxTokens, ...(provider.name === "apinex" ? { reasoning_effort: "low" } : { reasoning: { enabled: false } }), ...(responseFormat ? { response_format: responseFormat } : {}), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+      // Use streaming to keep APInex's upstream proxy active on large scripts.
+      body: JSON.stringify({ model: provider.model, temperature: responseFormat ? 0.1 : 0.25, max_tokens: maxTokens, ...(provider.name === "apinex" ? { stream: true, thinking: { type: "disabled" } } : { reasoning: { enabled: false } }), ...(responseFormat ? { response_format: responseFormat } : {}), messages: [{ role: "system", content: instructions }, { role: "user", content: user }] }),
     });
     if (!response.ok) {
       if (response.status === 429) {
@@ -35,12 +39,7 @@ async function requestOnce(provider: ProviderConfig, system: string, user: strin
       if (response.status >= 500) throw new Error(`AI_RETRYABLE_${response.status}`);
       throw new Error(`AI_ERROR_${response.status}`);
     }
-    const data = await response.json() as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string } }> };
-    const choice = data.choices?.[0];
-    const content = choice?.message?.content?.trim();
-    if (!content && choice?.finish_reason === "length") return { content: "", model: data.model || provider.model, incomplete: true };
-    if (!content) throw new Error("EMPTY_AI");
-    return { content, model: data.model || provider.model, incomplete: choice?.finish_reason === "length" };
+    return await readProviderCompletion(response, provider.model);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw new Error("AI_TIMEOUT");
     throw error;
