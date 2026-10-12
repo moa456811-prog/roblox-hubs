@@ -243,6 +243,24 @@ function effectSpans(proof: Proof): Span[] {
   for (const call of proof.calls) if (/:(?:Destroy|Teleport|TeleportAsync|PivotTo|MoveTo|ChangeState|FireServer|InvokeServer|Play|Stop|EquipTool|UnequipTools|Activate|SetAttribute|CaptureFocus|ReleaseFocus|Disconnect)$/.test(call.name) || call.name === "Instance.new") effects.push(call);
   return effects;
 }
+
+/** Catch observed API casing errors on directly constructed instances only. */
+function instanceCasingIssues(proof: Proof): string[] {
+  const canonical = new Map([...EFFECT_PROPERTIES, ..."Name ResetOnSpawn IgnoreGuiInset DisplayOrder ZIndex TextWrapped TextXAlignment TextYAlignment TextScaled ClearTextOnFocus PlaceholderText PlaceholderColor3 Font FontFace RichText ClipsDescendants Rotation CornerRadius Padding CellSize CellPadding FillDirection SortOrder HorizontalAlignment VerticalAlignment MouseButton1Click Activated InputBegan InputChanged InputEnded FocusLost Destroy GetPropertyChangedSignal".split(" ")].map(name => [name.toLowerCase(), name]));
+  const instances = new Set<string>();
+  for (const call of proof.calls) if (call.name === "Instance.new" && proof.tokens[call.start - 1]?.value === "=" && proof.tokens[call.start - 3]?.value === "local") {
+    const name = proof.tokens[call.start - 2]?.value;
+    // An ambiguous/shadowed binding needs semantic review, not a guessed type.
+    if (name && proof.tokens.filter((token, index) => token.value === name && proof.tokens[index - 1]?.value === "local").length === 1) instances.add(name);
+  }
+  const issues: string[] = [];
+  for (let index = 0; index < proof.tokens.length - 2; index++) {
+    if (!instances.has(proof.tokens[index].value) || ![".", ":"].includes(proof.tokens[index + 1].value) || proof.tokens[index + 2].kind !== "code") continue;
+    const member = proof.tokens[index + 2].value, expected = canonical.get(member.toLowerCase());
+    if (expected && member !== expected) issues.push(`Roblox API casing: ${proof.tokens[index].value}.${member} must be ${expected}`);
+  }
+  return issues;
+}
 function wiredBehavior(proof: Proof, behavior: string, control: string): boolean {
   const behaviors = evidenceSpans(proof, behavior), controls = evidenceSpans(proof, control), effects = effectSpans(proof);
   if (!behaviors.length || !controls.length) return false;
@@ -276,7 +294,7 @@ export function requestedColorIssues(prompt: string, script: string): string[] {
 export function assessContract(contract: GenerationContract, rawReview: string, script: string, prompt: string): { issues: string[]; coverage: Coverage } {
   const review = reviewSchema.parse(parseModelJson(rawReview));
   const source = makeProof(script);
-  const issues = [...review.missingRequirements, ...review.scopeIssues, ...review.ui.issues, ...requestedColorIssues(prompt, script)];
+  const issues = [...review.missingRequirements, ...review.scopeIssues, ...review.ui.issues, ...requestedColorIssues(prompt, script), ...instanceCasingIssues(source)];
   const features: FeatureCoverage[] = [];
   const ids = review.features.map(feature => feature.id);
   if (new Set(ids).size !== ids.length || ids.some(id => !contract.features.some(feature => feature.id === id))) issues.push("invalid feature coverage review");

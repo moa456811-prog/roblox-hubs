@@ -20,7 +20,9 @@ async function requestOnce(key: string, system: string, user: string, maxTokens:
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Title": "ScriptRush" },
-      body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, ...(compactStage(system) ? { response_format: { type: "json_object" }, reasoning: { enabled: false } } : { reasoning: { effort: "low", exclude: true } }), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+      // The free model supports disabling reasoning. Reserve the output budget
+      // for the requested code/JSON instead of an invisible reasoning-only result.
+      body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, reasoning: { enabled: false }, ...(compactStage(system) ? { response_format: { type: "json_object" } } : {}), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
     });
     if (!response.ok) {
       if (response.status === 429) throw new Error("RATE_LIMITED");
@@ -30,6 +32,7 @@ async function requestOnce(key: string, system: string, user: string, maxTokens:
     const data = await response.json() as { model?: string; choices?: Array<{ finish_reason?: string; message?: { content?: string } }> };
     const choice = data.choices?.[0];
     const content = choice?.message?.content?.trim();
+    if (!content && choice?.finish_reason === "length") return { content: "", model: data.model || MODEL, incomplete: true };
     if (!content) throw new Error("EMPTY_AI");
     return { content, model: data.model || MODEL, incomplete: choice?.finish_reason === "length" };
   } catch (error) {

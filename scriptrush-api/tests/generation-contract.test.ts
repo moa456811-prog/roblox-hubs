@@ -80,6 +80,19 @@ test("static UI requirements may use applied UI proof without callbacks", () => 
   assert.deepEqual(assess(ui, ui, "", staticContract).issues, []);
 });
 
+test("observed wrong-case UI properties reject an otherwise accepted model review", () => {
+  const staticContract: GenerationContract = { ...contract, features: [{ ...contract.features[0], interaction: false }] };
+  const wrong = `${ui}\nlocal closeButton=Instance.new("TextButton")\ncloseButton.backgroundColor3=Color3.fromRGB(85,221,255)\ncloseButton.Parent=gui`;
+  assert.ok(assess(wrong, ui, "", staticContract).issues.some(issue => issue.includes("backgroundColor3 must be BackgroundColor3")));
+  assert.deepEqual(assess(wrong.replace(".backgroundColor3", ".BackgroundColor3"), ui, "", staticContract).issues, []);
+});
+
+test("UI casing guard ignores comments, strings and ordinary state-table fields", () => {
+  const staticContract: GenerationContract = { ...contract, features: [{ ...contract.features[0], interaction: false }] };
+  const script = `${ui}\nlocal state={backgroundColor3="navy"}\nstate.backgroundColor3="cyan"\nlocal example="gui.backgroundColor3=wrong"\n-- gui.backgroundColor3=wrong`;
+  assert.deepEqual(assess(script, ui, "", staticContract).issues, []);
+});
+
 test("required UI text in a comment is not evidence and avoided colors are not requirements", () => {
   const required = { ...contract, features: [{ ...contract.features[0], interaction: false }], ui: { instructions: "screen", requiredText: ["Exact Title"] } };
   assert.ok(assess(`${ui}\n-- Exact Title`, ui, "", required).issues.some(issue => issue.includes("required UI text")));
