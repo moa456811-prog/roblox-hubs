@@ -223,14 +223,33 @@ test("insufficient remaining deadline rejects omitted behavior instead of starti
 });
 
 test("malformed planning or review JSON never yields accepted code", async () => {
-  const badPlan = model([{ content: "not JSON", model: "mock-dots", incomplete: false }]);
+  const badPlan = model([{ content: "not JSON", model: "mock-dots", incomplete: false }, { content: '{"features":', model: "mock-dots", incomplete: false }]);
   const rejectedPlan = await generateCompleteScript(context(), badPlan.call, Date.now() + 300000);
   assert.equal(accepted(rejectedPlan), false);
   assert.equal(rejectedPlan.script, "");
-  assert.equal(badPlan.calls.length, 1);
-  const badReview = model([json(plan), lua(goodScript), { content: '{"features":', model: "mock-dots", incomplete: false }]);
+  assert.equal(badPlan.calls.length, 2);
+  assert.equal(rejectedPlan.contract, null);
+  assert.ok(badPlan.calls.every(call => call.system === PLANNER_SYSTEM));
+  const badReview = model([json(plan), lua(goodScript), { content: '{"features":', model: "mock-dots", incomplete: false }, { content: '{"features":', model: "mock-dots", incomplete: false }]);
   const rejectedReview = await generateCompleteScript(context(), badReview.call, Date.now() + 300000);
   assert.equal(accepted(rejectedReview), false);
   assert.equal(rejectedReview.coverage, null);
   assert.ok(rejectedReview.issues.length);
+});
+
+test("planner correction does not retry semantic omissions, provider errors or consume the implementation reserve", async () => {
+  const incomplete = { ...plan, features: plan.features.slice(0, 1) };
+  const duplicate = { ...plan, features: [plan.features[0], plan.features[0]] };
+  for (const [reply, reason] of [[json(incomplete), "INCOMPLETE_REQUIREMENTS"], [json(duplicate), "INVALID_REQUIREMENTS"], [new Error("AI_TIMEOUT"), "AI_TIMEOUT"]] as Array<[Reply, string]>) {
+    const mock = model([reply]);
+    const outcome = await generateCompleteScript(context(), mock.call, Date.now() + 300000);
+    assert.equal(outcome.reason, reason);
+    assert.equal(outcome.contract, null);
+    assert.equal(mock.calls.length, 1);
+    assert.equal(outcome.script, "");
+  }
+  const shortDeadline = model([{ content: "not JSON", model: "mock-dots", incomplete: false }]);
+  const rejected = await generateCompleteScript(context(), shortDeadline.call, Date.now() + 180000);
+  assert.equal(accepted(rejected), false);
+  assert.equal(shortDeadline.calls.length, 1);
 });

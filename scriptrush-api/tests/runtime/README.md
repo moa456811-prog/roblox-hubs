@@ -2,7 +2,7 @@
 
 This optional QA harness executes generated UI scripts in the official Luau CLI (tested with 0.742) against a pure, closed Roblox mock. It does not start Studio or contact Roblox. Source code receives a whitelist of pure Luau functions and mocked standard UI/client services; `require`, IO, networking, OS APIs, dynamic loading and environment/metatable reflection are absent. Provider/application environment variables are not passed to the interpreter. Each process has a six-second timeout and each mock has a callback limit.
 
-Set `LUAU_BIN` to an installed official [Luau 0.742 interpreter](https://github.com/luau-lang/luau/releases/tag/0.742), or install it as `luau` on PATH. On this workspace, an existing ignored CLI under the frontend QA artifacts is also detected. No binaries are committed, downloaded or installed by this task, and it is separate from the default unit-test suite.
+Set `LUAU_BIN` to an installed official [Luau 0.742 interpreter](https://github.com/luau-lang/luau/releases/tag/0.742), or install it as `luau` on PATH. On this workspace, an existing ignored CLI under the frontend QA artifacts is also detected. The harness never downloads, installs or commits binaries, and it is separate from the default unit-test suite.
 
 From the backend directory:
 

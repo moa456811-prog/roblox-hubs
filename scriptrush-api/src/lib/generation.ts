@@ -28,8 +28,18 @@ export async function generateCompleteScript(context: GenerationContext, call: M
     return result;
   };
   try {
-    const planned = await request(PLANNER_SYSTEM, original, 5000, 70_000);
-    outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures);
+    let planned = await request(PLANNER_SYSTEM, original, 5000, 70_000);
+    try { outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures); }
+    catch (error) {
+      const malformedShape = error instanceof SyntaxError || Boolean(error && typeof error === "object" && "issues" in error && Array.isArray(error.issues));
+      const remaining = deadlineMs - Date.now();
+      // Only malformed transport/JSON shape is a formatting mistake. Never use
+      // a partial contract or retry semantic omissions as if they were valid.
+      if (!malformedShape || remaining <= 190_000) throw error;
+      const correction = '\n\nCORRECT YOUR REQUIREMENTS FORMAT: Return one plain JSON value object with exactly features and ui, following the system shape. features is the complete array of independent requested functions, each with id, label, behavior, availability, evidence and interaction; ui has instructions and requiredText. Use actual values, not a JSON schema or prose. Preserve EVERY original requirement, requested design, custom title and English functional UI text; never shorten the feature inventory to repair JSON formatting.';
+      planned = await request(PLANNER_SYSTEM, original + correction, 5000, Math.min(40_000, remaining - 180_000));
+      outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures);
+    }
     const requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
     const complex = outcome.contract.fullHub || outcome.contract.features.length > 2 || context.currentScript.length > 16_000;
     const tokens = complex ? Math.min(24_000, Math.max(14_000, Math.ceil(context.currentScript.length / 3))) : 8000;

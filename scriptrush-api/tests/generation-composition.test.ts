@@ -66,3 +66,32 @@ test("invalid composition shape is repaired once before review without a fallbac
   assert.equal(writes, 2);
   assert.equal(outcome.coverage?.features.length, 2);
 });
+
+test("malformed planner JSON or shape gets one full-context correction before composition and review", async () => {
+  for (const malformed of ["not JSON", JSON.stringify({ features: plan.features, ui: { instructions: "wrong shape", requiredText: "Close" } })]) {
+    let plans = 0;
+    const calls: Array<{ system: string; user: string; timeoutMs: number; deadlineMs: number }> = [];
+    const deadline = Date.now() + 285000;
+    const context = { ...input, prompt: `${input.prompt}\nDemande française : boutons « Appliquer » et « Fermer », interface anglaise. ORIGINAL-END`, sources: "SOURCE-END", diagnostic: "DIAGNOSTIC-END" };
+    const call: ModelCall = async (system, user, _tokens, budget) => {
+      calls.push({ system, user, timeoutMs: budget.timeoutMs, deadlineMs: budget.deadlineMs });
+      const content = system === PLANNER_SYSTEM ? (++plans === 1 ? malformed : JSON.stringify(plan)) : JSON.stringify(system.startsWith(HUB_COMPOSER_SYSTEM) ? spec : review(user));
+      return { content, model: "test-provider", incomplete: false };
+    };
+    const outcome = await generateCompleteScript(context, call, deadline);
+    assert.equal(outcome.reason, "");
+    assert.equal(outcome.coverage?.uiVerified, true);
+    assert.equal(outcome.repaired, false, "correcting JSON does not regenerate an implementation");
+    assert.deepEqual(calls.map(call => call.system), [PLANNER_SYSTEM, PLANNER_SYSTEM, HUB_COMPOSER_SYSTEM, REVIEW_SYSTEM]);
+    assert.ok(calls[1].user.startsWith(calls[0].user));
+    assert.match(calls[1].user, /CORRECT YOUR REQUIREMENTS FORMAT/);
+    for (const call of calls) {
+      assert.ok(call.user.includes(context.prompt));
+      assert.ok(call.user.includes(context.sources));
+      assert.ok(call.user.includes(context.diagnostic));
+      assert.equal(call.deadlineMs, deadline);
+    }
+    assert.ok(calls[1].timeoutMs <= 40000);
+    assert.deepEqual(outcome.contract?.features.map(feature => feature.id), ["speed", "close"]);
+  }
+});
