@@ -1,3 +1,5 @@
+import { sanitizeScanner } from "../../../lib/scanner-safety";
+
 export const dynamic = "force-dynamic";
 
 // This frontend serves only the existing, read-only scanner service.
@@ -20,5 +22,3 @@ export async function GET(request: Request) {
     return Response.json({ error: "The live scanner is unavailable. Try again shortly." }, { status: 502 });
   }
 }
-import { sanitizeScanner } from "../../../lib/scanner-safety";
-
