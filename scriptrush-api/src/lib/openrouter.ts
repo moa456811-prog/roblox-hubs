@@ -27,7 +27,12 @@ async function requestOnce(key: string, system: string, user: string, maxTokens:
       body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, reasoning: { enabled: false }, ...(responseFormat ? { response_format: responseFormat } : {}), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
     });
     if (!response.ok) {
-      if (response.status === 429) throw new Error("RATE_LIMITED");
+      if (response.status === 429) {
+        const data = await response.json().catch(() => ({})) as { error?: { message?: string; metadata?: { raw?: string } } };
+        const description = `${data.error?.message || ""} ${data.error?.metadata?.raw || ""}`;
+        console.warn("[provider-capacity]", JSON.stringify({ dailyLimit: /per.day|daily|day limit/i.test(description), minuteLimit: /per.minute|minute limit/i.test(description), providerCapacity: /capacity|overload|temporar|rate.limit/i.test(description), retryAfter: response.headers.get("retry-after") }));
+        throw new Error("RATE_LIMITED");
+      }
       if (response.status >= 500) throw new Error(`AI_RETRYABLE_${response.status}`);
       throw new Error(`AI_ERROR_${response.status}`);
     }
