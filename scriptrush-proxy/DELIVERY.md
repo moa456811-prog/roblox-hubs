@@ -2,7 +2,17 @@
 
 Live site: https://scriptrush.vercel.app
 
-## Current release — preset-only generation and AI usage fix
+## Current release — unnamed defaults and user-customized identity
+
+The user clarified that A7DEV is their private methodological reference, not the identity of generated scripts. The correction is live on the canonical site. New default Full Hubs have no title TextLabel, brand, creator credit, signature or promotional comments. Their palette is neutral charcoal/gray; Home displays only the game identity and profile status. The private reference's provenance is no longer exposed in the public generation profile or included in any model-stage prompt. Explicit user titles and design choices remain supported, including correctly escaped custom names; Fix/Improve preserves user-customized identity unless removal is requested.
+
+The exact standard Full Hub remains local and uses **zero AI calls/input/output characters**. Backend source `fd54d2f4021986f9ea7d872536b89a1a33256a96` is deployed as `dpl_7r4KXVG3eCptCB4EbGtqVk9RSWxB`, READY, at https://scriptrush-5808msjxk-ahmed-601f.vercel.app. Canonical `scriptrush-api.vercel.app` was verified against that exact ID on 2026-10-12 at 23:21 UTC (2026-10-13 in Europe/Paris). Frontend `dpl_4xJU1hmu3rPkZBZaHCqNxSddzSNL` remains unchanged. Backend rollback reference: `dpl_7TTTHzbESutJ84s9hwnXAmtJinPF` / https://scriptrush-9yjifrwu8-ahmed-601f.vercel.app.
+
+Validation: **117 backend tests**, TypeScript and production build passed. The unchanged frontend's previous **60 tests** remain applicable. Integrated mocked-model tests exercise absent title, exact custom title and a brand explicitly chosen by the user. The actual 21,258-character canonical browser result contains no private branding, creator credit or automatic title; Copy and Download match it exactly, and the success notice reports zero AI calls. It compiles with the official Luau compiler and passes **124/124 isolated runtime assertions** with zero runtime errors. Harness self-tests pass **35/35**, including new negative cases for automatic title, visible branding and hidden creator credit. No APInex model calls were made during this correction.
+
+Ignored evidence: backend `test-results/unbranded/{unit.log,build.log,alias.json,cloud-runtime.json}`; frontend `test-results/full-hub/a7dev-unbranded-backend/` (response/script/zero-AI assertions) and `test-results/full-hub/unbranded-canonical/` (actual script, browser summary, runtime report and screenshot). File paths containing the reference name are historical QA organization only. Runtime assertions use closed Roblox mocks, not real engine/gameplay execution. The previous limitations on unverified game automation still apply. Historical saved scripts are not rewritten.
+
+## Historical release — preset-only generation and AI usage fix
 
 The user reported a rejected Full Hub request after AI usage and confirmed they had only pressed Full Hub. The previous reference-hub checks did not establish that the unchanged button, used with an empty draft and without verified game adapters, reliably succeeded. The correction is released on the canonical domains: that exact preset builds with **zero model calls**, while custom requests and meaningful implementation evidence retain contextual AI analysis. The new canonical browser test reproduced empty draft → Full Hub → Generate Script with the existing observation-only profile, returned the full script and displayed the zero-AI notice.
 
