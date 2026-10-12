@@ -52,6 +52,12 @@ export interface GenerationResult {
   metadata: Record<string, unknown>;
 }
 
+export interface GenerationUsage {
+  modelCalls: number;
+  inputCharacters: number;
+  outputCharacters: number;
+}
+
 export interface ResearchResult extends GameSelection {
   name: string;
   universeId?: string;

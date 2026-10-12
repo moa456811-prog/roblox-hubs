@@ -195,12 +195,45 @@ test("unmet requirements return a precise safe error and preserve the complete f
       assert.ok(issue instanceof ApiError);
       assert.equal(issue.code, "requirements_not_met");
       assert.equal(issue.status, 502);
-      assert.equal(issue.message, "The generated script is missing requested features or UI requirements. Your input and previous script were preserved. Please try again with clearer requirements or more game evidence.");
+      assert.equal(issue.message, "Script validation stopped. Your input and previous script were preserved. The service could not confirm all requested features and UI details. Review these checks before starting another generation.");
+      assert.deepEqual(issue.issues, []);
+      assert.equal(issue.usage, undefined);
       return true;
     });
     assert.equal(JSON.stringify(body), snapshot);
     globalThis.fetch = async () => Response.json({ code: "requirements_not_met", error: "private server detail" }, { status: 502 });
     await assert.rejects(generateScript(body), (issue: unknown) => issue instanceof ApiError && issue.code === "generate_unavailable" && !issue.message.includes("private server detail"));
+  } finally { globalThis.fetch = restoreFetch; }
+});
+
+test("unmet requirements show bounded review checks and measured model calls without another request", async () => {
+  const restoreFetch = globalThis.fetch;
+  let requests = 0;
+  const usage = { modelCalls: 3, inputCharacters: 12345, outputCharacters: 9876 };
+  globalThis.fetch = async () => {
+    requests++;
+    return Response.json({ code: "REQUIREMENTS_NOT_MET", review: { issues: ["Jump Power: matching control missing", "required UI text missing: Close"] }, usage }, { status: 502 });
+  };
+  try {
+    await assert.rejects(generateScript(build), (issue: unknown) => {
+      assert.ok(issue instanceof ApiError);
+      assert.deepEqual(issue.issues, ["Jump Power: matching control missing", "required UI text missing: Close"]);
+      assert.deepEqual(issue.usage, usage);
+      assert.ok(issue.message.includes("Jump Power: matching control missing"));
+      assert.ok(issue.message.includes("AI calls: 3."));
+      assert.ok(!/please try again|clearer requirements/i.test(issue.message));
+      return true;
+    });
+    assert.equal(requests, 1);
+  } finally { globalThis.fetch = restoreFetch; }
+});
+
+test("backend rate-limit reasons retain measured usage and avoid exposing provider error bodies", async () => {
+  const restoreFetch = globalThis.fetch;
+  const usage = { modelCalls: 1, inputCharacters: 300, outputCharacters: 0 };
+  globalThis.fetch = async () => Response.json({ code: "GENERATION_REJECTED", reason: "RATE_LIMITED", error: "private upstream details", usage }, { status: 502 });
+  try {
+    await assert.rejects(generateScript(build), (issue: unknown) => issue instanceof ApiError && issue.code === "rate_limited" && issue.usage?.modelCalls === 1 && issue.message.includes("AI calls: 1.") && !issue.message.includes("private upstream"));
   } finally { globalThis.fetch = restoreFetch; }
 });
 

@@ -1,15 +1,20 @@
-import type { GenerationRequest, GenerationResult, ResearchResult } from "./types.ts";
+import type { GenerationRequest, GenerationResult, GenerationUsage, ResearchResult } from "./types.ts";
 import type { GenerationCoverage } from "./coverage.ts";
 import { isRecord, parseScriptResponse, ValidationError } from "./validation.ts";
+import { parseGenerationUsage, parseReviewIssues, requirementsFailureMessage } from "./generation-diagnostics.ts";
 
 export class ApiError extends Error {
   readonly code: string;
   readonly status?: number;
-  constructor(message: string, code = "request_failed", status?: number) {
+  readonly issues: string[];
+  readonly usage?: GenerationUsage;
+  constructor(message: string, code = "request_failed", status?: number, diagnostics: { issues?: string[]; usage?: GenerationUsage } = {}) {
     super(message);
     this.name = code === "cancelled" ? "AbortError" : "ApiError";
     this.code = code;
     this.status = status;
+    this.issues = diagnostics.issues ?? [];
+    this.usage = diagnostics.usage;
   }
 }
 
@@ -31,12 +36,17 @@ export function generationNotice(coverage: GenerationCoverage | null, hasCoverag
 }
 
 function failure(operation: Operation, status?: number): ApiError {
-  if (status === 408 || status === 504) return new ApiError("The service timed out. Your input was preserved; please try again.", "timeout", status);
-  if (status === 429) return new ApiError("The model is busy or temporarily rate limited. Wait a moment and try again.", "rate_limited", status);
+  if (status === 408 || status === 504) return new ApiError("The service timed out. Your input was preserved. Check service availability before starting another request.", "timeout", status);
+  if (status === 429) return new ApiError("The model is busy or temporarily rate limited. Your input was preserved. Wait before starting another generation.", "rate_limited", status);
   const message = operation === "research" ? "Game research is unavailable. Check the game name or Roblox link and try again."
     : operation === "scanner" ? "The live scanner is unavailable. Please try again shortly."
-      : "Script generation failed. Your request and previous script were preserved. Please try again.";
+      : "Script generation stopped before validation completed. Your request and previous script were preserved.";
   return new ApiError(message, operation + "_unavailable", status);
+}
+
+function withUsage(error: ApiError, value: unknown): ApiError {
+  const usage = parseGenerationUsage(value);
+  return usage ? new ApiError(error.message + ` AI calls: ${usage.modelCalls}.`, error.code, error.status, { issues: error.issues, usage }) : error;
 }
 
 async function request(url: string, operation: Operation, init: RequestInit, signal?: AbortSignal): Promise<unknown> {
@@ -55,13 +65,18 @@ async function request(url: string, operation: Operation, init: RequestInit, sig
       throw new ApiError(operation === "scanner" ? "The scanner service returned an invalid response." : "The service returned an incomplete response. Your input was preserved.", "invalid_response", response.status);
     }
     if (isRecord(data) && data.code === "REQUIREMENTS_NOT_MET") {
-      throw new ApiError("The generated script is missing requested features or UI requirements. Your input and previous script were preserved. Please try again with clearer requirements or more game evidence.", "requirements_not_met", response.status);
+      const issues = parseReviewIssues(data.review);
+      const usage = parseGenerationUsage(data.usage);
+      throw new ApiError(requirementsFailureMessage(issues, usage), "requirements_not_met", response.status, { issues, usage });
     }
     if (!response.ok || (isRecord(data) && data.error)) {
       const errorText = isRecord(data) && typeof data.error === "string" ? data.error : "";
-      if (/timeout|timed out/i.test(errorText)) throw failure(operation, 504);
-      if (/incomplete|truncat|no complete script/i.test(errorText)) throw new ApiError("The model returned an incomplete response. Your previous script was preserved.", "incomplete_response", response.status);
-      throw failure(operation, response.status);
+      const reason = isRecord(data) && typeof data.reason === "string" ? data.reason : "";
+      const usage = isRecord(data) ? data.usage : undefined;
+      if (reason === "RATE_LIMITED") throw withUsage(failure(operation, 429), usage);
+      if (reason === "AI_TIMEOUT" || /timeout|timed out/i.test(errorText)) throw withUsage(failure(operation, 504), usage);
+      if (/incomplete|truncat|no complete script/i.test(errorText)) throw withUsage(new ApiError("The model returned an incomplete response. Your previous script was preserved.", "incomplete_response", response.status), usage);
+      throw withUsage(failure(operation, response.status), usage);
     }
     return data;
   } catch (error) {

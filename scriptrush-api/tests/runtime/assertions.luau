@@ -120,9 +120,11 @@ check("script initializes without runtime errors",# __runtimeErrors==0, table.co
 local guis=live("ScreenGui",false)
 check("exactly one ScreenGui is parented to PlayerGui",#guis==1,"Found "..#guis)
 local gui=guis[1]
-local expectedWidth=__scenario=="full-hub" and 480 or 420
-local expectedHeight=__scenario=="full-hub" and 360 or 280
-local titleText=__scenario=="full-hub" and "Aurora Hub" or "Aurora Panel"
+local presetHub=__scenario=="preset-hub"
+local utilityHub=__scenario=="full-hub" or presetHub
+local expectedWidth=presetHub and 680 or (__scenario=="full-hub" and 480 or 420)
+local expectedHeight=presetHub and 460 or (__scenario=="full-hub" and 360 or 280)
+local titleText=presetHub and "A7DEV" or (__scenario=="full-hub" and "Aurora Hub" or "Aurora Panel")
 local title=findText(titleText,"TextLabel",true)
 check("requested exact title is visible",title~=nil,titleText)
 local panel
@@ -133,11 +135,15 @@ end
 check("requested exact window size is applied to a visible panel",panel~=nil,expectedWidth.."x"..expectedHeight)
 local navy=Color3.fromRGB(18,24,42)
 local cyan=Color3.fromRGB(85,221,255)
-check("requested navy is applied to the window",panel~=nil and panel.BackgroundColor3==navy)
-check("requested cyan accent is visibly applied",colorEvidence(cyan,true)~=nil,colorEvidence(cyan,true))
+local presetBackground=Color3.fromRGB(22,22,28)
+local presetAccent=Color3.fromRGB(170,140,215)
+local initialBackground=presetHub and presetBackground or navy
+local initialAccent=presetHub and presetAccent or cyan
+check(presetHub and "preset charcoal is applied to the window" or "requested navy is applied to the window",panel~=nil and panel.BackgroundColor3==initialBackground)
+check(presetHub and "preset purple accent is visibly applied" or "requested cyan accent is visibly applied",colorEvidence(initialAccent,true)~=nil,colorEvidence(initialAccent,true))
 __observations.initialVisibleButtons=visibleButtonSummary()
 
-if __scenario~="full-hub" then
+if not utilityHub then
     local english=__scenario=="english-ui" or __scenario=="translated-ui"
     local home=findText(english and "Home" or "Accueil","TextButton",true)
     local settings=findText(english and "Settings" or "Réglages","TextButton",true)
@@ -166,6 +172,89 @@ if __scenario~="full-hub" then
     check("close button has an active callback",click(close))
 else
     check("panel is rounded",panel~=nil and panel:FindFirstChildOfClass("UICorner")~=nil)
+    if presetHub then
+        local corner=panel and panel:FindFirstChildOfClass("UICorner")
+        check("preset panel corner radius is exactly twelve pixels",corner~=nil and near(corner.CornerRadius.Scale,0) and near(corner.CornerRadius.Offset,12))
+        local names={"Home","Farm","Boss","Quests","Loot","Movement","Session","Settings"}
+        local tabs,presetPages={},{}
+        for _,name in ipairs(names) do
+            tabs[name]=findText(name,"TextButton",true)
+            check("preset tab "..name.." exists",tabs[name]~=nil)
+            local lower=string.lower(name)
+            for _,object in ipairs(live("GuiObject",false)) do
+                local normalized=string.gsub(string.lower(object.Name),"[^a-z]","")
+                if (object:IsA("Frame") or object:IsA("ScrollingFrame")) and (normalized=="page"..lower or normalized==lower.."page") then presetPages[name]=object;break end
+            end
+            check("preset page "..name.." exists",presetPages[name]~=nil)
+        end
+        local allSeparate=true
+        local belowHeader=true
+        local alignedLeft=true
+        for index,name in ipairs(names) do
+            local current=tabs[name]
+            if current then
+                if title and overlaps(current,title) then belowHeader=false end
+                local x=select(1,__rect(current))
+                for otherIndex=index+1,#names do
+                    local other=tabs[names[otherIndex]]
+                    if other then
+                        if overlaps(current,other) then allSeparate=false end
+                        local otherX=select(1,__rect(other))
+                        if not near(x,otherX) then alignedLeft=false end
+                    end
+                end
+            else
+                allSeparate=false;belowHeader=false;alignedLeft=false
+            end
+        end
+        check("all eight preset tab buttons do not overlap",allSeparate)
+        check("all eight preset tabs are laid out below the header",belowHeader)
+        check("all eight preset tabs form a left navigation column",alignedLeft)
+        for _,name in ipairs(names) do
+            check("preset tab "..name.." has an active callback",click(tabs[name]))
+            local selected=presetPages[name]
+            check("preset tab "..name.." shows its own page",selected~=nil and __visible(selected))
+            local exclusive=true
+            for _,other in ipairs(names) do if other~=name and (not presetPages[other] or __visible(presetPages[other])) then exclusive=false end end
+            check("preset tab "..name.." hides all seven other pages",exclusive)
+        end
+        local unavailable={
+            {page="Farm",label="Auto Farm",dependency="target"},
+            {page="Boss",label="Auto Boss",dependency="boss"},
+            {page="Quests",label="Quest Farm",dependency="quest"},
+            {page="Loot",label="Auto Loot",dependency="drop"},
+        }
+        for _,feature in ipairs(unavailable) do
+            click(tabs[feature.page])
+            local button=findText(feature.label,"TextButton",true)
+            if not button then
+                local compact=string.gsub(string.lower(feature.label),"%s","")
+                for _,candidate in ipairs(live("TextButton",true)) do
+                    if string.gsub(string.lower(candidate.Text),"%s","")==compact then button=candidate;break end
+                end
+            end
+            check("unverified "..feature.label.." has its own visible control",button~=nil)
+            check("unverified "..feature.label.." control is disabled",button~=nil and button.Interactable==false and button.Active==false)
+            local wired=false
+            for _,connection in ipairs(__allConnections) do
+                if button and connection.Connected and connection.owner==button and (connection.name=="Activated" or connection.name=="MouseButton1Click") then wired=true end
+            end
+            check("unverified "..feature.label.." has no wired action",button~=nil and not wired)
+            local reason
+            local parent=button and button.Parent
+            if parent then
+                for _,object in ipairs(live("TextLabel",true)) do
+                    if object:IsDescendantOf(parent) then
+                        local text=string.lower(object.Text)
+                        if string.find(text,"needs game profile",1,true) and string.find(text,feature.dependency,1,true) then reason=object.Text;break end
+                    end
+                end
+            end
+            check("unverified "..feature.label.." shows its precise missing-profile dependency",reason~=nil,reason or "Needs game profile and the feature dependency must be visible in its own row")
+            check("unverified "..feature.label.." cannot be activated",not click(button))
+        end
+        check("unverified preset actions never teleport the player",#__teleports==0)
+    end
     local movement=findText("Movement","TextButton",true)
     local session=findText("Session","TextButton",true)
     local settings=findText("Settings","TextButton",true)
@@ -223,9 +312,14 @@ else
         if color.R>color.G+0.1 and color.B>color.G+0.1 then purple=true end
         if object:IsA("TextButton") or object:IsA("TextLabel") or object:IsA("TextBox") then color=object.TextColor3;if color.R>color.G+0.1 and color.B>color.G+0.1 then purple=true end end
     end
-    check("alternate theme visibly includes a purple accent",purple)
+    if presetHub then
+        check("preset alternate theme visibly applies the navy panel",panel~=nil and panel.BackgroundColor3==navy)
+        check("preset alternate theme visibly includes the cyan accent",colorEvidence(cyan,true)~=nil,colorEvidence(cyan,true))
+    else
+        check("alternate theme visibly includes a purple accent",purple)
+    end
     click(theme)
-    check("Theme toggle returns to requested initial navy",panel~=nil and panel.BackgroundColor3==navy)
+    check(presetHub and "Theme toggle returns to preset initial charcoal and purple" or "Theme toggle returns to requested initial navy",panel~=nil and panel.BackgroundColor3==initialBackground and (not presetHub or colorEvidence(presetAccent,true)~=nil))
     local draggableCandidates={}
     for _,connection in ipairs(__allConnections) do if connection.Connected and connection.name=="InputBegan" and type(connection.owner)=="table" and rawget(connection.owner,"__class") and __visible(connection.owner) then table.insert(draggableCandidates,connection.owner) end end
     local dragged=false
@@ -259,7 +353,7 @@ else
     check("minimized UI exposes a visible Restore control",restore~=nil)
     check("minimization preserves the live ScreenGui",gui~=nil and not __destroyed(gui))
     check("Restore has an active callback",click(restore))
-    check("restoring shows the full sized panel",panel~=nil and __visible(panel) and near(panel.AbsoluteSize.X,480) and near(panel.AbsoluteSize.Y,360))
+    check("restoring shows the full sized panel",panel~=nil and __visible(panel) and near(panel.AbsoluteSize.X,expectedWidth) and near(panel.AbsoluteSize.Y,expectedHeight))
     local close=findPattern("close","TextButton",true) or findText("X","TextButton",true) or findText("×","TextButton",true) or findText("✕","TextButton",true)
     check("Close has an active callback",click(close))
 end

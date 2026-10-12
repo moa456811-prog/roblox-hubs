@@ -4,9 +4,9 @@ import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema } from "./hub-spec.ts";
 import { selectProvider, type ProviderConfig } from "./provider-config.ts";
 import { readProviderCompletion } from "./provider-response.ts";
 import { capacityRetryDelay } from "./provider-capacity.ts";
+import { providerDelay, throwIfCallerAborted, withProviderAbort } from "./provider-abort.ts";
 
 type ProviderResult = { content: string; model: string; incomplete: boolean };
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 class CapacityError extends Error {
   constructor(readonly retryAfter: string | null, readonly dailyLimit: boolean) { super("RATE_LIMITED"); }
 }
@@ -17,10 +17,8 @@ function compactStage(system: string) {
     && !/fenced lua|executor-ready|full corrected script|one self-contained|luau script/.test(value);
 }
 
-async function requestOnce(provider: ProviderConfig, system: string, user: string, maxTokens: number, timeoutMs: number): Promise<ProviderResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
+async function requestOnce(provider: ProviderConfig, system: string, user: string, maxTokens: number, timeoutMs: number, callerSignal?: AbortSignal): Promise<ProviderResult> {
+  return withProviderAbort(timeoutMs, callerSignal, async signal => {
     const schemaFormat = system.startsWith(HUB_COMPOSER_SYSTEM)
       ? { type: "json_schema", json_schema: { name: "hub_composition", strict: true, schema: hubCompositionJsonSchema } }
       : generationResponseFormat(system);
@@ -30,7 +28,7 @@ async function requestOnce(provider: ProviderConfig, system: string, user: strin
     const instructions = system + (responseFormat && provider.name === "apinex" ? "\nReturn the actual value object in the exact shape shown above. Never return a JSON schema or wrap the values in properties/type/required." : "");
     const response = await fetch(provider.endpoint, {
       method: "POST",
-      signal: controller.signal,
+      signal,
       redirect: "error",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}`, ...(provider.name === "openrouter" ? { "X-Title": "ScriptRush" } : {}) },
       // Use streaming to keep APInex's upstream proxy active on large scripts.
@@ -47,15 +45,13 @@ async function requestOnce(provider: ProviderConfig, system: string, user: strin
       throw new Error(`AI_ERROR_${response.status}`);
     }
     return await readProviderCompletion(response, provider.model);
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("AI_TIMEOUT");
-    throw error;
-  } finally { clearTimeout(timer); }
+  });
 }
 
-type RequestBudget = { timeoutMs?: number; deadlineMs?: number; attempts?: number };
+type RequestBudget = { timeoutMs?: number; deadlineMs?: number; attempts?: number; signal?: AbortSignal };
 
 export async function runModel(system: string, user: string, maxTokens = 8000, budget: RequestBudget = {}): Promise<ProviderResult> {
+  throwIfCallerAborted(budget.signal);
   const provider = selectProvider({ APINEX_API_KEY: process.env.APINEX_API_KEY, OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY });
   const compact = compactStage(system);
   // A retry gets the same complete-output budget. Never shrink a full hub to fit a
@@ -68,28 +64,31 @@ export async function runModel(system: string, user: string, maxTokens = 8000, b
   const count = Math.min(budget.attempts ?? attempts.length, attempts.length);
   const stageDeadline = Math.min(budget.deadlineMs ?? Infinity, Date.now() + (budget.timeoutMs ?? attempts[0].timeout));
   for (let index = 0; index < count; index += 1) {
+    throwIfCallerAborted(budget.signal);
     const attempt = attempts[index];
     const extra = index === 0 ? "" : "\n\nRETRY: Return the entire requested output. Preserve every required feature and UI instruction; no omitted sections.";
     const remaining = stageDeadline - Date.now();
     if (remaining < 1000) throw new Error("AI_TIMEOUT");
     const timeout = Math.min(budget.timeoutMs ?? attempt.timeout, remaining);
     try {
-      try { return await requestOnce(provider, system + extra, user, attempt.tokens, timeout); }
+      try { return await requestOnce(provider, system + extra, user, attempt.tokens, timeout, budget.signal); }
       catch (error) {
+        throwIfCallerAborted(budget.signal);
         // A 429 produced no model output. Wait once for the provider's stated
         // minute reset without discarding a completed plan or implementation.
         const delay = error instanceof CapacityError ? capacityRetryDelay(error.retryAfter, Date.now(), stageDeadline, error.dailyLimit) : null;
         if (delay === null) throw error;
-        await sleep(delay);
-        return await requestOnce(provider, system + extra, user, attempt.tokens, Math.max(1000, stageDeadline - Date.now()));
+        await providerDelay(delay, budget.signal);
+        return await requestOnce(provider, system + extra, user, attempt.tokens, Math.max(1000, stageDeadline - Date.now()), budget.signal);
       }
     }
     catch (error) {
+      throwIfCallerAborted(budget.signal);
       last = error;
       const message = error instanceof Error ? error.message : "AI_ERROR";
       const retryable = message === "AI_TIMEOUT" || message === "RATE_LIMITED" || message === "EMPTY_AI" || message.startsWith("AI_RETRYABLE_");
       if (!retryable || index === count - 1) break;
-      await sleep(message === "RATE_LIMITED" ? 1200 : 350);
+      await providerDelay(message === "RATE_LIMITED" ? 1200 : 350, budget.signal);
     }
   }
   throw last instanceof Error ? last : new Error("AI_ERROR");

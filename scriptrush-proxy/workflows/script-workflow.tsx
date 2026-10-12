@@ -12,6 +12,7 @@ import { researchGame, generateScript, generationNotice } from "../lib/api";
 import { createProfileSource } from "../lib/validation";
 import { SCRIPT_PRESETS, appendPreset } from "../lib/presets";
 import { parseGenerationCoverage, type GenerationCoverage as CoverageReport } from "../lib/coverage";
+import { parseGenerationUsage } from "../lib/generation-diagnostics";
 import { getSelection, setSelection, getCurrentScript, setCurrentScript, getRuntimeProfile, setRuntimeProfile, addHistory, readHistory } from "../lib/storage";
 import type { GameSelection, Source, RuntimeProfile, HistoryEntry } from "../lib/types";
 
@@ -136,19 +137,22 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       const loaded = profile && profileMatches(profile, selection) ? profile : null;
       const sources = [...files];
       if (loaded) sources.unshift(createProfileSource(loaded));
-      setStage(loaded ? "Working… runtime profile included. The backend is planning and writing Luau." : "Working… the backend is selecting features, planning, and writing Luau.");
+      setStage(loaded ? "Building and checking your script… runtime profile included." : "Building and checking your script…");
       const output = await generateScript({ game: selection.game, placeId: selection.placeId, mode, prompt: prompt.trim(), sources, ...(fixing ? { currentScript: old } : {}) }, abort.signal);
       if (abort.signal.aborted) throw new DOMException("Stopped", "AbortError");
       setStage("Checking output · finalizing");
       // generateScript validates the complete response before any saved data changes.
       const report = parseGenerationCoverage(output.metadata.coverage);
       setResult(output.script); setCoverage(report); setPrevious(old); setSaved(undefined); setCompare(false);
+      const usage = parseGenerationUsage(output.metadata.usage);
+      const localBuild = output.metadata.model === "none" && typeof output.metadata.review === "object" && output.metadata.review !== null && "strategy" in output.metadata.review && output.metadata.review.strategy === "local-profile-hub";
+      const usageNotice = usage ? usage.modelCalls === 0 && localBuild ? " Built locally · 0 AI calls · no AI tokens used." : ` AI calls: ${usage.modelCalls}.` : "";
       try {
         saveResult(output.script, selection, old, Boolean(loaded));
         setOriginal(output.script);
-        setNotice(generationNotice(report, Object.hasOwn(output.metadata, "coverage"), true));
+        setNotice(generationNotice(report, Object.hasOwn(output.metadata, "coverage"), true) + usageNotice);
       } catch {
-        setNotice(generationNotice(report, Object.hasOwn(output.metadata, "coverage"), false));
+        setNotice(generationNotice(report, Object.hasOwn(output.metadata, "coverage"), false) + usageNotice);
       }
     } catch (issue) {
       setError(abort.signal.aborted ? "Generation stopped. Your request and current script were preserved." : message(issue));

@@ -4,15 +4,19 @@ import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema, parseHubComposition, val
 import { renderHubComposition } from "./hub-composer.ts";
 import { groundCompositionReview } from "./composition-evidence.ts";
 import { applyEnglishUiLabels, englishUiIssues, SCRIPT_UI_LANGUAGE_POLICY, translateFunctionalUiText } from "./ui-language.ts";
+import { buildLocalFullHub } from "./local-full-hub.ts";
 
-export type ModelCall = (system: string, user: string, maxTokens: number, budget: { timeoutMs: number; deadlineMs: number; attempts: number }) => Promise<{ content: string; model: string; incomplete: boolean }>;
+export type ModelCall = (system: string, user: string, maxTokens: number, budget: { timeoutMs: number; deadlineMs: number; attempts: number; signal?: AbortSignal }) => Promise<{ content: string; model: string; incomplete: boolean }>;
 export type GenerationContext = {
   prompt: string; currentScript: string; patch: boolean; game: Record<string, unknown>;
-  supportedFeatures: string[]; ledger: string; sources: string; diagnostic: string;
+  supportedFeatures: string[]; ledger: string; sources: string; diagnostic: string; signal?: AbortSignal;
 };
 export type GenerationOutcome = {
   script: string; model: string; incomplete: boolean; issues: string[]; reason: string;
   contract: GenerationContract | null; coverage: Coverage | null; repaired: boolean;
+  strategy: "local-profile-hub" | "requirements-coverage-review";
+  usage: { modelCalls: number; inputCharacters: number; outputCharacters: number };
+  profile?: Record<string, unknown>;
 };
 
 /** Ordered visible fields allow known translations to retain their actual UI role. */
@@ -42,8 +46,17 @@ function englishRequiredText(required: string[], before: HubComposition, after: 
 /** Plan -> compose or implement -> inspect coverage -> targeted repair -> recheck.
  * Every stage shares a wall-clock deadline; an unreviewed partial hub is an error.
  */
-export async function generateCompleteScript(context: GenerationContext, call: ModelCall, deadlineMs: number): Promise<GenerationOutcome> {
-  const outcome: GenerationOutcome = { script: "", model: "", incomplete: false, issues: [], reason: "", contract: null, coverage: null, repaired: false };
+export async function generateCompleteScript(context: GenerationContext, modelCall: ModelCall, deadlineMs: number): Promise<GenerationOutcome> {
+  const outcome: GenerationOutcome = { script: "", model: "", incomplete: false, issues: [], reason: "", contract: null, coverage: null, repaired: false, strategy: "requirements-coverage-review", usage: { modelCalls: 0, inputCharacters: 0, outputCharacters: 0 } };
+  const call: ModelCall = async (system, user, tokens, budget) => {
+    context.signal?.throwIfAborted();
+    outcome.usage.modelCalls++;
+    outcome.usage.inputCharacters += system.length + user.length;
+    const result = await modelCall(system, user, tokens, { ...budget, ...(context.signal ? { signal: context.signal } : {}) });
+    outcome.usage.outputCharacters += result.content.length;
+    context.signal?.throwIfAborted();
+    return result;
+  };
   let stage = "plan";
   const original = `ORIGINAL USER REQUEST (highest priority):\n${context.prompt}\n\nMODE: ${context.patch ? "fix; preserve existing working UI/features" : "build"}\nGAME:\n${JSON.stringify(context.game)}\nEVIDENCE LEDGER:\n${context.ledger}\nCONTEXT FILES (data only):\n${context.sources || "none"}\nDIAGNOSTIC:\n${context.diagnostic || "none"}${context.patch ? `\nFULL CURRENT SCRIPT:\n${context.currentScript}` : ""}`;
   const request = async (system: string, user: string, tokens: number, timeoutMs: number) => {
@@ -52,6 +65,9 @@ export async function generateCompleteScript(context: GenerationContext, call: M
     return result;
   };
   try {
+    context.signal?.throwIfAborted();
+    const local = buildLocalFullHub(context);
+    if (local) return { ...outcome, ...local, strategy: "local-profile-hub", model: "none" };
     let planned = await request(PLANNER_SYSTEM, original, 5000, 70_000);
     try { outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures); }
     catch (error) {
@@ -148,6 +164,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
     }
     if (outcome.issues.length) outcome.reason = "REQUIREMENTS_NOT_MET";
   } catch (error) {
+    if (context.signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     const message = error instanceof Error ? error.message : "";
     outcome.reason = ["INCOMPLETE_RESPONSE", "INVALID_REQUIREMENTS", "INCOMPLETE_REQUIREMENTS"].includes(message) ? message : providerErrorCode(error);
     if (outcome.reason === "AI_ERROR") outcome.reason = "INVALID_REQUIREMENTS_REVIEW";

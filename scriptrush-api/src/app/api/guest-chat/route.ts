@@ -19,12 +19,12 @@ function gameKey(profile: Profile | null, game: string, placeId: string) {
 async function research(request: Request, game: string) {
   if (!game) return null;
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 20_000);
-  try { const url = new URL("/api/research-game", request.url); url.searchParams.set("q", game); const response = await fetch(url, { cache: "no-store", signal: controller.signal }); if (!response.ok) return null; return ((await response.json()).profile || null) as Profile | null; }
+  try { const url = new URL("/api/research-game", request.url); url.searchParams.set("q", game); const response = await fetch(url, { cache: "no-store", signal: AbortSignal.any([request.signal, controller.signal]) }); if (!response.ok) return null; return ((await response.json()).profile || null) as Profile | null; }
   catch { return null; } finally { clearTimeout(timer); }
 }
 async function save(request: Request, body: Record<string, unknown>) {
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 8000);
-  try { const response = await fetch(new URL("/api/memory", request.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal }); if (!response.ok) return null; return (await response.json()).version || null; }
+  try { const response = await fetch(new URL("/api/memory", request.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.any([request.signal, controller.signal]) }); if (!response.ok) return null; return (await response.json()).version || null; }
   catch { return null; } finally { clearTimeout(timer); }
 }
 
@@ -35,17 +35,18 @@ export async function POST(request: Request) {
     const current = (input.currentScript || "").trim();
     const patch = Boolean(current && (input.mode === "fix" || input.mode === "improve" || errorLike(input.prompt) || /\b(fix|repair|corrige|répare|modifie|improve|améliore)\b/i.test(input.prompt)));
     const profile = await research(request, input.game);
+    request.signal.throwIfAborted();
     const key = gameKey(profile, input.game, input.placeId);
     const signals = profile?.featureSignals || [];
     const supported = signals.filter(signal => signal.confidence === "high" || signal.confidence === "medium").map(signal => signal.feature).filter((feature): feature is string => Boolean(feature));
-    const ledger = signals.map(signal => `${signal.feature || "Unknown"}: ${signal.confidence || "low"} (${signal.score || 0})`).join("\n") || "No reliable game-specific feature signals found. Standard client UI APIs remain usable.";
+    const ledger = "Public research scores are suggestions, not confirmed game adapters, remote argument schemas or action success evidence.\n" + (signals.map(signal => `${signal.feature || "Unknown"}: research suggestion ${signal.confidence || "low"} (${signal.score || 0}); confirm actual dependencies from supplied code/runtime evidence before enabling.`).join("\n") || "No reliable game-specific feature signals found. Standard client UI APIs remain usable.");
     const result = await generateCompleteScript({
       prompt: input.prompt, currentScript: current, patch,
       game: { name: profile?.name || input.game, placeId: profile?.placeId || input.placeId, universeId: profile?.universeId, description: profile?.description, confidence: profile?.confidence, sourceCounts: profile?.sourceCounts },
       supportedFeatures: supported, ledger,
-      sources: input.sources.map(source => `--- ${source.name} ---\n${source.content}`).join("\n\n"), diagnostic: input.runtimeDiagnostic || "",
+      sources: input.sources.map(source => `--- ${source.name} ---\n${source.content}`).join("\n\n"), diagnostic: input.runtimeDiagnostic || "", signal: request.signal,
     }, runModel, startedAt + 285_000);
-    const review = { passed: !result.issues.length && Boolean(result.script && result.coverage), issues: result.issues, providerIncomplete: result.incomplete, strategy: "requirements-coverage-review", repaired: result.repaired };
+    const review = { passed: !result.issues.length && Boolean(result.script && result.coverage), issues: result.issues, providerIncomplete: result.incomplete, strategy: result.strategy, repaired: result.repaired };
     if (!review.passed) {
       const missing = result.reason === "REQUIREMENTS_NOT_MET" || result.reason === "INCOMPLETE_REQUIREMENTS";
       const error = missing
@@ -55,12 +56,13 @@ export async function POST(request: Request) {
           : result.reason === "AI_TIMEOUT"
             ? "The AI model timed out. Your request and previous script were preserved; try again."
             : "ScriptRush could not validate a complete script against your requirements. Your request and previous script were preserved.";
-      return NextResponse.json({ error, code: missing ? "REQUIREMENTS_NOT_MET" : patch ? "PATCH_PRESERVED" : "GENERATION_REJECTED", reason: result.reason, model: result.model || null, patchMode: patch, review }, { status: 502 });
+      return NextResponse.json({ error, code: missing ? "REQUIREMENTS_NOT_MET" : patch ? "PATCH_PRESERVED" : "GENERATION_REJECTED", reason: result.reason, model: result.model || null, patchMode: patch, review, usage: result.usage }, { status: 502 });
     }
-    const plan = { mode: patch ? "patch-existing" : "requirements-build", requested: input.prompt, supportedFeatures: supported, requirements: result.contract, sourceCounts: profile?.sourceCounts || { scriptBlox: 0, github: 0 } };
+    const plan = { mode: patch ? "patch-existing" : result.strategy === "local-profile-hub" ? "local-profile-hub" : "requirements-build", requested: input.prompt, supportedFeatures: result.strategy === "local-profile-hub" ? result.coverage!.features.filter(feature => feature.status === "implemented").map(feature => feature.label) : supported, requirements: result.contract, ...(result.profile ? { gameProfile: result.profile } : {}), sourceCounts: profile?.sourceCounts || { scriptBlox: 0, github: 0 } };
     const version = input.clientId ? await save(request, { op: "version_add", clientId: input.clientId, gameKey: key, mode: patch ? "fix" : input.mode, request: input.prompt, script: result.script, plan, review }) : null;
-    return NextResponse.json({ message: `\`\`\`lua\n${result.script}\n\`\`\``, status: "ok", model: result.model, research: profile ? { ...profile, gameKey: key } : { gameKey: key }, gameKey: key, plan, review, coverage: result.coverage, patchMode: patch, version, unlimitedTestMode: true });
+    return NextResponse.json({ message: `\`\`\`lua\n${result.script}\n\`\`\``, status: "ok", model: result.model, usage: result.usage, research: profile ? { ...profile, gameKey: key } : { gameKey: key }, gameKey: key, plan, review, coverage: result.coverage, patchMode: patch, version, unlimitedTestMode: true });
   } catch (error) {
+    if (request.signal.aborted || (error instanceof Error && error.name === "AbortError")) return NextResponse.json({ error: "Request cancelled. Your previous script was preserved.", code: "CANCELLED" }, { status: 499 });
     return NextResponse.json({ error: error instanceof z.ZodError ? "Invalid request." : "Generation failed. Your previous script was preserved." }, { status: error instanceof z.ZodError ? 400 : 502 });
   }
 }

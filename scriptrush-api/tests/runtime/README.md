@@ -8,6 +8,7 @@ From the backend directory:
 
 ```powershell
 node tests/runtime/run-runtime.mjs path/to/generated-hub.lua full-hub
+node tests/runtime/run-runtime.mjs path/to/local-preset-hub.lua preset-hub
 node tests/runtime/run-runtime.mjs path/to/english-script.lua english-ui
 node tests/runtime/run-runtime.mjs path/to/translated-script.lua translated-ui
 node tests/runtime/run-runtime.mjs path/to/french-script.lua french-ui
@@ -17,6 +18,8 @@ node tests/runtime/self-test.mjs
 The runner writes a JSON report under ignored `test-results/runtime/`, or at the optional third path argument, and exits with 0 only when every assertion passes. Self-tests also keep generated mutation scripts and reports in that ignored directory.
 
 The `full-hub` scenario checks an exact 480 × 360 navy/cyan Aurora Hub window, rounded panel, three distinct Movement/Session/Settings tabs, current-character WalkSpeed (8–32)/JumpPower (20–75) inputs with valid bounds and immediate effects, Rejoin only on click with correct Teleport arguments, visible two-way theme switching, mouse drag and release, minimize/restore, complete ScreenGui destruction and disconnected owned connections.
+
+The separate `preset-hub` scenario checks the local A7DEV default without weakening `full-hub`: exact 680 × 460 window, radius 12, charcoal/purple initial colors, eight distinct Home/Farm/Boss/Quests/Loot/Movement/Session/Settings tabs in a left navigation column, exclusive page switching, the same working utility/lifecycle interactions, and charcoal/purple → navy/cyan → charcoal/purple theme switching. Auto Farm, Auto Boss, Quest Farm and Auto Loot must each retain a visible disabled control with its own visible `Needs game profile` explanation naming the missing feature dependency. They must remain inactive; the test does not certify those four game actions as implemented. An independent handwritten fixture is used for harness self-tests, including enabled unknown actions, missing tabs, vague/hidden reasons and wrong theme/palette mutations.
 
 The `english-ui` acceptance scenario checks an exact 420 × 280 navy/cyan Aurora Panel, exact Home/Settings/Close strings and Welcome/Preferences page contents, active tab appearance and show/hide effects, complete ScreenGui destruction with no surviving owned connections or visible UI. The prompt may be written in French; these generated UI labels must be English.
 
