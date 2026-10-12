@@ -2,7 +2,27 @@
 
 Live site: https://scriptrush.vercel.app
 
-All 14 requested acceptance criteria passed. The five routes, real Create and Fix calls, output actions, scanner retrieval, report import and browser-local version persistence were verified. No manual deployment step remains.
+## Full Hub / requested UI / APInex follow-up — acceptance pending
+
+The follow-up is **not released**. The source fixes preserve the user's complete request when selecting Full Hub, plan every independent feature, retain requested UI instructions, display checked feature coverage, and reject failed coverage instead of returning a misleading single-feature success. The generation proxy now has an explicit bounded Node route for long requests. Research and the read-only scanner remain separate.
+
+The user-authorized APInex credential is stored as the existing backend project's production secret `APINEX_API_KEY`. It is not in Git or browser code. Real authenticated provider calls returned HTTP 200. The integration uses the fixed APInex origin, SSE transport and fail-closed completion checks; it does not purchase credit or use paid fallback routes.
+
+Current validation:
+
+- **54 frontend + 47 API = 101 automated tests passed.** API production build and TypeScript passed; frontend build passed for the staged frontend. These results do not mean the real model acceptance tests passed.
+- API candidate **`dpl_8mm7G8dCZm9tMEQutf9vsobKN5mX`**, READY, source commit **`4baa94e`**: `https://scriptrush-4jv1m5fqm-ahmed-601f.vercel.app`.
+- Candidate health reports `apinex/free`; health/research return 200 and an invalid generation request returns 400.
+- Frontend candidate **`dpl_Fut5E9aQs5Lh2ARsR5GkuLuRKE2X`**, READY: `https://scriptrush-clear-3rnkeqcei-ahmed-601f.vercel.app`. Its five pages load; the preset preservation/idempotence was checked in the browser.
+- **Real multi-feature hub acceptance: FAIL.** Seven advertised free APInex routes were exercised. Observed outputs included truncated generation/review, missing or fabricated source evidence, incorrect Roblox APIs, local-variable scope errors, overlapping navigation, broken dragging and incomplete cleanup. Some provider reviews incorrectly claimed success; manual code inspection prevented release. Official Luau syntax compilation alone passed one semantically broken candidate and is not sufficient acceptance.
+- **Final candidate French custom-UI test: FAIL**, HTTP 502, `REQUIREMENTS_NOT_MET` (27.7 s). No failed output replaced a prior script. Evidence is under ignored `test-results/full-hub/apinex-final-french-ui` and the other `local-*` experiment directories.
+- The previous OpenRouter free route also reached its daily provider limit during this follow-up.
+
+No canonical alias was moved. Verified mappings remain frontend **`dpl_foG7dmUVytSDSo6q1ky8k99EMuBL`** and API **`dpl_Ei5LpWjLhLtuSprX5fffbNBWTRaD`**. The APInex candidate is reviewable but is not serving `scriptrush-api.vercel.app` yet. The outstanding release gate is a real complete multi-feature hub and a faithful custom UI, followed by the browser flow through the canonical proxy. No in-game execution was performed.
+
+## Previously verified frontend release
+
+The previous frontend release passed the 14 original redesign criteria. The five routes, real Create and Fix calls, output actions, scanner retrieval, report import and browser-local version persistence were verified at that time. The historical evidence below does not certify the newer Full Hub/APInex follow-up.
 
 ## Implementation
 
