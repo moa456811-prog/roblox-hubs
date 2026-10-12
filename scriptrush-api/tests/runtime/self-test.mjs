@@ -6,11 +6,14 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fullHub = await readFile(path.join(here,"fixture-full-hub.lua"),"utf8");
 const frenchUI = await readFile(path.join(here,"fixture-french-ui.lua"),"utf8");
+const englishUI = await readFile(path.join(here,"fixture-english-ui.lua"),"utf8");
 const outputDir=path.resolve(here,"../../test-results/runtime/self-test");
 await mkdir(outputDir,{recursive:true});
 const cases=[
   {name:"valid-full-hub",source:fullHub,scenario:"full-hub",passed:true},
+  {name:"valid-english-ui",source:englishUI,scenario:"english-ui",passed:true},
   {name:"valid-french-ui",source:frenchUI,scenario:"french-ui",passed:true},
+  {name:"french-labels-rejected-for-english-request",source:frenchUI,scenario:"english-ui",failure:"both requested tab buttons exist"},
   {name:"wrong-window-size",source:fullHub.replace("UDim2.fromOffset(480,360)","UDim2.fromOffset(460,360)"),scenario:"full-hub",failure:"requested exact window size"},
   {name:"overlapping-tabs",source:fullHub.replace("10+(index-1)*150,46","10,46"),scenario:"full-hub",failure:"tab buttons do not overlap"},
   {name:"tabs-in-header",source:fullHub.replace("10+(index-1)*150,46","10+(index-1)*150,0"),scenario:"full-hub",failure:"tabs are laid out below the header"},

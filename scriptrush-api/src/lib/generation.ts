@@ -1,7 +1,9 @@
 import { assessContract, formatSourceCatalog, GENERATOR_SYSTEM, parseContract, PLANNER_SYSTEM, REVIEW_SYSTEM, type Coverage, type GenerationContract } from "./generation-contract.ts";
 import { extractCode, providerErrorCode, reviewScript } from "./script-output.ts";
-import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema, parseHubComposition, validateCompositionCoverage } from "./hub-spec.ts";
+import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema, parseHubComposition, validateCompositionCoverage, type HubComposition } from "./hub-spec.ts";
 import { renderHubComposition } from "./hub-composer.ts";
+import { groundCompositionReview } from "./composition-evidence.ts";
+import { englishUiIssues, SCRIPT_UI_LANGUAGE_POLICY } from "./ui-language.ts";
 
 export type ModelCall = (system: string, user: string, maxTokens: number, budget: { timeoutMs: number; deadlineMs: number; attempts: number }) => Promise<{ content: string; model: string; incomplete: boolean }>;
 export type GenerationContext = {
@@ -28,7 +30,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
   try {
     const planned = await request(PLANNER_SYSTEM, original, 5000, 70_000);
     outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures);
-    const requirements = `REQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
+    const requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
     const complex = outcome.contract.fullHub || outcome.contract.features.length > 2 || context.currentScript.length > 16_000;
     const tokens = complex ? Math.min(24_000, Math.max(14_000, Math.ceil(context.currentScript.length / 3))) : 8000;
     // Fresh hubs share tested UI primitives. The model still supplies the whole
@@ -38,6 +40,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
     const writer = composed ? HUB_COMPOSER_SYSTEM : GENERATOR_SYSTEM;
     const writerRequirements = composed ? `${requirements}\n\nHUB COMPOSITION JSON SCHEMA:\n${JSON.stringify(hubCompositionJsonSchema)}` : requirements;
     let compositionText = "";
+    let composition: HubComposition | null = null;
     let compositionIssues: string[] = [];
     let evidenceOnlyFailure = false;
     const implement = (content: string) => {
@@ -45,13 +48,15 @@ export async function generateCompleteScript(context: GenerationContext, call: M
       compositionText = content;
       try {
         const spec = parseHubComposition(content);
-        compositionIssues = validateCompositionCoverage(spec, outcome.contract!);
+        composition = spec;
+        compositionIssues = [...validateCompositionCoverage(spec, outcome.contract!), ...englishUiIssues(spec)];
         outcome.script = renderHubComposition(spec);
       } catch (error) {
         const details = error && typeof error === "object" && "issues" in error && Array.isArray(error.issues)
           ? error.issues.slice(0, 12).map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ")
           : error instanceof Error ? error.message : "invalid JSON value object";
         compositionIssues = [`Invalid hub composition: ${details}. Return actual values in the exact requested object shape, preserving every page and feature.`];
+        composition = null;
         outcome.script = "";
       }
     };
@@ -72,7 +77,10 @@ export async function generateCompleteScript(context: GenerationContext, call: M
       let correction = "";
       for (let attempt = 0; attempt < 2; attempt++) {
         const inspected = await request(REVIEW_SYSTEM, reviewInput + correction, Math.min(10_000, 2200 + outcome.contract!.features.length * 800), 60_000);
-        try { assessment = assessContract(outcome.contract!, inspected.content, outcome.script, context.prompt); }
+        try {
+          const grounded = composition ? groundCompositionReview(inspected.content, composition, outcome.script) : inspected.content;
+          assessment = assessContract(outcome.contract!, grounded, outcome.script, context.prompt);
+        }
         catch (error) {
           if (attempt || deadlineMs - Date.now() < 80_000) throw error;
           correction = '\n\nCORRECT YOUR REVIEW FORMAT: Return the exact JSON value shape in the system instructions. Every feature MUST have id, status, reason, behaviorEvidence, controlEvidence. The status field is one of "implemented", "unavailable", "missing"; do not call it behavior or omit it. Select catalog IDs as evidence. Do not change the script or invent requirements.';

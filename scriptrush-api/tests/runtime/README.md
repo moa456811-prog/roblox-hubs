@@ -8,6 +8,7 @@ From the backend directory:
 
 ```powershell
 node tests/runtime/run-runtime.mjs path/to/generated-hub.lua full-hub
+node tests/runtime/run-runtime.mjs path/to/english-script.lua english-ui
 node tests/runtime/run-runtime.mjs path/to/french-script.lua french-ui
 node tests/runtime/self-test.mjs
 ```
@@ -16,7 +17,9 @@ The runner writes a JSON report under ignored `test-results/runtime/`, or at the
 
 The `full-hub` scenario checks an exact 480 × 360 navy/cyan Aurora Hub window, rounded panel, three distinct Movement/Session/Settings tabs, current-character WalkSpeed (8–32)/JumpPower (20–75) inputs with valid bounds and immediate effects, Rejoin only on click with correct Teleport arguments, visible two-way theme switching, mouse drag and release, minimize/restore, complete ScreenGui destruction and disconnected owned connections.
 
-The `french-ui` scenario checks an exact 420 × 280 navy/cyan Aurora Panel, exact Accueil/Réglages/Fermer strings and Bienvenue/Paramètres page contents, active tab appearance and show/hide effects, complete ScreenGui destruction with no surviving owned connections or visible UI.
+The `english-ui` acceptance scenario checks an exact 420 × 280 navy/cyan Aurora Panel, exact Home/Settings/Close strings and Welcome/Preferences page contents, active tab appearance and show/hide effects, complete ScreenGui destruction with no surviving owned connections or visible UI. The prompt may be written in French; these generated UI labels must be English.
+
+The `french-ui` scenario is retained solely as a legacy renderer Unicode regression: the same geometry/interactions with Accueil/Réglages/Fermer and Bienvenue/Paramètres. It is not the current generated-language acceptance requirement. Self-tests explicitly reject this French fixture for an English UI request.
 
 `self-test.mjs` establishes positive controls and rejects deliberate defects: wrong dimensions, overlapping/header tabs, decorative Apply/Rejoin/theme handlers, invalid numeric ranges, missing JumpPower mode, absent restore, panel-only closure, leaked global connections, both pages remaining visible, forbidden require and an infinite loop.
 

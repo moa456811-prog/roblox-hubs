@@ -137,12 +137,13 @@ check("requested navy is applied to the window",panel~=nil and panel.BackgroundC
 check("requested cyan accent is visibly applied",colorEvidence(cyan,true)~=nil,colorEvidence(cyan,true))
 __observations.initialVisibleButtons=visibleButtonSummary()
 
-if __scenario=="french-ui" then
-    local home=findText("Accueil","TextButton",true)
-    local settings=findText("Réglages","TextButton",true)
-    local welcome=findText("Bienvenue","TextLabel",false)
-    local parameters=findText("Paramètres","TextLabel",false)
-    local close=findText("Fermer","TextButton",true)
+if __scenario~="full-hub" then
+    local english=__scenario=="english-ui"
+    local home=findText(english and "Home" or "Accueil","TextButton",true)
+    local settings=findText(english and "Settings" or "Réglages","TextButton",true)
+    local welcome=findText(english and "Welcome" or "Bienvenue","TextLabel",false)
+    local parameters=findText(english and "Preferences" or "Paramètres","TextLabel",false)
+    local close=findText(english and "Close" or "Fermer","TextButton",true)
     check("both requested tab buttons exist",home~=nil and settings~=nil)
     check("both requested page contents exist",welcome~=nil and parameters~=nil)
     check("exact requested close button exists",close~=nil)
