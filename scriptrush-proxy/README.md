@@ -49,6 +49,8 @@ Tests cover migration, corruption/write failures, history/version recovery, requ
 
 Validation checks code fences, placeholders, obvious truncation and lexical structure. They do not claim a full Luau typecheck or a test inside the Roblox client. Progress reports observed frontend phases and an indeterminate backend working state; elapsed time never fabricates completed backend stages.
 
+The existing backend can return HTTP 200 with a deterministic generic fallback when its model cannot complete the request. The frontend rejects this fallback and failed backend reviews instead of saving an unrelated script as a successful result. An unchanged fix response is also rejected; the original version stays current. Provider availability and in-game behavior remain separate from these frontend checks.
+
 ## Canonical deployment
 
 Existing project: `ahmed-601f/scriptrush-clear-ui` (`prj_h1pY21Aw8ObcDJvVvBqzaMY1LnBh`). Its root is `.` for deployments uploaded from this directory. Do not upload the monorepo with this root or create replacement frontend projects.

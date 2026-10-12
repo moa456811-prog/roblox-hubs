@@ -106,6 +106,39 @@ test("generation rejects multiple blocks, missing output and truncation flags", 
   } finally { globalThis.fetch = restoreFetch; }
 });
 
+test("API rejects the observed generic fallback and failed review without altering the original fix input", async () => {
+  const restoreFetch = globalThis.fetch;
+  const currentScript = "\n-- keep my original\r\nprint('original')\n";
+  const body: GenerationRequest = { ...build, mode: "fix", currentScript, prompt: "Fix only this script" };
+  const badResponses = [
+    { ...response, model: "scriptrush-resilient-fallback", review: { passed: true, strategy: "deterministic-fallback" } },
+    { ...response, model: "other", metadata: { review: { passed: true, strategy: "deterministic-fallback" } } },
+    { message: "```lua\n-- ScriptRush resilient fallback\nprint('generic')\n```" },
+    { ...response, review: { passed: false, issues: ["Unresolved issue"] } },
+  ];
+  try {
+    for (const invalid of badResponses) {
+      globalThis.fetch = async () => Response.json(invalid);
+      await assert.rejects(generateScript(body), /fallback|unresolved review/);
+      assert.equal(body.currentScript, currentScript);
+      assert.equal(body.prompt, "Fix only this script");
+    }
+    globalThis.fetch = async () => Response.json({ ...response, model: "dots-studio/dots-3-note-preview:free", review: { passed: true } });
+    assert.equal((await generateScript(build)).script, "local ready = true\nprint(ready)");
+  } finally { globalThis.fetch = restoreFetch; }
+});
+
+test("an unchanged fix is rejected instead of creating a misleading corrected version", async () => {
+  const restoreFetch = globalThis.fetch;
+  const currentScript = "\n  print('current version')\n\n";
+  globalThis.fetch = async () => Response.json({ message: "```luau\nprint('current version')\n```", model: "actual-provider", review: { passed: true } });
+  try {
+    await assert.rejects(generateScript({ ...build, mode: "fix", currentScript }), (issue: unknown) => issue instanceof ApiError && issue.code === "no_changes" && issue.message.includes("current script was preserved"));
+    assert.equal(currentScript, "\n  print('current version')\n\n");
+    assert.equal((await generateScript(build)).script, "print('current version')");
+  } finally { globalThis.fetch = restoreFetch; }
+});
+
 test("status errors distinguish timeout, capacity and incomplete model output", async () => {
   const restoreFetch = globalThis.fetch;
   const cases: [number, unknown, string][] = [

@@ -134,6 +134,14 @@ export function validateScript(script: string): string {
 }
 
 export function parseScriptResponse(raw: string, metadata: Record<string, unknown> = {}): string {
+  const review = isRecord(metadata.review) ? metadata.review : null;
+  if (metadata.model === "scriptrush-resilient-fallback" || review?.strategy === "deterministic-fallback" ||
+    (typeof raw === "string" && /--\s*ScriptRush resilient fallback\b/i.test(raw))) {
+    throw new ValidationError("The model provider is unavailable and returned a generic fallback that does not match your request. Your request and previous script were preserved. Please try again.");
+  }
+  if (review?.passed === false) {
+    throw new ValidationError("The returned script still has unresolved review issues. Your request and previous script were preserved. Please try again.");
+  }
   if (metadata.finish_reason === "length" || metadata.finishReason === "length" || metadata.truncated === true) {
     throw new ValidationError("The model returned an incomplete response. Your previous script was preserved.");
   }

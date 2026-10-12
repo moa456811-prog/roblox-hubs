@@ -94,6 +94,16 @@ test("script extraction rejects placeholders and provider truncation metadata", 
   assert.throws(() => parseScriptResponse("```lua\nprint(1)\n```", { finish_reason: "length" }), /incomplete/);
 });
 
+test("generic fallback and failed review cannot be presented as a valid generation", () => {
+  const complete = "```lua\nprint('complete syntax is insufficient')\n```";
+  assert.throws(() => parseScriptResponse(complete, { model: "scriptrush-resilient-fallback", review: { passed: true } }), /generic fallback.*previous script were preserved/);
+  assert.throws(() => parseScriptResponse(complete, { model: "unknown", review: { strategy: "deterministic-fallback", passed: true } }), /generic fallback/);
+  assert.throws(() => parseScriptResponse("```lua\n-- ScriptRush resilient fallback\nprint(1)\n```"), /generic fallback/);
+  assert.throws(() => parseScriptResponse(complete, { review: { passed: false, issues: ["Unresolved issue"] } }), /unresolved review issues.*previous script were preserved/);
+  assert.equal(parseScriptResponse(complete, { model: "dots-studio/dots-3-note-preview:free", review: { passed: true } }), "print('complete syntax is insufficient')");
+  assert.equal(parseScriptResponse(complete), "print('complete syntax is insufficient')");
+});
+
 test("lexical checks allow delimiters in strings/comments and standard Luau constructs", () => {
   const code = "-- fake function (\nlocal text = [=[ } end ]=]\nlocal a = if true then 1 else 2\nfor i = 1, 3 do\n  if i > 1 then print(\"[end]\") end\nend\nrepeat a -= 1 until a == 0";
   assert.equal(parseScriptResponse("```luau\n" + code + "\n```"), code);

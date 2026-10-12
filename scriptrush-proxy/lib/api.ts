@@ -85,6 +85,9 @@ export async function generateScript(body: GenerationRequest, signal?: AbortSign
   if (!isRecord(data) || typeof data.message !== "string") throw new ApiError("No complete script returned. Your previous script was preserved.", "incomplete_response");
   const metadata = isRecord(data.metadata) ? { ...data, ...data.metadata } : data;
   const script = parseScriptResponse(data.message, metadata);
+  if (body.mode === "fix" && script.trim() === body.currentScript?.trim()) {
+    throw new ApiError("No corrected changes were returned. Your current script was preserved.", "no_changes");
+  }
   return { script, message: data.message, metadata };
 }
 
