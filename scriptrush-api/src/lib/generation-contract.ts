@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const featureSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/),
@@ -15,7 +15,7 @@ export const contractSchema = z.object({
 export type GenerationContract = z.infer<typeof contractSchema> & { fullHub: boolean };
 export type FeatureCoverage = { id: string; label: string; status: "implemented" | "unavailable"; reason?: string };
 export type Coverage = { features: FeatureCoverage[]; uiVerified: boolean };
-const reviewSchema = z.object({
+export const reviewSchema = z.object({
   missingRequirements: z.array(z.string().max(500)).max(40),
   scopeIssues: z.array(z.string().max(500)).max(20),
   ui: z.object({ passed: z.boolean(), issues: z.array(z.string().max(500)).max(30), evidence: z.array(z.string().max(1800)).max(12) }),
@@ -62,6 +62,12 @@ Verify requested UI colors are APPLIED, dimensions/layout, title, language, exac
 
 export const SOURCE_PROOF_INSTRUCTIONS = "controlEvidence must contain the complete actual :Connect/Once callback wiring, or a call to a local factory whose callback parameter is provably connected to an event. For named handlers show the actual handler reference/call in that wiring. behaviorEvidence must quote the actual effect (property assignment or meaningful Roblox call), not a label, print wrapper, unused declaration, or comment. Supply enough contiguous verbatim source to prove the link; otherwise mark missing. For unavailable actions quote the disabled control and its visible missing-evidence explanation.";
 export const REVIEW_SYSTEM = `${REVIEW_BASE_SYSTEM}\n${SOURCE_PROOF_INSTRUCTIONS}`;
+
+/** The provider receives the same schema used to validate its visible output. */
+export function generationResponseFormat(system: string) {
+  const schema = system.startsWith(PLANNER_SYSTEM) ? contractSchema : system.startsWith(REVIEW_SYSTEM) ? reviewSchema : null;
+  return schema ? { type: "json_schema", json_schema: { name: schema === contractSchema ? "hub_requirements" : "hub_coverage", strict: true, schema: z.toJSONSchema(schema, { target: "draft-7" }) } } : null;
+}
 
 type Token = { value: string; kind: "code" | "string" | "comment"; start: number; end: number };
 /** A conservative lexer for source proof, not a Luau parser or execution test. */

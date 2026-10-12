@@ -1,4 +1,5 @@
 import "server-only";
+import { generationResponseFormat } from "./generation-contract.ts";
 
 type ProviderResult = { content: string; model: string; incomplete: boolean };
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -16,13 +17,14 @@ async function requestOnce(key: string, system: string, user: string, maxTokens:
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const responseFormat = generationResponseFormat(system) || (compactStage(system) ? { type: "json_object" } : null);
     const response = await fetch(ENDPOINT, {
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Title": "ScriptRush" },
       // The free model supports disabling reasoning. Reserve the output budget
       // for the requested code/JSON instead of an invisible reasoning-only result.
-      body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, reasoning: { enabled: false }, ...(compactStage(system) ? { response_format: { type: "json_object" } } : {}), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+      body: JSON.stringify({ model: MODEL, temperature: 0.06, max_tokens: maxTokens, reasoning: { enabled: false }, ...(responseFormat ? { response_format: responseFormat } : {}), messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
     });
     if (!response.ok) {
       if (response.status === 429) throw new Error("RATE_LIMITED");

@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessContract, requestedColorIssues, withoutComments, type GenerationContract } from "../src/lib/generation-contract.ts";
+import { assessContract, generationResponseFormat, GENERATOR_SYSTEM, PLANNER_SYSTEM, REVIEW_SYSTEM, requestedColorIssues, withoutComments, type GenerationContract } from "../src/lib/generation-contract.ts";
 
 const contract: GenerationContract = {
   features: [{ id: "speed", label: "Walk Speed", behavior: "Apply the requested WalkSpeed on click", availability: "supported", evidence: "standard client API", interaction: true }],
   ui: { instructions: "local screen UI", requiredText: [] }, fullHub: false,
 };
 const ui = 'local gui=Instance.new("ScreenGui")';
+
+test("JSON schemas constrain planning and review without forcing code generation into JSON", () => {
+  assert.equal(generationResponseFormat(GENERATOR_SYSTEM), null);
+  assert.equal(generationResponseFormat(`${GENERATOR_SYSTEM}\nREPAIR MODE`), null);
+  const plan = generationResponseFormat(PLANNER_SYSTEM)!;
+  const review = generationResponseFormat(REVIEW_SYSTEM)!;
+  assert.equal(plan.type, "json_schema");
+  assert.equal(review.json_schema.strict, true);
+  assert.deepEqual(review.json_schema.schema.required, ["missingRequirements", "scopeIssues", "ui", "features"]);
+  assert.ok(JSON.stringify(review).includes('"controlEvidence":{"type":"string","maxLength":1800}'));
+});
 function assess(script: string, behavior: string, control: string, change: GenerationContract = contract) {
   return assessContract(change, JSON.stringify({ missingRequirements: [], scopeIssues: [], ui: { passed: true, issues: [], evidence: [ui] }, features: [{ id: "speed", status: "implemented", reason: "", behaviorEvidence: behavior, controlEvidence: control }] }), script, "Apply requested behavior");
 }
