@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { runOpenRouter } from "@/lib/openrouter";
+import { runModel } from "@/lib/model-provider";
 import { generateCompleteScript } from "@/lib/generation";
 export const maxDuration = 300;
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       game: { name: profile?.name || input.game, placeId: profile?.placeId || input.placeId, universeId: profile?.universeId, description: profile?.description, confidence: profile?.confidence, sourceCounts: profile?.sourceCounts },
       supportedFeatures: supported, ledger,
       sources: input.sources.map(source => `--- ${source.name} ---\n${source.content}`).join("\n\n"), diagnostic: input.runtimeDiagnostic || "",
-    }, runOpenRouter, startedAt + 285_000);
+    }, runModel, startedAt + 285_000);
     const review = { passed: !result.issues.length && Boolean(result.script && result.coverage), issues: result.issues, providerIncomplete: result.incomplete, strategy: "requirements-coverage-review", repaired: result.repaired };
     if (!review.passed) {
       const missing = result.reason === "REQUIREMENTS_NOT_MET" || result.reason === "INCOMPLETE_REQUIREMENTS";
