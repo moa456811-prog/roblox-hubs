@@ -61,7 +61,7 @@ const omittedReview = {
 
 const context = (overrides: Partial<GenerationContext> = {}): GenerationContext => ({
   prompt: "Build a full hub with exactly two working actions: Walk Speed sets the local humanoid speed to 24, and Close destroys this UI. Title: Utility Hub. Navy Color3.fromRGB(18,24,42).",
-  currentScript: "", patch: false,
+  currentScript: goodScript, patch: true,
   game: { name: "Test Game", placeId: "123" },
   supportedFeatures: ["Walk Speed", "Close"],
   ledger: "Walk Speed and Close use standard client APIs; no game remotes are needed.",
@@ -90,7 +90,7 @@ function accepted(outcome: Awaited<ReturnType<typeof generateCompleteScript>>): 
   return Boolean(outcome.script && !outcome.reason && !outcome.incomplete && !outcome.issues.length && outcome.coverage?.uiVerified);
 }
 
-test("planner, complete implementation and independent behavioral review produce success in that order", async () => {
+test("existing-script pipeline plans, preserves the implementation and independently reviews behavior", async () => {
   const mock = model([json(plan), lua(goodScript), json(implementedReview)]);
   const deadline = Date.now() + 300000;
   const outcome = await generateCompleteScript(context(), mock.call, deadline);
@@ -119,6 +119,20 @@ test("one missing behavior triggers a full repair and a new independent review",
   assert.ok(mock.calls[3].user.includes('"id":"close"'), "repair must retain already implemented requirements");
   assert.equal(mock.calls[4].system, REVIEW_SYSTEM);
   assert.ok(mock.calls[4].user.includes("ACTUAL GENERATED SCRIPT:\n" + goodScript));
+});
+
+test("an invalid source reference retries the reviewer without rewriting working features", async () => {
+  const invalidEvidence = structuredClone(implementedReview);
+  invalidEvidence.features[0].behaviorEvidence = "SRC_00000000_001";
+  const mock = model([json(plan), lua(goodScript), json(invalidEvidence), json(implementedReview)]);
+  const outcome = await generateCompleteScript(context(), mock.call, Date.now() + 300000);
+  assert.equal(accepted(outcome), true);
+  assert.equal(outcome.repaired, false);
+  assert.equal(outcome.script, goodScript);
+  assert.equal(mock.calls.filter(call => call.system.startsWith(GENERATOR_SYSTEM)).length, 1);
+  assert.equal(mock.calls[3].system, REVIEW_SYSTEM);
+  assert.match(mock.calls[3].user, /CORRECT YOUR REVIEW/);
+  assert.match(mock.calls[3].user, /SOURCE_CATALOG/);
 });
 
 test("repeated omission is rejected after one repair without manufacturing a generic fallback", async () => {

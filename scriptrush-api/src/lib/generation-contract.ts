@@ -41,7 +41,7 @@ export function parseContract(text: string, prompt: string, supportedFeatures: s
   if (new Set(plan.features.map(feature => feature.id)).size !== plan.features.length) throw new Error("INVALID_REQUIREMENTS");
   const fullHub = isFullHubRequest(prompt);
   // A broad hub cannot silently collapse a multi-system evidence ledger to one feature.
-  if (fullHub && supportedFeatures.length > 1 && plan.features.filter(feature => feature.availability === "supported").length < 2) {
+  if (fullHub && supportedFeatures.length > 1 && plan.features.length < 2) {
     throw new Error("INCOMPLETE_REQUIREMENTS");
   }
   return { ...plan, fullHub };
@@ -58,11 +58,12 @@ Evidence validates game-specific availability; it does not expand a non-hub requ
 ${UI_GENERATION_GUIDE}`;
 
 const REVIEW_BASE_SYSTEM = `You are ScriptRush's independent code acceptance reviewer. Return JSON ONLY:
-{"missingRequirements":[],"scopeIssues":[],"ui":{"passed":true,"issues":[],"evidence":["EXACT applied UI code excerpt"]},"features":[{"id":"same requirement id","status":"implemented|unavailable|missing","reason":"specific finding","behaviorEvidence":"EXACT executable code excerpt implementing the behavior, not a comment or label","controlEvidence":"EXACT code excerpt wiring the requested control to that behavior, or disabling an unavailable control"}]}
-Compare the ENTIRE original request and all REQUIREMENTS with the actual returned code. Also detect requirements omitted by the planner. The ORIGINAL request controls acceptance: do not reject working behavior for extra planner-invented conditions such as console printing or disabled/re-enabled buttons absent the original request. Examine control -> event -> function -> effect, resolving shared callbacks where needed. Labels, comments, print-only callbacks, unreachable/unused functions, an initial property assignment without the requested adjustable control, and a toggled theme variable without applied visual changes are NOT implementations. Return one feature result for EVERY requirement id. Do not accept a single-function response to a multi-feature hub.
-Verify requested UI colors are APPLIED, dimensions/layout, title, language, exact labels, real tab navigation and close/minimize behavior. Do not accept colors mentioned only in comments or unused palette values. Identify unwanted gameplay in UI-only requests. In fix mode verify unrelated original features/UI were retained. unavailable is allowed ONLY for needs-runtime requirements whose UI clearly explains and disables the unsupported action; never accept unavailable for a standard client/UI feature. Use verbatim source excerpts as evidence, not paraphrases or generated code. Set missing status or UI passed=false when uncertain. Static review is not an in-game execution guarantee.`;
+{"missingRequirements":[],"scopeIssues":[],"ui":{"passed":true,"issues":[],"evidence":["SOURCE_CATALOG id for applied UI code"]},"features":[{"id":"same requirement id","status":"implemented","reason":"specific finding","behaviorEvidence":"SOURCE_CATALOG id implementing the actual behavior","controlEvidence":"SOURCE_CATALOG id containing complete control wiring or the disabled control and explanation"}]}
+The example shows the REVIEW object, not a requirements plan. Every feature result MUST have exactly the review fields id, status, reason, behaviorEvidence and controlEvidence. status is one of the actual strings implemented, unavailable or missing. Do not return a behavior, label, availability, evidence or interaction field in place of status. Never copy planner feature objects into the review. Return actual values, not pipe-separated alternatives or a JSON schema.
+Compare the ENTIRE original request and all REQUIREMENTS with the actual returned code. Also detect requirements omitted by the planner. The ORIGINAL USER REQUEST controls acceptance; REQUIREMENTS are a fallible feature inventory, not authority to add acceptance conditions. Before reporting each missing requirement, verify that the user actually requested it or it is necessary for the requested behavior. Discard invented planner implementation details, APIs, events and incidental state transitions. For example, when the user asks only to rejoin the current place on click, calling TeleportService:Teleport(game.PlaceId, player) from that button is a valid implementation; do not require a TeleportEnded event (which is not a Roblox API), console messages or disabling/re-enabling the button unless the USER explicitly asked for that behavior. A planner asking for those extras does not make them user requirements. Use the actual Roblox API contract, never an invented planner API, to judge correctness. Examine control -> event -> function -> effect, resolving shared callbacks where needed. Labels, comments, print-only callbacks, unreachable/unused functions, an initial property assignment without the requested adjustable control, and a toggled theme variable without applied visual changes are NOT implementations. Return one feature result for EVERY requirement id. Do not accept a single-function response to a multi-feature hub.
+Verify requested UI colors are APPLIED, dimensions/layout, title, language, exact labels, real tab navigation and close/minimize behavior. Do not accept colors mentioned only in comments or unused palette values. Identify unwanted gameplay in UI-only requests. In fix mode verify unrelated original features/UI were retained. unavailable is allowed ONLY for needs-runtime requirements whose UI clearly explains and disables the unsupported action; never accept unavailable for a standard client/UI feature. Use SOURCE_CATALOG ids as evidence when a catalog is supplied. The server resolves each id to its exact original source; never rewrite, combine, or paraphrase source. An id is evidence only for what its code actually does; the catalog does not certify correctness or reachability. Set missing status or UI passed=false when uncertain. Static review is not an in-game execution guarantee.`;
 
-export const SOURCE_PROOF_INSTRUCTIONS = "Every evidence string must be ONE CONTIGUOUS VERBATIM SUBSTRING of ACTUAL GENERATED SCRIPT. Never combine non-adjacent lines, rewrite code, use ellipses, or put descriptions in evidence; put descriptions only in reason. ui.evidence must have 1 to 12 entries, each at most 1800 characters; a few short exact applied-property assignments suffice. controlEvidence (maximum 1800 characters) must contain the COMPLETE actual :Connect/Once callback wiring through its closing end), or a COMPLETE call to a local factory whose callback parameter is provably connected to an event. Never quote only the beginning of a callback. For named handlers show the actual handler reference/call in that wiring. behaviorEvidence (maximum 2400 characters) must quote the actual effect (property assignment or meaningful Roblox call), not a label, print wrapper, unused declaration, or comment. For a theme callback calling applyTheme, quote the applied property assignments in applyTheme as behaviorEvidence. Check dragging actually updates Position on mouse/touch MOVEMENT while held; updating only on initial press is broken dragging. Supply enough contiguous verbatim source to prove the link; otherwise mark missing. For unavailable actions quote the disabled control and its visible missing-evidence explanation.";
+export const SOURCE_PROOF_INSTRUCTIONS = "When SOURCE_CATALOG is supplied, every nonempty evidence string must be exactly ONE catalog id, such as SRC_0123abcd_001. Do not copy code into evidence, add descriptions, join ids, or invent ids. Put explanations only in reason/issues. ui.evidence must have 1 to 12 ids for actually applied UI properties. controlEvidence must select a complete :Connect/Once callback registration, or a COMPLETE call to a local factory whose callback parameter is provably connected to an event. For named handlers select the actual handler reference/call in that wiring. behaviorEvidence must select the actual effect (property assignment or meaningful Roblox call), not a label, print wrapper, unused declaration, or comment. For a theme callback calling applyTheme, select applied property assignments inside applyTheme. Check dragging actually updates Position on mouse/touch MOVEMENT while held; updating only on initial press is broken dragging. For unavailable actions select a context entry containing both the disabled control and its visible missing-evidence explanation. If there is no catalog, use one contiguous verbatim source excerpt per evidence field (control maximum 1800 characters, behavior maximum 2400, each UI entry maximum 1800); never combine non-adjacent lines or rewrite source. Otherwise mark missing.";
 export const REVIEW_SYSTEM = `${REVIEW_BASE_SYSTEM}\n${SOURCE_PROOF_INSTRUCTIONS}`;
 
 /** The provider receives the same schema used to validate its visible output. */
@@ -226,6 +227,16 @@ function argumentFunction(proof: Proof, argument: Span): FunctionProof | null {
   return proof.functions.find(func => func.start === argument.start && func.end === argument.end) || namedFunction(proof, values(proof.tokens, argument));
 }
 const eventCall = (call: CallProof) => /:(?:Connect|Once|ConnectParallel)$/.test(call.name);
+/** Only these known builtins execute their first argument; arbitrary functions do not. */
+function executedCallback(proof: Proof, call: CallProof): FunctionProof | null {
+  if (!["pcall", "xpcall", "task.spawn", "task.defer"].includes(call.name) || !call.args[0]) return null;
+  const root = call.name.split(".")[0];
+  const nameLength = call.name.split(".").length * 2 - 1;
+  // An explicitly rebound builtin has unknown behavior. Do not grant its
+  // callback execution merely because it retains a familiar name.
+  if (proof.tokens.some((token, index) => token.kind === "code" && token.value === root && (proof.tokens[index - 1]?.value === "local" || proof.tokens[index - 1]?.value === "function" || proof.tokens[index + 1]?.value === "=" || (values(proof.tokens, { start: index, end: index + nameLength }) === call.name && proof.tokens[index + nameLength]?.value === "=")))) return null;
+  return argumentFunction(proof, call.args[0]);
+}
 function parameterIsWired(proof: Proof, func: FunctionProof, param: string, seen = new Set<string>()): boolean {
   const key = `${func.start}:${param}`;
   if (seen.has(key) || seen.size > 8) return false;
@@ -252,6 +263,8 @@ function reachableFunctions(proof: Proof, root: FunctionProof): FunctionProof[] 
     for (const call of proof.calls.filter(call => ownBody(proof, func, call))) {
       const next = namedFunction(proof, call.name);
       if (next) pending.push(next);
+      const executed = executedCallback(proof, call);
+      if (executed) pending.push(executed);
     }
   }
   return reached;
@@ -269,6 +282,8 @@ function reachableRegistrations(proof: Proof): Set<CallProof> {
       calls.add(call); changed = true;
       const named = namedFunction(proof, call.name);
       if (named) functions.add(named);
+      const executed = executedCallback(proof, call);
+      if (executed) functions.add(executed);
       if (eventCall(call) && call.args[0]) { const callback = argumentFunction(proof, call.args[0]); if (callback) functions.add(callback); }
       else if (named) call.args.forEach((arg, index) => { const callback = argumentFunction(proof, arg); if (callback && named.params[index] && parameterIsWired(proof, named, named.params[index])) functions.add(callback); });
     }
@@ -283,6 +298,73 @@ function effectSpans(proof: Proof): Span[] {
   }
   for (const call of proof.calls) if (/:(?:Destroy|Teleport|TeleportAsync|PivotTo|MoveTo|ChangeState|FireServer|InvokeServer|Play|Stop|EquipTool|UnequipTools|Activate|SetAttribute|CaptureFocus|ReleaseFocus|Disconnect)$/.test(call.name) || call.name === "Instance.new") effects.push(call);
   return effects;
+}
+
+export type SourceCatalogEntry = {
+  id: string;
+  kind: "control" | "effect" | "function" | "context";
+  startLine: number;
+  endLine: number;
+  code: string;
+};
+const SOURCE_REFERENCE = /^SRC_[a-f0-9]{8}_\d{3}$/;
+
+/**
+ * Source-bound references let a reviewer select existing code instead of copying
+ * it. Entries are contiguous source, never synthesized snippets. Catalog membership
+ * is not proof of correctness: assessContract still verifies reachability/effects.
+ */
+export function buildSourceCatalog(script: string): SourceCatalogEntry[] {
+  const proof = makeProof(script);
+  const lineStarts = [0];
+  for (let index = 0; index < script.length; index++) if (script[index] === "\n") lineStarts.push(index + 1);
+  const lineAt = (offset: number) => {
+    let low = 0, high = lineStarts.length;
+    while (low + 1 < high) { const middle = (low + high) >>> 1; if (lineStarts[middle] <= offset) low = middle; else high = middle; }
+    return low;
+  };
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < script.length; index++) hash = Math.imul(hash ^ script.charCodeAt(index), 0x01000193);
+  const prefix = `SRC_${(hash >>> 0).toString(16).padStart(8, "0")}_`;
+  const entries: SourceCatalogEntry[] = [], included = new Set<string>();
+  let characters = 0;
+  const add = (start: number, end: number, kind: SourceCatalogEntry["kind"]) => {
+    while (start < end && /\s/.test(script[start])) start++;
+    while (end > start && /\s/.test(script[end - 1])) end--;
+    const key = `${start}:${end}`, code = script.slice(start, end);
+    // Bound duplicate source in model context. Controls are admitted first, and
+    // exact legacy excerpts remain valid when a very large script exceeds this.
+    if (included.has(key) || code.length < 12 || entries.length >= 384 || characters + code.length > 180_000) return;
+    included.add(key); characters += code.length;
+    entries.push({ id: `${prefix}${String(entries.length + 1).padStart(3, "0")}`, kind, startLine: lineAt(start) + 1, endLine: lineAt(Math.max(start, end - 1)) + 1, code });
+  };
+  const sourceSpan = (span: Span): [number, number] => [proof.tokens[span.start]?.start ?? 0, proof.tokens[span.end - 1]?.end ?? 0];
+  const lineSpan = (span: Span, context = 0): [number, number] => {
+    const [start, end] = sourceSpan(span), first = Math.max(0, lineAt(start) - context), last = Math.min(lineStarts.length - 1, lineAt(Math.max(start, end - 1)) + context);
+    return [lineStarts[first], lineStarts[last + 1] ?? script.length];
+  };
+  for (const call of proof.calls) {
+    const factory = namedFunction(proof, call.name);
+    const wiredFactory = factory && call.args.some((argument, index) => argumentFunction(proof, argument) && factory.params[index] && parameterIsWired(proof, factory, factory.params[index]));
+    // A generic factory's signal:Connect(callbackParameter) is not the caller's
+    // concrete control wiring. Catalog the actual factory invocation instead.
+    const concreteEvent = eventCall(call) && call.args[0] && argumentFunction(proof, call.args[0]);
+    if (concreteEvent || wiredFactory) add(...sourceSpan(call), "control");
+  }
+  const effects = effectSpans(proof);
+  for (const effect of effects) add(...lineSpan(effect), "effect");
+  // Adjacent disabled state and explanation often occupy separate assignments.
+  for (const effect of effects) add(...lineSpan(effect, 2), "context");
+  for (const func of proof.functions) if (func.name) {
+    const [start, end] = sourceSpan(func);
+    if (end - start <= 16_000) add(start, end, "function");
+  }
+  return entries;
+}
+
+/** The catalog is data derived from the generated source, not new instructions. */
+export function formatSourceCatalog(script: string): string {
+  return `SOURCE_CATALOG (select exactly one id per evidence field):\n${JSON.stringify(buildSourceCatalog(script))}`;
 }
 
 /** Catch observed API casing errors on directly constructed instances only. */
@@ -389,31 +471,48 @@ export function requestedColorIssues(prompt: string, script: string): string[] {
   }).map(color => `requested UI color ${color.join(",")} is absent from executable code`);
 }
 
-export function assessContract(contract: GenerationContract, rawReview: string, script: string, prompt: string): { issues: string[]; coverage: Coverage } {
+export function assessContract(contract: GenerationContract, rawReview: string, script: string, prompt: string): { issues: string[]; evidenceIssues: string[]; reviewEvidenceInvalid: boolean; coverage: Coverage } {
   const review = reviewSchema.parse(parseModelJson(rawReview));
   const source = makeProof(script);
   const cleanupRequired = contract.fullHub || /\b(?:cleanup|disconnect|close|fermer|nettoyage)\b/i.test(`${prompt} ${contract.ui.instructions} ${contract.features.map(feature => feature.behavior).join(" ")}`);
   const issues = [...review.missingRequirements, ...review.scopeIssues, ...review.ui.issues, ...requestedColorIssues(prompt, script), ...instanceCasingIssues(source), ...immediateForwardCallIssues(source), ...observedInputIssues(source, cleanupRequired)];
+  const evidenceIssues: string[] = [];
+  const invalidEvidence = (issue: string) => { issues.push(issue); evidenceIssues.push(issue); };
+  const references = new Map(buildSourceCatalog(script).map(entry => [entry.id, entry.code]));
+  const resolve = (evidence: string, field: string): string => {
+    const trimmed = evidence.trim();
+    if (!trimmed.startsWith("SRC_")) return evidence;
+    const code = SOURCE_REFERENCE.test(trimmed) ? references.get(trimmed) : undefined;
+    if (code === undefined) { invalidEvidence(`${field}: unknown source evidence reference`); return ""; }
+    return code;
+  };
+  review.ui.evidence = review.ui.evidence.map((evidence, index) => resolve(evidence, `UI evidence ${index + 1}`));
+  for (const feature of review.features) {
+    feature.behaviorEvidence = resolve(feature.behaviorEvidence, `${feature.id} behavior`);
+    feature.controlEvidence = resolve(feature.controlEvidence, `${feature.id} control`);
+  }
   const features: FeatureCoverage[] = [];
   const ids = review.features.map(feature => feature.id);
-  if (new Set(ids).size !== ids.length || ids.some(id => !contract.features.some(feature => feature.id === id))) issues.push("invalid feature coverage review");
+  if (new Set(ids).size !== ids.length || ids.some(id => !contract.features.some(feature => feature.id === id))) invalidEvidence("invalid feature coverage review");
   for (const feature of contract.features) {
     const found = review.features.find(item => item.id === feature.id);
-    if (!found || found.status === "missing") { issues.push(`${feature.label}: ${found?.reason || "requested behavior missing"}`); continue; }
+    if (!found) { invalidEvidence(`${feature.label}: feature coverage result missing`); continue; }
+    if (found.status === "missing") { issues.push(`${feature.label}: ${found.reason || "requested behavior missing"}`); continue; }
     if (found.status === "unavailable") {
-      if (feature.availability !== "needs-runtime" || !found.reason.trim() || !hasEvidence(source, found.controlEvidence)) issues.push(`${feature.label}: unsupported unavailable claim`);
+      if (feature.availability !== "needs-runtime") issues.push(`${feature.label}: unsupported unavailable claim`);
+      if (!found.reason.trim() || !hasEvidence(source, found.controlEvidence)) invalidEvidence(`${feature.label}: unavailable control evidence missing from code`);
       const control = executable(found.controlEvidence);
       const controlCode = control.map(token => token.kind === "code" ? token.value : " ").join(" ");
-      if (!/\.\s*(?:Active|Interactable|Enabled)\s*=\s*false\b/.test(controlCode) || !control.some(token => token.kind === "string" && /needs? (?:game |runtime )?profile|missing|unavailable|runtime evidence|not supported|profil(?: du jeu| de jeu| d['’]exécution)? (?:requis|manquant|absent)|(?:preuves?|données?|informations?|contexte)(?: (?:du jeu|d['’]exécution|runtime))? (?:manquant(?:es?|s)?|requis(?:es?)?|absent(?:es?)?)|indisponible|non pris(?:e)? en charge|(?:nécessite|requiert).{0,40}(?:profil|données|preuves|scan)/i.test(token.value))) issues.push(`${feature.label}: disabled control and visible missing-evidence explanation not proved`);
+      if (!/\.\s*(?:Active|Interactable|Enabled)\s*=\s*false\b/.test(controlCode) || !control.some(token => token.kind === "string" && /needs? (?:game |runtime )?profile|missing|unavailable|runtime evidence|not supported|profil(?: du jeu| de jeu| d['’]exécution)? (?:requis|manquant|absent)|(?:preuves?|données?|informations?|contexte)(?: (?:du jeu|d['’]exécution|runtime))? (?:manquant(?:es?|s)?|requis(?:es?)?|absent(?:es?)?)|indisponible|non pris(?:e)? en charge|(?:nécessite|requiert).{0,40}(?:profil|données|preuves|scan)/i.test(token.value))) invalidEvidence(`${feature.label}: disabled control and visible missing-evidence explanation not proved`);
       features.push({ id: feature.id, label: feature.label, status: "unavailable", reason: found.reason });
     } else {
-      if (!hasEvidence(source, found.behaviorEvidence) || (feature.interaction && !hasEvidence(source, found.controlEvidence))) issues.push(`${feature.label}: implementation/control evidence missing from code`);
-      if (feature.interaction && !wiredBehavior(source, found.behaviorEvidence, found.controlEvidence)) issues.push(`${feature.label}: control-to-behavior effect could not be proved`);
+      if (!hasEvidence(source, found.behaviorEvidence) || (feature.interaction && !hasEvidence(source, found.controlEvidence))) invalidEvidence(`${feature.label}: implementation/control evidence missing from code`);
+      if (feature.interaction && !wiredBehavior(source, found.behaviorEvidence, found.controlEvidence)) invalidEvidence(`${feature.label}: control-to-behavior effect could not be proved`);
       features.push({ id: feature.id, label: feature.label, status: "implemented" });
     }
   }
   if (!review.ui.passed) issues.push("requested UI design was not satisfied");
-  if (contract.ui.instructions && (!review.ui.evidence.length || review.ui.evidence.some(excerpt => !hasEvidence(source, excerpt)))) issues.push("applied UI evidence missing from code");
+  if (contract.ui.instructions && (!review.ui.evidence.length || review.ui.evidence.some(excerpt => !hasEvidence(source, excerpt)))) invalidEvidence("applied UI evidence missing from code");
   for (const text of contract.ui.requiredText) if (!withoutComments(script).includes(text)) issues.push(`required UI text missing: ${text}`);
-  return { issues: [...new Set(issues)], coverage: { features, uiVerified: review.ui.passed && !issues.length } };
+  return { issues: [...new Set(issues)], evidenceIssues: [...new Set(evidenceIssues)], reviewEvidenceInvalid: evidenceIssues.length > 0, coverage: { features, uiVerified: review.ui.passed && !issues.length } };
 }

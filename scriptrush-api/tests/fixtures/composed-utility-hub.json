@@ -1,0 +1,20 @@
+{
+  "window": {
+    "title": "Aurora Hub", "width": 480, "height": 360, "radius": 12, "draggable": true, "navigation": "top", "font": "Gotham", "textSize": 14,
+    "closeLabel": "Close", "minimizeLabel": "Minimize", "restoreLabel": "Restore", "featureIds": [],
+    "palette": { "background": [18,24,42], "foreground": [238,245,255], "accent": [85,221,255], "control": [30,43,68], "muted": [175,191,213] },
+    "alternatePalette": { "background": [24,18,38], "foreground": [245,235,255], "accent": [181,120,255], "control": [51,34,76], "muted": [194,175,218] }
+  },
+  "pages": [
+    { "id": "movement", "label": "Movement", "featureIds": [], "items": [
+      { "id": "walk-speed", "featureIds": ["walk-speed"], "kind": "number", "label": "Walk Speed", "description": "Adjust the current character's speed.", "applyLabel": "Apply", "min": 8, "max": 32, "initial": 16, "action": "walk-speed", "code": "" },
+      { "id": "jump-power", "featureIds": ["jump-power"], "kind": "number", "label": "Jump Power", "description": "Adjust the current character's jump power.", "applyLabel": "Apply", "min": 20, "max": 75, "initial": 50, "action": "jump-power", "code": "" }
+    ] },
+    { "id": "session", "label": "Session", "featureIds": [], "items": [
+      { "id": "rejoin", "featureIds": ["rejoin"], "kind": "button", "label": "Rejoin", "description": "Rejoin this place when clicked.", "action": "rejoin", "code": "" }
+    ] },
+    { "id": "settings", "label": "Settings", "featureIds": [], "items": [
+      { "id": "theme", "featureIds": ["theme"], "kind": "toggle", "label": "Theme", "description": "Switch between navy/cyan and dark/purple.", "onLabel": "Purple", "offLabel": "Navy", "initial": false, "action": "theme", "code": "" }
+    ] }
+  ]
+}

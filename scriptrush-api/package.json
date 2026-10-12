@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:runtime": "node tests/runtime/run-runtime.mjs",
+    "test:runtime:self": "node tests/runtime/self-test.mjs"
   },
   "dependencies": {
     "next": "16.4.0",

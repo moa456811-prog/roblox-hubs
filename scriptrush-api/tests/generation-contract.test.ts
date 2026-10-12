@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessContract, generationResponseFormat, GENERATOR_SYSTEM, PLANNER_SYSTEM, REVIEW_SYSTEM, requestedColorIssues, withoutComments, type GenerationContract } from "../src/lib/generation-contract.ts";
+import { assessContract, buildSourceCatalog, formatSourceCatalog, generationResponseFormat, GENERATOR_SYSTEM, parseContract, PLANNER_SYSTEM, REVIEW_SYSTEM, requestedColorIssues, withoutComments, type GenerationContract } from "../src/lib/generation-contract.ts";
 
 const contract: GenerationContract = {
   features: [{ id: "speed", label: "Walk Speed", behavior: "Apply the requested WalkSpeed on click", availability: "supported", evidence: "standard client API", interaction: true }],
@@ -17,6 +17,12 @@ test("JSON schemas constrain planning and review without forcing code generation
   assert.equal(review.json_schema.strict, true);
   assert.deepEqual(review.json_schema.schema.required, ["missingRequirements", "scopeIssues", "ui", "features"]);
   assert.ok(JSON.stringify(review).includes('"controlEvidence":{"type":"string","maxLength":1800}'));
+});
+
+test("planner-shaped feature objects cannot masquerade as independently accepted reviews", () => {
+  const control = "button.Activated:Connect(function() humanoid.WalkSpeed=25 end)";
+  const raw = JSON.stringify({ missingRequirements: [], scopeIssues: [], ui: { passed: true, issues: [], evidence: [ui] }, features: [{ id: "speed", behavior: "implemented", reason: "", behaviorEvidence: "humanoid.WalkSpeed=25", controlEvidence: control }] });
+  assert.throws(() => assessContract(contract, raw, `${ui}\n${control}`, "Apply requested behavior"));
 });
 function assess(script: string, behavior: string, control: string, change: GenerationContract = contract) {
   return assessContract(change, JSON.stringify({ missingRequirements: [], scopeIssues: [], ui: { passed: true, issues: [], evidence: [ui] }, features: [{ id: "speed", status: "implemented", reason: "", behaviorEvidence: behavior, controlEvidence: control }] }), script, "Apply requested behavior");
@@ -200,4 +206,133 @@ test("French unavailable controls preserve the requested UI language", () => {
   }
   assert.ok(evaluate('button.Interactable=false; button.Text="Prêt"').issues.length);
   assert.ok(evaluate('button.Interactable=true; button.Text="Profil du jeu requis"').issues.length);
+});
+
+function referencedReview(script: string, behavior: string, control: string) {
+  const catalog = buildSourceCatalog(script);
+  const ref = (code: string, kind?: string) => {
+    const entry = catalog.find(item => item.code.includes(code) && (!kind || item.kind === kind)) || catalog.find(item => item.code.includes(code));
+    assert.ok(entry, `source catalog contains ${kind || "source"} ${code}`);
+    return entry.id;
+  };
+  return {
+    missingRequirements: [] as string[], scopeIssues: [] as string[],
+    ui: { passed: true, issues: [] as string[], evidence: [ref(ui)] },
+    features: [{ id: "speed", status: "implemented", reason: "", behaviorEvidence: ref(behavior, "effect"), controlEvidence: ref(control, "control") }],
+  };
+}
+
+test("source catalog ids deterministically resolve complete control registrations and real effects", () => {
+  const effect = "humanoid.WalkSpeed=25";
+  const control = `button.Activated:Connect(function() ${effect} end)`;
+  const script = `${ui}\n${control}`;
+  const first = buildSourceCatalog(script);
+  assert.deepEqual(first, buildSourceCatalog(script));
+  assert.ok(first.every(entry => script.includes(entry.code) && /^SRC_[a-f0-9]{8}_\d{3}$/.test(entry.id)));
+  assert.ok(first.some(entry => entry.kind === "control" && entry.code === control));
+  assert.ok(formatSourceCatalog(script).includes(first[0].id));
+  const result = assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Apply requested behavior");
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(result.evidenceIssues, []);
+  assert.equal(result.reviewEvidenceInvalid, false);
+});
+
+test("catalog references preserve complete long callbacks without copied-source output limits", () => {
+  const effect = "humanoid.WalkSpeed=25";
+  const control = `button.Activated:Connect(function()\n${"  local state = 1\n".repeat(130)}  ${effect}\nend)`;
+  const script = `${ui}\n${control}`;
+  assert.ok(control.length > 1800);
+  const result = assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Apply requested behavior");
+  assert.deepEqual(result.issues, []);
+});
+
+test("catalog wiring proof follows an owned signal factory and named theme handler", () => {
+  const effect = "panel.BackgroundColor3=Color3.fromRGB(18,24,42)";
+  const control = "own(button.Activated, applyTheme)";
+  const script = `${ui}\nlocal function own(signal, handler) local connection=signal:Connect(handler); connections[#connections+1]=connection end\nlocal function applyTheme()\n  ${effect}\nend\n${control}`;
+  assert.ok(!buildSourceCatalog(script).some(entry => entry.kind === "control" && entry.code === "signal:Connect(handler)"));
+  const result = assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Apply requested behavior");
+  assert.deepEqual(result.issues, []);
+});
+
+test("protected and scheduled callback bodies count only for known unshadowed executing builtins", () => {
+  const effect = "TeleportService:Teleport(game.PlaceId, player)";
+  for (const builtin of ["pcall", "xpcall", "task.spawn", "task.defer"]) {
+    const control = `button.Activated:Connect(function() ${builtin}(function() ${effect} end) end)`;
+    const script = `${ui}\n${control}`;
+    assert.deepEqual(assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Rejoin on click").issues, []);
+  }
+  for (const setup of ["local pcall = print", "pcall = print", "local function pcall(callback) print(callback) end", "local task = {}", "task.spawn = print", "function task.spawn(callback) print(callback) end"] ) {
+    const builtin = setup.includes("task") ? "task.spawn" : "pcall";
+    const control = `button.Activated:Connect(function() ${builtin}(function() ${effect} end) end)`;
+    const script = `${ui}\n${setup}\n${control}`;
+    assert.ok(assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Rejoin on click").issues.some(issue => issue.includes("control-to-behavior")));
+  }
+  const control = `button.Activated:Connect(function() ignore(function() ${effect} end) end)`;
+  const script = `${ui}\nlocal function ignore(callback) print(callback) end\n${control}`;
+  assert.ok(assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Rejoin on click").issues.some(issue => issue.includes("control-to-behavior")));
+});
+
+test("unknown, combined and stale source references invalidate review without inventing script defects", () => {
+  const effect = "humanoid.WalkSpeed=25";
+  const control = `button.Activated:Connect(function() ${effect} end)`;
+  const script = `${ui}\n${control}`;
+  const valid = referencedReview(script, effect, control);
+  for (const id of ["SRC_00000000_999", `${valid.features[0].controlEvidence}, ${valid.features[0].behaviorEvidence}`]) {
+    const review = structuredClone(valid);
+    review.features[0].controlEvidence = id;
+    const result = assessContract(contract, JSON.stringify(review), script, "Apply requested behavior");
+    assert.equal(result.reviewEvidenceInvalid, true);
+    assert.ok(result.evidenceIssues.some(issue => issue.includes("unknown source evidence reference")));
+    assert.ok(result.issues.length);
+  }
+  const changed = `${script}\n-- a different generated version`;
+  const stale = assessContract(contract, JSON.stringify(valid), changed, "Apply requested behavior");
+  assert.ok(stale.evidenceIssues.some(issue => issue.includes("unknown source evidence reference")));
+});
+
+test("catalog membership never certifies unused effects or disconnected controls", () => {
+  const effect = "humanoid.WalkSpeed=25";
+  const control = 'button.Activated:Connect(function() print("clicked") end)';
+  const script = `${ui}\nlocal function unused()\n  ${effect}\nend\n${control}`;
+  const result = assessContract(contract, JSON.stringify(referencedReview(script, effect, control)), script, "Apply requested behavior");
+  assert.ok(result.issues.some(issue => issue.includes("control-to-behavior")));
+  assert.equal(result.reviewEvidenceInvalid, true);
+});
+
+test("semantic UI rejection stays distinct from invalid evidence references", () => {
+  const effect = "humanoid.WalkSpeed=25";
+  const control = `button.Activated:Connect(function() ${effect} end)`;
+  const script = `${ui}\n${control}`;
+  const review = referencedReview(script, effect, control);
+  review.ui.passed = false;
+  review.ui.issues = ["Requested tabs are absent"];
+  const result = assessContract(contract, JSON.stringify(review), script, "Apply requested behavior");
+  assert.equal(result.reviewEvidenceInvalid, false);
+  assert.deepEqual(result.evidenceIssues, []);
+  assert.ok(result.issues.includes("Requested tabs are absent"));
+  assert.ok(result.issues.includes("requested UI design was not satisfied"));
+});
+
+test("missing review coverage is invalid evidence while missing implementation is a semantic rejection", () => {
+  const effect = "humanoid.WalkSpeed=25";
+  const control = `button.Activated:Connect(function() ${effect} end)`;
+  const script = `${ui}\n${control}`;
+  const omitted = referencedReview(script, effect, control);
+  omitted.features = [];
+  assert.equal(assessContract(contract, JSON.stringify(omitted), script, "Apply requested behavior").reviewEvidenceInvalid, true);
+  const missing = referencedReview(script, effect, control);
+  missing.features[0].status = "missing";
+  missing.features[0].reason = "Apply does not set WalkSpeed";
+  const rejected = assessContract(contract, JSON.stringify(missing), script, "Apply requested behavior");
+  assert.equal(rejected.reviewEvidenceInvalid, false);
+  assert.ok(rejected.issues.some(issue => issue.includes("does not set WalkSpeed")));
+});
+
+test("honest unsupported systems count toward a full hub contract without being fabricated as supported", () => {
+  const features = ["Auto Farm", "Quest Farm"].map((label, index) => ({ ...contract.features[0], id: `feature-${index}`, label, availability: "needs-runtime", evidence: "Runtime paths and remote payloads are absent" }));
+  const parsed = parseContract(JSON.stringify({ features, ui: contract.ui }), "Generate a full hub", ["auto-farm", "quest-farm"]);
+  assert.equal(parsed.features.length, 2);
+  assert.ok(parsed.features.every(feature => feature.availability === "needs-runtime"));
+  assert.throws(() => parseContract(JSON.stringify({ features: features.slice(0, 1), ui: contract.ui }), "Generate a full hub", ["auto-farm", "quest-farm"]), /INCOMPLETE_REQUIREMENTS/);
 });

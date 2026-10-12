@@ -1,10 +1,15 @@
 import "server-only";
 import { generationResponseFormat } from "./generation-contract.ts";
+import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema } from "./hub-spec.ts";
 import { selectProvider, type ProviderConfig } from "./provider-config.ts";
 import { readProviderCompletion } from "./provider-response.ts";
+import { capacityRetryDelay } from "./provider-capacity.ts";
 
 type ProviderResult = { content: string; model: string; incomplete: boolean };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+class CapacityError extends Error {
+  constructor(readonly retryAfter: string | null, readonly dailyLimit: boolean) { super("RATE_LIMITED"); }
+}
 
 function compactStage(system: string) {
   const value = system.toLowerCase();
@@ -16,7 +21,9 @@ async function requestOnce(provider: ProviderConfig, system: string, user: strin
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const schemaFormat = generationResponseFormat(system);
+    const schemaFormat = system.startsWith(HUB_COMPOSER_SYSTEM)
+      ? { type: "json_schema", json_schema: { name: "hub_composition", strict: true, schema: hubCompositionJsonSchema } }
+      : generationResponseFormat(system);
     // APInex forwards portable JSON mode reliably; its schema passthrough may
     // echo a schema wrapper instead of the values. Validate values locally.
     const responseFormat = schemaFormat && provider.name === "apinex" ? { type: "json_object" } : schemaFormat || (compactStage(system) ? { type: "json_object" } : null);
@@ -34,7 +41,7 @@ async function requestOnce(provider: ProviderConfig, system: string, user: strin
         const data = await response.json().catch(() => ({})) as { error?: { message?: string; metadata?: { raw?: string } } };
         const description = `${data.error?.message || ""} ${data.error?.metadata?.raw || ""}`;
         console.warn("[provider-capacity]", JSON.stringify({ dailyLimit: /per.day|daily|day limit/i.test(description), minuteLimit: /per.minute|minute limit/i.test(description), providerCapacity: /capacity|overload|temporar|rate.limit/i.test(description), retryAfter: response.headers.get("retry-after") }));
-        throw new Error("RATE_LIMITED");
+        throw new CapacityError(response.headers.get("retry-after"), /per.day|daily|day limit/i.test(description));
       }
       if (response.status >= 500) throw new Error(`AI_RETRYABLE_${response.status}`);
       throw new Error(`AI_ERROR_${response.status}`);
@@ -59,13 +66,24 @@ export async function runModel(system: string, user: string, maxTokens = 8000, b
     : [{ timeout: 170_000, tokens }, { timeout: 90_000, tokens }];
   let last: unknown = new Error("AI_ERROR");
   const count = Math.min(budget.attempts ?? attempts.length, attempts.length);
+  const stageDeadline = Math.min(budget.deadlineMs ?? Infinity, Date.now() + (budget.timeoutMs ?? attempts[0].timeout));
   for (let index = 0; index < count; index += 1) {
     const attempt = attempts[index];
     const extra = index === 0 ? "" : "\n\nRETRY: Return the entire requested output. Preserve every required feature and UI instruction; no omitted sections.";
-    const remaining = budget.deadlineMs ? budget.deadlineMs - Date.now() : Infinity;
+    const remaining = stageDeadline - Date.now();
     if (remaining < 1000) throw new Error("AI_TIMEOUT");
     const timeout = Math.min(budget.timeoutMs ?? attempt.timeout, remaining);
-    try { return await requestOnce(provider, system + extra, user, attempt.tokens, timeout); }
+    try {
+      try { return await requestOnce(provider, system + extra, user, attempt.tokens, timeout); }
+      catch (error) {
+        // A 429 produced no model output. Wait once for the provider's stated
+        // minute reset without discarding a completed plan or implementation.
+        const delay = error instanceof CapacityError ? capacityRetryDelay(error.retryAfter, Date.now(), stageDeadline, error.dailyLimit) : null;
+        if (delay === null) throw error;
+        await sleep(delay);
+        return await requestOnce(provider, system + extra, user, attempt.tokens, Math.max(1000, stageDeadline - Date.now()));
+      }
+    }
     catch (error) {
       last = error;
       const message = error instanceof Error ? error.message : "AI_ERROR";
