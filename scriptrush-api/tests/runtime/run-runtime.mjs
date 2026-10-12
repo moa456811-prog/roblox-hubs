@@ -7,8 +7,8 @@ import { spawnSync } from "node:child_process";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const artifactDirectory = path.resolve(here, "../../test-results/runtime");
 const [candidateArgument, scenario = "full-hub", outputArgument] = process.argv.slice(2);
-if (!candidateArgument || !["full-hub", "english-ui", "french-ui"].includes(scenario)) {
-  console.error("Usage: node tests/runtime/run-runtime.mjs <candidate.lua> [full-hub|english-ui|french-ui] [result.json]\nSet LUAU_BIN to the official Luau CLI executable (tested with 0.742).");
+if (!candidateArgument || !["full-hub", "english-ui", "translated-ui", "french-ui"].includes(scenario)) {
+  console.error("Usage: node tests/runtime/run-runtime.mjs <candidate.lua> [full-hub|english-ui|translated-ui|french-ui] [result.json]\nSet LUAU_BIN to the official Luau CLI executable (tested with 0.742).");
   process.exit(2);
 }
 const candidate = path.resolve(candidateArgument);

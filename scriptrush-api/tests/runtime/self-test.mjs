@@ -12,6 +12,11 @@ await mkdir(outputDir,{recursive:true});
 const cases=[
   {name:"valid-full-hub",source:fullHub,scenario:"full-hub",passed:true},
   {name:"valid-english-ui",source:englishUI,scenario:"english-ui",passed:true},
+  {name:"translated-ui-preferences-content",source:englishUI,scenario:"translated-ui",passed:true},
+  {name:"translated-ui-settings-content",source:englishUI.replace('Text="Preferences"','Text="Settings"'),scenario:"translated-ui",passed:true},
+  {name:"translated-ui-rejects-french-labels",source:frenchUI,scenario:"translated-ui",failure:"both requested tab buttons exist"},
+  {name:"translated-ui-rejects-tab-only-content",source:englishUI.replace('Text="Preferences"','Text=""'),scenario:"translated-ui",failure:"both requested page contents exist"},
+  {name:"explicit-preferences-stays-strict",source:englishUI.replace('Text="Preferences"','Text="Settings"'),scenario:"english-ui",failure:"both requested page contents exist"},
   {name:"valid-french-ui",source:frenchUI,scenario:"french-ui",passed:true},
   {name:"french-labels-rejected-for-english-request",source:frenchUI,scenario:"english-ui",failure:"both requested tab buttons exist"},
   {name:"wrong-window-size",source:fullHub.replace("UDim2.fromOffset(480,360)","UDim2.fromOffset(460,360)"),scenario:"full-hub",failure:"requested exact window size"},

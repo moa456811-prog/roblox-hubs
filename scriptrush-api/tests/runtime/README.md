@@ -9,6 +9,7 @@ From the backend directory:
 ```powershell
 node tests/runtime/run-runtime.mjs path/to/generated-hub.lua full-hub
 node tests/runtime/run-runtime.mjs path/to/english-script.lua english-ui
+node tests/runtime/run-runtime.mjs path/to/translated-script.lua translated-ui
 node tests/runtime/run-runtime.mjs path/to/french-script.lua french-ui
 node tests/runtime/self-test.mjs
 ```
@@ -18,6 +19,8 @@ The runner writes a JSON report under ignored `test-results/runtime/`, or at the
 The `full-hub` scenario checks an exact 480 × 360 navy/cyan Aurora Hub window, rounded panel, three distinct Movement/Session/Settings tabs, current-character WalkSpeed (8–32)/JumpPower (20–75) inputs with valid bounds and immediate effects, Rejoin only on click with correct Teleport arguments, visible two-way theme switching, mouse drag and release, minimize/restore, complete ScreenGui destruction and disconnected owned connections.
 
 The `english-ui` acceptance scenario checks an exact 420 × 280 navy/cyan Aurora Panel, exact Home/Settings/Close strings and Welcome/Preferences page contents, active tab appearance and show/hide effects, complete ScreenGui destruction with no surviving owned connections or visible UI. The prompt may be written in French; these generated UI labels must be English.
+
+The separate `translated-ui` scenario checks the same interactions and geometry when a French description requests Accueil/Réglages/Bienvenue/Paramètres/Fermer and the generated functional UI must be English. It accepts either Settings or Preferences as the translated second page's TextLabel content; the Settings tab button alone never counts as page content. `english-ui` remains strict when the request explicitly names Preferences. Self-tests cover both valid translations and reject French output and missing page content.
 
 The `french-ui` scenario is retained solely as a legacy renderer Unicode regression: the same geometry/interactions with Accueil/Réglages/Fermer and Bienvenue/Paramètres. It is not the current generated-language acceptance requirement. Self-tests explicitly reject this French fixture for an English UI request.
 

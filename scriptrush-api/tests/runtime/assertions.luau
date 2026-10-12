@@ -138,11 +138,14 @@ check("requested cyan accent is visibly applied",colorEvidence(cyan,true)~=nil,c
 __observations.initialVisibleButtons=visibleButtonSummary()
 
 if __scenario~="full-hub" then
-    local english=__scenario=="english-ui"
+    local english=__scenario=="english-ui" or __scenario=="translated-ui"
     local home=findText(english and "Home" or "Accueil","TextButton",true)
     local settings=findText(english and "Settings" or "Réglages","TextButton",true)
     local welcome=findText(english and "Welcome" or "Bienvenue","TextLabel",false)
     local parameters=findText(english and "Preferences" or "Paramètres","TextLabel",false)
+    -- A French Paramètres content request can validly become either Settings
+    -- or Preferences. A tab button never counts as the page's content label.
+    if __scenario=="translated-ui" and not parameters then parameters=findText("Settings","TextLabel",false) end
     local close=findText(english and "Close" or "Fermer","TextButton",true)
     check("both requested tab buttons exist",home~=nil and settings~=nil)
     check("both requested page contents exist",welcome~=nil and parameters~=nil)
