@@ -1,18 +1,27 @@
-import { buildSourceCatalog, parseModelJson, reviewSchema, type SourceCatalogEntry } from "./generation-contract.ts";
+import { buildSourceCatalog, parseModelJson, reviewSchema, type GenerationContract, type SourceCatalogEntry } from "./generation-contract.ts";
 import { renderHubComposition } from "./hub-composer.ts";
-import type { HubComposition, HubItem } from "./hub-spec.ts";
+import { shellFeaturePresent, type HubComposition, type HubItem } from "./hub-spec.ts";
+import { requestedStandardActions, standardActionMatchesRequirement } from "./composition-actions.ts";
 
 type EvidencePair = { behavior: string; control: string };
+type ContractFeature = GenerationContract["features"][number];
+
+function shellMatchesRequirement(spec: HubComposition, feature: ContractFeature): boolean {
+  if (feature.availability !== "supported") return false;
+  if ([...requestedStandardActions(feature)].some(action => ["walk-speed", "jump-power", "rejoin", "theme"].includes(action))) return false;
+  return shellFeaturePresent(spec, feature);
+}
 
 /**
  * Repair evidence selection for the exact trusted renderer output only. Semantic
  * findings, feature identities/statuses and UI acceptance remain the reviewer's.
  * The ordinary contract assessor must still verify each control-to-effect link.
  */
-export function groundCompositionReview(rawReview: string, spec: HubComposition, script: string): string {
+export function groundCompositionReview(rawReview: string, spec: HubComposition, script: string, contract: GenerationContract): string {
   const review = reviewSchema.parse(parseModelJson(rawReview));
   if (renderHubComposition(spec) !== script) return rawReview;
   const catalog = buildSourceCatalog(script);
+  const requirements = new Map(contract.features.map(feature => [feature.id, feature]));
   // A custom/unsupported requirement may also bind its containing page/window.
   // It must never borrow shell navigation evidence through that second binding.
   const excluded = new Set(spec.pages.flatMap(page => page.items.flatMap(item =>
@@ -41,17 +50,26 @@ export function groundCompositionReview(rawReview: string, spec: HubComposition,
   for (const [pageIndex, page] of spec.pages.entries()) {
     for (const [itemIndex, item] of page.items.entries()) {
       const evidence = actionPair(item, `item${pageIndex + 1}_${itemIndex + 1}`);
-      if (evidence) for (const id of item.featureIds) if (!excluded.has(id) && !mappings.has(id)) mappings.set(id, evidence);
+      if (evidence && "action" in item) for (const id of item.featureIds) {
+        const feature = requirements.get(id);
+        if (feature && standardActionMatchesRequirement(item.action, feature) && !excluded.has(id) && !mappings.has(id)) mappings.set(id, evidence);
+      }
     }
     const pageEvidence = spec.window.navigation === "none"
       ? pair("own(closeButton.Activated, function()", "gui:Destroy()")
       : pair(`own(nav${pageIndex + 1}.Activated, function()`, "page.Visible = id == selected");
-    if (pageEvidence) for (const id of page.featureIds) if (!excluded.has(id) && !mappings.has(id)) mappings.set(id, pageEvidence);
+    if (pageEvidence) for (const id of page.featureIds) {
+      const feature = requirements.get(id);
+      if (feature && shellMatchesRequirement(spec, feature) && !excluded.has(id) && !mappings.has(id)) mappings.set(id, pageEvidence);
+    }
   }
   const shellEvidence = spec.window.navigation === "none"
     ? pair("own(closeButton.Activated, function()", "gui:Destroy()")
     : pair("own(nav1.Activated, function()", "page.Visible = id == selected");
-  if (shellEvidence) for (const id of spec.window.featureIds) if (!excluded.has(id) && !mappings.has(id)) mappings.set(id, shellEvidence);
+  if (shellEvidence) for (const id of spec.window.featureIds) {
+    const feature = requirements.get(id);
+    if (feature && shellMatchesRequirement(spec, feature) && !excluded.has(id) && !mappings.has(id)) mappings.set(id, shellEvidence);
+  }
   for (const feature of review.features) {
     const evidence = mappings.get(feature.id);
     if (feature.status === "implemented" && evidence) {

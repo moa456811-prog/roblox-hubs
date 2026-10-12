@@ -78,7 +78,7 @@ export async function generateCompleteScript(context: GenerationContext, call: M
       for (let attempt = 0; attempt < 2; attempt++) {
         const inspected = await request(REVIEW_SYSTEM, reviewInput + correction, Math.min(10_000, 2200 + outcome.contract!.features.length * 800), 60_000);
         try {
-          const grounded = composition ? groundCompositionReview(inspected.content, composition, outcome.script) : inspected.content;
+          const grounded = composition ? groundCompositionReview(inspected.content, composition, outcome.script, outcome.contract!) : inspected.content;
           assessment = assessContract(outcome.contract!, grounded, outcome.script, context.prompt);
         }
         catch (error) {

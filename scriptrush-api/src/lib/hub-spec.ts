@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import type { GenerationContract } from "./generation-contract.ts";
 import { SCRIPT_UI_LANGUAGE_POLICY } from "./ui-language.ts";
+import { requestedStandardActions, standardActionAllowedForRequirement } from "./composition-actions.ts";
 
 const id = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const featureIds = z.array(id).max(32);
@@ -48,17 +49,26 @@ export function parseHubComposition(content: string): HubComposition {
 /** Coverage is tied to the original planner IDs; composition cannot silently drop a feature. */
 export function validateCompositionCoverage(spec: HubComposition, contract: GenerationContract): string[] {
   const bindings = [
-    ...spec.window.featureIds.map(id => ({ id, disabled: false, interactive: false, shell: true })),
-    ...spec.pages.flatMap(page => [...page.featureIds.map(id => ({ id, disabled: false, interactive: false, shell: true })), ...page.items.flatMap(item => item.featureIds.map(id => ({ id, disabled: item.kind === "disabled", interactive: item.kind === "button" || item.kind === "number" || item.kind === "toggle", shell: false })))]),
+    ...spec.window.featureIds.map(id => ({ id, disabled: false, interactive: false, shell: true, action: null as string | null })),
+    ...spec.pages.flatMap(page => [...page.featureIds.map(id => ({ id, disabled: false, interactive: false, shell: true, action: null as string | null })), ...page.items.flatMap(item => item.featureIds.map(id => ({ id, disabled: item.kind === "disabled", interactive: item.kind === "button" || item.kind === "number" || item.kind === "toggle", shell: false, action: "action" in item ? item.action : null })))]),
   ];
   const known = new Set(contract.features.map(feature => feature.id));
   const issues = [...new Set(bindings.filter(binding => !known.has(binding.id)).map(binding => `Unknown requirement binding: ${binding.id}`))];
   for (const feature of contract.features) {
     const attached = bindings.filter(binding => binding.id === feature.id);
+    const priorIssues = issues.length;
     if (!attached.length) issues.push(`Missing requirement in composed hub: ${feature.id}`);
     else if (feature.availability === "supported" && attached.every(binding => binding.disabled)) issues.push(`Supported requirement was disabled: ${feature.id}`);
     else if (feature.availability === "needs-runtime" && attached.some(binding => !binding.disabled)) issues.push(`Unverified game requirement must have a disabled control: ${feature.id}`);
     else if (feature.availability === "supported" && feature.interaction && !attached.some(binding => binding.interactive) && !(attached.some(binding => binding.shell) && shellFeaturePresent(spec, feature))) issues.push(`Interactive requirement has no working control: ${feature.id}`);
+    if (feature.availability === "supported" && issues.length === priorIssues) {
+      const expected = requestedStandardActions(feature);
+      const standard = attached.filter(binding => binding.action && binding.action !== "custom");
+      if (expected.size) for (const binding of standard) if (!standardActionAllowedForRequirement(binding.action!, feature)) issues.push(`Standard action ${binding.action} does not implement requirement: ${feature.id}`);
+      const hasCustom = attached.some(binding => binding.action === "custom");
+      for (const action of expected) if (["walk-speed", "jump-power", "rejoin", "theme"].includes(action) && !hasCustom && !standard.some(binding => binding.action === action && standardActionAllowedForRequirement(action, feature))) issues.push(`Missing matching ${action} control for requirement: ${feature.id}`);
+      if (attached.length && attached.every(binding => binding.shell) && !shellFeaturePresent(spec, feature) && !issues.some(issue => issue.endsWith(`: ${feature.id}`))) issues.push(`Requirement has no matching feature control: ${feature.id}`);
+    }
   }
   return issues;
 }
@@ -66,7 +76,7 @@ export function validateCompositionCoverage(spec: HubComposition, contract: Gene
 /** Window/page bindings are for the interface itself, never a substitute for a feature control.
  * This structural check supplements the independent semantic review of the original request.
  */
-function shellFeaturePresent(spec: HubComposition, feature: GenerationContract["features"][number]): boolean {
+export function shellFeaturePresent(spec: HubComposition, feature: GenerationContract["features"][number]): boolean {
   const name = `${feature.id} ${feature.label}`.toLowerCase();
   if (/walk[ -]?speed|jump[ -]?power|rejoin|teleport|theme|thème|farm|combat|quest|loot|boss|inventory|inventaire|currency|\besp\b|noclip|flight|\bfly\b|server-hop|vitesse|saut/.test(name)) return false;
   const behavior = `${name} ${feature.behavior}`.toLowerCase();
