@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runOpenRouter } from "@/lib/openrouter";
-import { extractCode, reviewScript as review, providerErrorCode } from "@/lib/script-output";
+import { generateCompleteScript } from "@/lib/generation";
 export const maxDuration = 300;
 
 const sourceSchema = z.object({ name: z.string().min(1).max(200), content: z.string().max(80_000), size: z.number().nonnegative().max(750_000) });
-const inputSchema = z.object({ clientId: z.string().uuid().optional(), game: z.string().trim().max(240).default(""), placeId: z.string().trim().max(40).default(""), mode: z.enum(["build", "fix", "improve", "ui"]).default("build"), prompt: z.string().trim().min(1).max(16_000), sources: z.array(sourceSchema).max(6).default([]), currentScript: z.string().max(160_000).optional(), runtimeDiagnostic: z.string().max(100_000).optional() });
-type Profile = { gameKey?: string; name?: string; placeId?: string; universeId?: string; description?: string; confidence?: string; featureSignals?: Array<{ feature?: string; confidence?: string; score?: number }>; sourceCounts?: { scriptBlox?: number; github?: number }; publicScripts?: Array<{ kind?: string; title?: string; url?: string }>; [key: string]: unknown };
+const inputSchema = z.object({ clientId: z.string().uuid().optional(), game: z.string().trim().max(240).default(""), placeId: z.string().trim().max(40).default(""), mode: z.enum(["build", "fix", "improve", "ui"]).default("build"), prompt: z.string().trim().min(1).max(30_000), sources: z.array(sourceSchema).max(6).default([]), currentScript: z.string().max(160_000).optional(), runtimeDiagnostic: z.string().max(100_000).optional() });
+type Profile = { gameKey?: string; name?: string; placeId?: string; universeId?: string; description?: string; confidence?: string; featureSignals?: Array<{ feature?: string; confidence?: string; score?: number }>; sourceCounts?: { scriptBlox?: number; github?: number }; [key: string]: unknown };
 const errorLike = (text: string) => /stack\s+begin|stack\s+end|attempt to|traceback|syntax\s*error|expected|line\s+\d+|:\d+:|nil value|malformed string|unfinished comment|unable to assign/i.test(text);
 
 function gameKey(profile: Profile | null, game: string, placeId: string) {
@@ -29,42 +29,38 @@ async function save(request: Request, body: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
-    const input = inputSchema.parse(await request.json()); const current = (input.currentScript || "").trim();
-    const patch = Boolean(current && (input.mode === "fix" || errorLike(input.prompt) || /\b(fix|repair|corrige|répare|modifie|improve|améliore)\b/i.test(input.prompt)));
-    const profile = await research(request, input.game); const key = gameKey(profile, input.game, input.placeId);
-    const signals = profile?.featureSignals || []; const supported = signals.filter((x) => x.confidence === "high" || x.confidence === "medium").map((x) => x.feature).filter(Boolean).slice(0, 8);
-    const plan = { mode: patch ? "patch-existing" : "single-pass-build", requested: input.prompt.slice(0, 2000), supportedFeatures: supported, sourceCounts: profile?.sourceCounts || { scriptBlox: 0, github: 0 } };
-    const ledger = signals.slice(0, 12).map((x) => `${x.feature || "Unknown"}: ${x.confidence || "low"} (${x.score || 0})`).join("\n") || "No reliable game-specific feature signals found.";
-    const sourceBlock = input.sources.map((x) => `--- ${x.name} ---\n${x.content}`).join("\n\n");
-    const profileBlock = JSON.stringify({ name: profile?.name || input.game, placeId: profile?.placeId || input.placeId, universeId: profile?.universeId, description: profile?.description, confidence: profile?.confidence, sourceCounts: profile?.sourceCounts }, null, 2).slice(0, 10000);
-    const system = patch ? "You are ScriptRush FIX MODE. Patch the exact existing Roblox Luau script. Preserve all unrelated working UI, settings and features. Make the smallest robust correction and return the FULL corrected script. Never replace it with a generic rewrite. Never invent remotes or payloads. Return exactly one fenced lua block and nothing else." : "You are ScriptRush, a senior Roblox Luau engineer. Return one self-contained executor-ready script. Add game-specific behavior only when explicitly requested AND supported by the evidence ledger or supplied runtime evidence. Evidence validates availability; it never expands the user's requested scope. A request for UI only must produce UI only: no farm, loot, combat, movement, teleportation or gameplay automation. Complete short UI scripts are valid. Without private files, use client-observable runtime discovery, bounded scans, events, respawn recovery and cleanup only where the requested behavior needs them. Never invent remotes or payloads. No placeholders, TODOs, external loaders, modules or split files. Generated UI must be compact black/white with English labels. Keep it concise enough to finish. Return exactly one fenced lua block and nothing else.";
-    const user = patch ? `GAME:\n${profileBlock}\n\nFEATURES:\n${ledger}\n\nERROR/CHANGE:\n${input.prompt}\n\nDIAGNOSTIC:\n${(input.runtimeDiagnostic || "none")}\n\nFILES:\n${sourceBlock || "none"}\n\nCURRENT SCRIPT:\n\`\`\`lua\n${current}\n\`\`\`\nReturn the full corrected same script.` : `GAME:\n${profileBlock}\n\nFEATURES:\n${ledger}\n\nPLAN:\n${JSON.stringify(plan,null,2)}\n\nDIAGNOSTIC:\n${(input.runtimeDiagnostic || "none")}\n\nFILES:\n${sourceBlock || "none"}\n\nREQUEST:\n${input.prompt}\nReturn one complete Lua block only.`;
-    let code = "", model = "", incomplete = false, providerError = "", repairError = "";
-    try { const result = await runOpenRouter(system, user, patch ? 8500 : 6500); code = extractCode(result.content); model = result.model; incomplete = result.incomplete; }
-    catch (error) { providerError = providerErrorCode(error); }
-    let issues = review(code, current, patch);
-    if ((incomplete || issues.length) && code) {
-      try { const repaired = await runOpenRouter("You are ScriptRush final Luau repair. Return exactly one complete fenced lua block. Fix only the listed issues, preserve useful behavior, respect the user's exact requested scope, and add no placeholders or invented remotes. UI-only requests must remain UI only.", `ISSUES:\n${issues.join("\n") || "possibly truncated"}\n\nREQUEST:\n${input.prompt}\n\nSCRIPT:\n\`\`\`lua\n${code}\n\`\`\``, patch ? 7500 : 5200); const candidate = extractCode(repaired.content); const next = review(candidate, current, patch); if (candidate && next.length <= issues.length) { code = candidate; issues = next; model = repaired.model; incomplete = repaired.incomplete; } } catch (error) { repairError = providerErrorCode(error); }
+    const input = inputSchema.parse(await request.json());
+    const current = (input.currentScript || "").trim();
+    const patch = Boolean(current && (input.mode === "fix" || input.mode === "improve" || errorLike(input.prompt) || /\b(fix|repair|corrige|répare|modifie|improve|améliore)\b/i.test(input.prompt)));
+    const profile = await research(request, input.game);
+    const key = gameKey(profile, input.game, input.placeId);
+    const signals = profile?.featureSignals || [];
+    const supported = signals.filter(signal => signal.confidence === "high" || signal.confidence === "medium").map(signal => signal.feature).filter((feature): feature is string => Boolean(feature));
+    const ledger = signals.map(signal => `${signal.feature || "Unknown"}: ${signal.confidence || "low"} (${signal.score || 0})`).join("\n") || "No reliable game-specific feature signals found. Standard client UI APIs remain usable.";
+    const result = await generateCompleteScript({
+      prompt: input.prompt, currentScript: current, patch,
+      game: { name: profile?.name || input.game, placeId: profile?.placeId || input.placeId, universeId: profile?.universeId, description: profile?.description, confidence: profile?.confidence, sourceCounts: profile?.sourceCounts },
+      supportedFeatures: supported, ledger,
+      sources: input.sources.map(source => `--- ${source.name} ---\n${source.content}`).join("\n\n"), diagnostic: input.runtimeDiagnostic || "",
+    }, runOpenRouter, startedAt + 285_000);
+    const review = { passed: !result.issues.length && Boolean(result.script && result.coverage), issues: result.issues, providerIncomplete: result.incomplete, strategy: "requirements-coverage-review", repaired: result.repaired };
+    if (!review.passed) {
+      const missing = result.reason === "REQUIREMENTS_NOT_MET" || result.reason === "INCOMPLETE_REQUIREMENTS";
+      const error = missing
+        ? "ScriptRush could not satisfy every requested feature or UI requirement. Your request and previous script were preserved."
+        : result.reason === "RATE_LIMITED"
+          ? "The free AI model is temporarily busy. Your request and previous script were preserved; try again."
+          : result.reason === "AI_TIMEOUT"
+            ? "The AI model timed out. Your request and previous script were preserved; try again."
+            : "ScriptRush could not validate a complete script against your requirements. Your request and previous script were preserved.";
+      return NextResponse.json({ error, code: missing ? "REQUIREMENTS_NOT_MET" : patch ? "PATCH_PRESERVED" : "GENERATION_REJECTED", reason: result.reason, model: result.model || null, patchMode: patch, review }, { status: 502 });
     }
-    if (incomplete) issues.push("provider response was incomplete");
-    if (!code || issues.length) {
-      const reason = providerError || (incomplete ? "INCOMPLETE_RESPONSE" : "INVALID_MODEL_OUTPUT");
-      const error = patch && current
-        ? "ScriptRush could not safely correct your script. Your current script was preserved. Retry the same request."
-        : providerError === "RATE_LIMITED"
-          ? "The free AI model is temporarily busy. Your request was preserved; try again."
-          : providerError === "AI_TIMEOUT"
-            ? "The AI model timed out. Your request was preserved; try again."
-            : "The AI model did not return a complete valid script. Your request was preserved; try again.";
-      return NextResponse.json({ error, code: patch && current ? "PATCH_PRESERVED" : "GENERATION_REJECTED", reason, model: model || null, patchMode: patch, review: { passed: false, issues, providerIncomplete: incomplete, providerError: providerError || null, repairError: repairError || null, strategy: "single-pass-static-review" } }, { status: 502 });
-    }
-    const reviewResult = { passed: true, issues, providerIncomplete: incomplete, providerError: null, repairError: repairError || null, strategy: "single-pass-static-review" };
-    const version = input.clientId ? await save(request, { op: "version_add", clientId: input.clientId, gameKey: key, mode: patch ? "fix" : input.mode, request: input.prompt, script: code, plan, review: reviewResult }) : null;
-    return NextResponse.json({ message: `\`\`\`lua\n${code}\n\`\`\``, status: "ok", model, research: profile ? { ...profile, gameKey: key } : { gameKey: key }, gameKey: key, plan, review: reviewResult, patchMode: patch, version, unlimitedTestMode: true });
+    const plan = { mode: patch ? "patch-existing" : "requirements-build", requested: input.prompt, supportedFeatures: supported, requirements: result.contract, sourceCounts: profile?.sourceCounts || { scriptBlox: 0, github: 0 } };
+    const version = input.clientId ? await save(request, { op: "version_add", clientId: input.clientId, gameKey: key, mode: patch ? "fix" : input.mode, request: input.prompt, script: result.script, plan, review }) : null;
+    return NextResponse.json({ message: `\`\`\`lua\n${result.script}\n\`\`\``, status: "ok", model: result.model, research: profile ? { ...profile, gameKey: key } : { gameKey: key }, gameKey: key, plan, review, coverage: result.coverage, patchMode: patch, version, unlimitedTestMode: true });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-    const message = error instanceof Error ? error.message : "";
-    return NextResponse.json({ error: message === "RATE_LIMITED" ? "The free AI route is temporarily busy. Try again." : message === "AI_TIMEOUT" ? "The AI provider stayed unavailable after the automatic retry. Try again." : message === "AI_NOT_CONFIGURED" ? "The AI provider is not configured." : "Generation failed. Try again." }, { status: 502 });
+    return NextResponse.json({ error: error instanceof z.ZodError ? "Invalid request." : "Generation failed. Your previous script was preserved." }, { status: error instanceof z.ZodError ? 400 : 502 });
   }
 }

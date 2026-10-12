@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ApiError, fetchScanner, generateScript, researchGame } from "../lib/api.ts";
+import { ApiError, fetchScanner, generateScript, generationNotice, researchGame } from "../lib/api.ts";
+import type { GenerationCoverage } from "../lib/coverage.ts";
 import { createProfileSource, parseRuntimeProfile, ValidationError } from "../lib/validation.ts";
 import type { GenerationRequest } from "../lib/types.ts";
+import { appendPreset } from "../lib/presets.ts";
 
 const response = { message: "```luau\nlocal ready = true\nprint(ready)\n```" };
 const build: GenerationRequest = { game: "Known Game", placeId: "123", mode: "build", prompt: "Create a script", sources: [] };
@@ -50,6 +52,21 @@ test("fix sends original whitespace, non-ASCII characters and complete script", 
     assert.equal(body.currentScript, currentScript);
     assert.equal(body.prompt, "Fix the error without replacing other systems");
   } finally { globalThis.fetch = restoreFetch; }
+});
+
+test("Full Hub sends the original UI requirements and every expanded feature to the API", async () => {
+  const restoreFetch = globalThis.fetch;
+  const requirements = 'Interface bleu nuit et cyan. Titre exact "Aurora Panel". Labels français, onglets à gauche.';
+  const prompt = appendPreset(requirements, "full-hub");
+  globalThis.fetch = async (_url, init) => {
+    const posted = JSON.parse(String(init?.body));
+    assert.equal(posted.prompt, prompt);
+    assert.ok(posted.prompt.startsWith(requirements));
+    for (const feature of ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot", "Settings"]) assert.ok(posted.prompt.includes(feature));
+    return Response.json(response);
+  };
+  try { await generateScript({ ...build, prompt }); }
+  finally { globalThis.fetch = restoreFetch; }
 });
 
 test("research URL is encoded and number IDs become strings", async () => {
@@ -161,6 +178,49 @@ test("status errors distinguish timeout, capacity and incomplete model output", 
   } finally { globalThis.fetch = restoreFetch; }
 });
 
+test("unmet requirements return a precise safe error and preserve the complete fix input", async () => {
+  const restoreFetch = globalThis.fetch;
+  const body: GenerationRequest = { ...build, mode: "fix", prompt: "Keep the UI and fix only the farm", currentScript: "\n-- original UI\r\nprint('keep')\n" };
+  const snapshot = JSON.stringify(body);
+  globalThis.fetch = async () => Response.json({
+    code: "REQUIREMENTS_NOT_MET",
+    error: "model timeout <script>alert('private server detail')</script>",
+    issues: ["Private provider output", { __html: "attacker-controlled HTML" }],
+  }, { status: 502 });
+  try {
+    await assert.rejects(generateScript(body), (issue: unknown) => {
+      assert.ok(issue instanceof ApiError);
+      assert.equal(issue.code, "requirements_not_met");
+      assert.equal(issue.status, 502);
+      assert.equal(issue.message, "The generated script is missing requested features or UI requirements. Your input and previous script were preserved. Please try again with clearer requirements or more game evidence.");
+      return true;
+    });
+    assert.equal(JSON.stringify(body), snapshot);
+    globalThis.fetch = async () => Response.json({ code: "requirements_not_met", error: "private server detail" }, { status: 502 });
+    await assert.rejects(generateScript(body), (issue: unknown) => issue instanceof ApiError && issue.code === "generate_unavailable" && !issue.message.includes("private server detail"));
+  } finally { globalThis.fetch = restoreFetch; }
+});
+
+test("generation notices count implemented and unavailable features and require target game testing", () => {
+  const coverage: GenerationCoverage = { features: [
+    { id: "farm", label: "Farm", status: "implemented" },
+    { id: "ui", label: "UI", status: "implemented" },
+    { id: "boss", label: "Boss", status: "unavailable", reason: "Missing evidence" },
+  ], uiVerified: true };
+  const summary = "Script ready. 2 requested features implemented; 1 need more game evidence. See the feature checklist below.";
+  assert.equal(generationNotice(coverage, true, true), summary + " Saved as a new version. Test it in the target game to confirm behavior.");
+  assert.equal(generationNotice(coverage, true, false), summary + " It could not be saved to History. Copy or download it to keep a backup. Test it in the target game to confirm behavior.");
+});
+
+test("generation notices retain UI and coverage uncertainty even when saving fails", () => {
+  const coverage: GenerationCoverage = { features: [{ id: "farm", label: "Farm", status: "unavailable" }], uiVerified: false };
+  for (const saved of [true, false]) {
+    assert.ok(generationNotice(coverage, true, saved).includes("The requested UI needs verification."));
+    assert.ok(generationNotice({ features: [], uiVerified: false }, true, saved).includes("The requested UI needs verification"));
+    assert.ok(generationNotice(null, true, saved).includes("its feature coverage could not be verified"));
+  }
+});
+
 test("generation enforces its own timeout and aborts the in-flight fetch", async (t) => {
   const restoreFetch = globalThis.fetch;
   t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -172,7 +232,9 @@ test("generation enforces its own timeout and aborts the in-flight fetch", async
   try {
     const waiting = generateScript(build);
     const rejected = assert.rejects(waiting, (issue: unknown) => issue instanceof ApiError && issue.code === "timeout");
-    t.mock.timers.tick(240000);
+    t.mock.timers.tick(304999);
+    assert.equal(requestSignal?.aborted, false);
+    t.mock.timers.tick(1);
     await rejected;
     assert.equal(requestSignal?.aborted, true);
   } finally { t.mock.timers.reset(); globalThis.fetch = restoreFetch; }
@@ -196,6 +258,25 @@ test("caller cancellation aborts generation, preserving request and source strin
     assert.equal(requestSignal?.aborted, true);
     assert.equal(JSON.stringify(body), snapshot);
   } finally { globalThis.fetch = restoreFetch; }
+});
+
+test("game research retains its separate 45 second deadline", async (t) => {
+  const restoreFetch = globalThis.fetch;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let requestSignal: AbortSignal | null | undefined;
+  globalThis.fetch = async (_url, init) => {
+    requestSignal = init?.signal;
+    return new Promise<Response>((_resolve, reject) => requestSignal?.addEventListener("abort", () => reject(new DOMException("Abort", "AbortError")), { once: true }));
+  };
+  try {
+    const waiting = researchGame("Known Game");
+    const rejected = assert.rejects(waiting, (issue: unknown) => issue instanceof ApiError && issue.code === "timeout");
+    t.mock.timers.tick(44999);
+    assert.equal(requestSignal?.aborted, false);
+    t.mock.timers.tick(1);
+    await rejected;
+    assert.equal(requestSignal?.aborted, true);
+  } finally { t.mock.timers.reset(); globalThis.fetch = restoreFetch; }
 });
 
 test("scanner result is returned verbatim and cannot be mistaken for current generated code", async () => {

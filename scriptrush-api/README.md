@@ -2,7 +2,9 @@
 
 This directory preserves the source serving the existing `scriptrush-api.vercel.app` alias, recovered from deployment `dpl_EGabBKrzr3ugEQTba9mWKiMFv8oh`. Research, diagnostic and memory behavior remain intact.
 
-Targeted generation repairs accept exactly one Lua/Luau code fence, accept complete short scripts, retain the full accepted correction input, and reject invalid or incomplete output with a structured 502 response. A failed request never becomes a generic fallback success. The explicitly selected OpenRouter model is the free Dots route; existing credentials remain server-side in the existing Vercel project.
+Generation first extracts all requested features and UI requirements, then produces one complete Lua/Luau block and reviews actual control-to-behavior coverage. A failed feature/UI check receives one targeted repair and another review. Missing, incomplete or unreviewed output returns a structured 502; it never becomes a generic fallback success. Full hubs have a larger output budget, without smaller truncated retries. Explicit user layout, colors, labels and language take priority over defaults.
+
+The full accepted prompt, context and correction input are preserved. Missing game-specific evidence produces clearly unavailable controls and a feature checklist; standard client/UI functions do not require a game scan. The model and source-evidence checks are static, not an execution guarantee. The explicitly selected OpenRouter model remains the free Dots route; existing credentials remain server-side in the existing Vercel project.
 
 `GET /api/health` reports service configuration, not provider availability. `GET /api/research-game` identifies a game. `POST /api/guest-chat` accepts build/fix requests. Static review is a rejection check, not proof that a generated script runs correctly inside Roblox.
 

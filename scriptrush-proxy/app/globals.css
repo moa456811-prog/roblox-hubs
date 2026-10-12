@@ -340,6 +340,12 @@ kbd { padding: 1px 4px; color: #8a9fc0; border: 1px solid #334663; border-radius
 .confidence-badge.possible { color: #89b9ed; background: #387cc81c; }
 .confidence-badge.weak { color: #ceba81; background: #ac893b15; }
 .feature-confidence > .hint { font-size: 10px; color: #6f87a9; }
+.generation-coverage { margin-bottom: 18px; }
+.generation-coverage .confidence-list { list-style: none; padding: 0; }
+.generation-coverage .confidence-row { align-items: flex-start; }
+.generation-coverage .confidence-row > div { min-width: 0; overflow-wrap: anywhere; }
+.generation-coverage .confidence-badge { flex-shrink: 0; }
+.generation-coverage .hint { margin-top: 5px; }
 
 /* Local history */
 .history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }

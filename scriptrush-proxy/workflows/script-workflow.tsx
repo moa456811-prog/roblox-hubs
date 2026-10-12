@@ -7,17 +7,13 @@ import { ScriptEditor } from "../components/script-editor";
 import { GenerationProgress } from "../components/generation-progress";
 import { EmptyState } from "../components/empty-state";
 import { ErrorState } from "../components/error-state";
-import { researchGame, generateScript } from "../lib/api";
+import { GenerationCoverage } from "../components/generation-coverage";
+import { researchGame, generateScript, generationNotice } from "../lib/api";
 import { createProfileSource } from "../lib/validation";
+import { SCRIPT_PRESETS, appendPreset } from "../lib/presets";
+import { parseGenerationCoverage, type GenerationCoverage as CoverageReport } from "../lib/coverage";
 import { getSelection, setSelection, getCurrentScript, setCurrentScript, getRuntimeProfile, setRuntimeProfile, addHistory, readHistory } from "../lib/storage";
 import type { GameSelection, Source, RuntimeProfile, HistoryEntry } from "../lib/types";
-
-const presets = [
-  ["Auto Farm", "Create an Auto Farm using only confirmed game systems, with respawn recovery and cleanup."],
-  ["Auto Boss", "Create an Auto Boss script using only bosses confirmed by research or the runtime profile."],
-  ["Quest Farm", "Create a quest farming script using only quests confirmed for this game."],
-  ["Full Hub", "Create one complete Luau script with a compact black-and-white UI for confirmed game features."],
-] as const;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong. Your input was preserved.";
@@ -38,6 +34,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
   const [original, setOriginal] = useState("");
   const [previous, setPrevious] = useState("");
   const [result, setResult] = useState("");
+  const [coverage, setCoverage] = useState<CoverageReport | null>(null);
   const [profile, setProfile] = useState<RuntimeProfile | null>(null);
   const [files, setFiles] = useState<Source[]>([]);
   const [busy, setBusy] = useState(false);
@@ -144,13 +141,14 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       if (abort.signal.aborted) throw new DOMException("Stopped", "AbortError");
       setStage("Checking output · finalizing");
       // generateScript validates the complete response before any saved data changes.
-      setResult(output.script); setPrevious(old); setSaved(undefined); setCompare(false);
+      const report = parseGenerationCoverage(output.metadata.coverage);
+      setResult(output.script); setCoverage(report); setPrevious(old); setSaved(undefined); setCompare(false);
       try {
         saveResult(output.script, selection, old, Boolean(loaded));
         setOriginal(output.script);
-        setNotice("Complete script received and saved as a new version. Test it in the target game to confirm behavior.");
-      } catch (storageIssue) {
-        setNotice("Your result is ready. " + message(storageIssue) + " Copy or download it to keep a backup.");
+        setNotice(generationNotice(report, Object.hasOwn(output.metadata, "coverage"), true));
+      } catch {
+        setNotice(generationNotice(report, Object.hasOwn(output.metadata, "coverage"), false));
       }
     } catch (issue) {
       setError(abort.signal.aborted ? "Generation stopped. Your request and current script were preserved." : message(issue));
@@ -180,7 +178,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
 
   function rollback() {
     try {
-      setCurrentScript(previous); setOriginal(previous); setResult(""); setSaved(undefined); setCompare(false);
+      setCurrentScript(previous); setOriginal(previous); setResult(""); setCoverage(null); setSaved(undefined); setCompare(false);
       setNotice("Previous script restored. Both versions remain in History.");
     } catch (issue) { setError(message(issue)); }
   }
@@ -193,7 +191,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
           <GameSelector value={game} onChange={(value) => { setGame(value); setIdentified(undefined); persistSelection({ game: value, placeId: "" }); }} onIdentify={() => void identifyOnly()} identified={identified} loading={researching || busy} />
           <div className="divider" />
           <div className="field"><label htmlFor="script-request">{fixing ? "Error or requested change" : "What should the script do?"}</label><textarea id="script-request" rows={6} placeholder={fixing ? "Paste the error, line number, or describe what to improve…" : "Describe what the script should do…"} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} maxLength={30000} required /></div>
-          {!fixing && <div className="presets" aria-label="Quick presets">{presets.map(([label, value]) => <button className="chip" type="button" key={label} onClick={() => setPrompt(value)} disabled={busy}>{label}</button>)}<Link className="chip" href="/fix">Improve Existing Script ↗</Link></div>}
+          {!fixing && <div className="presets" aria-label="Quick presets">{SCRIPT_PRESETS.map((preset) => <button className="chip" type="button" key={preset.id} onClick={() => setPrompt((current) => appendPreset(current, preset.id))} disabled={busy}>{preset.label}</button>)}<Link className="chip" href="/fix">Improve Existing Script ↗</Link></div>}
           {fixing && <div className="field"><label htmlFor="current-script">Current script <span className="muted">· sent in full</span></label><textarea id="current-script" className="code-input" spellCheck={false} rows={12} value={original} onChange={(event) => setOriginal(event.target.value)} placeholder="Paste your current Luau script…" disabled={busy} required /><p className="hint">Your original stays intact until a complete corrected version arrives.</p></div>}
           <details className="advanced"><summary>Optional context <span className="muted">Files & game profile</span></summary><div className="field"><label htmlFor="source-files">Add files <span className="muted">· optional</span></label><input id="source-files" type="file" multiple accept=".lua,.luau,.txt,.log,.json,.md,.rbxlx" disabled={busy} onChange={(event) => void addFiles(event.target.files)} /><p className="hint">Up to 5 text files, 750 KB each. Binary .rbxl files are not supported.</p></div>{files.length > 0 && <div className="file-list">{files.map((file) => <span key={file.name}>{file.name}</span>)}<button type="button" className="button ghost" onClick={() => setFiles([])}>Remove files</button></div>}
             <div className="profile-banner"><p>{profile ? `Runtime profile loaded · Place ${profile.game.placeId ?? "unknown"}` : "No runtime profile loaded. Files and scans are optional."}</p>{profile && identified && !profileMatches(profile, identified) && <p className="hint">This profile belongs to a different or unidentified place and will not be sent.</p>}<div className="actions"><Link href="/learn" className="button ghost">{profile ? "View profile" : "Learn a game"}</Link>{profile && <button type="button" className="button ghost" onClick={() => { try { setRuntimeProfile(null); setProfile(null); } catch (issue) { setError(message(issue)); } }}>Clear loaded profile</button>}</div></div>
@@ -207,6 +205,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       <aside className="workspace-aside"><div className="panel"><span className="eyebrow">{fixing ? "CONTINUITY FIRST" : "BETTER CONTEXT, BETTER CODE"}</span><h2>{fixing ? "A patch, with a safety net." : "Build around the real game."}</h2><p className="muted">{fixing ? "Your full script, error, and matching game profile go together. Every successful correction creates a new version." : "ScriptRush uses public research and your optional runtime profile. Features depend on what the game actually supports."}</p><div className="divider" /><Link href={fixing ? "/history" : "/learn"} className="text-link">{fixing ? "Browse previous versions" : "Scan a game for better accuracy"} →</Link></div></aside>
     </div>
     <section className="result-section" aria-label="Script result">
+      {result && coverage ? <GenerationCoverage coverage={coverage} /> : null}
       {result ? <><ScriptEditor script={result} title={fixing ? "Corrected script" : "Your complete script"} filename={fixing ? "scriptrush-fixed.lua" : "scriptrush-script.lua"}><div className="actions">{fixing ? <><button type="button" className="button secondary" onClick={() => setCompare(!compare)}>{compare ? "Hide Comparison" : "Compare with Previous"}</button><button type="button" className="button ghost" onClick={() => { try { setCurrentScript(result); setOriginal(result); setNotice("Corrected version set as current."); } catch (issue) { setError(message(issue)); } }}>Save as Current</button><button type="button" className="button ghost" onClick={rollback}>Rollback</button></> : <Link className="button secondary" href="/fix">Fix This Script →</Link>}<button type="button" className="button ghost" disabled={Boolean(saved)} onClick={() => { try { if (identified) { saveResult(result, identified, previous, Boolean(profile && profileMatches(profile, identified))); setNotice("Saved to History."); } } catch (issue) { setError(message(issue)); } }}>{saved ? "Saved to History ✓" : "Save to History"}</button><Link className="button ghost" href="/history">History ↗</Link></div></ScriptEditor>{compare && <div className="comparison-grid"><div className="panel"><h3>Local comparison</h3><p className="muted">Previous: {comparison.beforeLines} lines · {previous.length.toLocaleString()} characters</p><p className="muted">New: {comparison.afterLines} lines · {result.length.toLocaleString()} characters</p><p className="hint">{comparison.changed} changed line positions (approximate; not a semantic diff).</p></div><ScriptEditor script={previous} title="Previous version" filename="scriptrush-previous.lua" /></div>}</> : <EmptyState title={fixing ? "Your corrected version will appear here" : "Your script starts here"} description={fixing ? "The original script is preserved if a request fails or is stopped." : "Describe your idea above. The complete result will be ready to copy, download, or save."} />}
     </section>
   </>;

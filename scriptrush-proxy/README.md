@@ -17,7 +17,7 @@ React renders all imported text as text. No generated code runs in the browser. 
 
 ## Service integration
 
-`next.config.mjs` rewrites `/api/*` directly to `https://scriptrush-api.vercel.app/api/*`. The explicit `/api/scanner` route takes precedence and retrieves the existing scanner from `https://scriptrush-live-scanner.vercel.app/api/scanner`.
+`next.config.mjs` rewrites other `/api/*` requests directly to `https://scriptrush-api.vercel.app/api/*`. The explicit `/api/guest-chat` Node route uses a 300-second function window and a bounded 290-second fetch to the same API, avoiding Vercel's 120-second external-rewrite ceiling for complete reviewed hubs. It preserves request data and upstream JSON status, forwards no browser credentials, and hides upstream HTML/errors. The explicit `/api/scanner` route retrieves the existing scanner from `https://scriptrush-live-scanner.vercel.app/api/scanner`.
 
 Used endpoints:
 
@@ -50,6 +50,8 @@ Tests cover migration, corruption/write failures, history/version recovery, requ
 Validation checks code fences, placeholders, obvious truncation and lexical structure. They do not claim a full Luau typecheck or a test inside the Roblox client. Progress reports observed frontend phases and an indeterminate backend working state; elapsed time never fabricates completed backend stages.
 
 The frontend rejects deterministic generic fallbacks and failed backend reviews instead of saving an unrelated script as a successful result. The companion API repair in `../scriptrush-api` also removes the old fallback success path and returns explicit errors. An unchanged fix response is rejected; the original version stays current. Provider availability and in-game behavior remain separate from these checks.
+
+Presets append an identified block without replacing the user's draft. Full Hub requests explicitly cover multiple systems and retain custom UI instructions. Successful responses can include a feature checklist showing implemented behaviors and systems needing more game evidence. The API plans requirements, reviews the resulting code, and attempts one targeted repair for omissions or UI mismatches. Complex scripts have a larger generation budget; the frontend allows the API's complete 300-second request window.
 
 ## Canonical deployment
 

@@ -1,4 +1,5 @@
 import type { GenerationRequest, GenerationResult, ResearchResult } from "./types.ts";
+import type { GenerationCoverage } from "./coverage.ts";
 import { isRecord, parseScriptResponse, ValidationError } from "./validation.ts";
 
 export class ApiError extends Error {
@@ -13,6 +14,21 @@ export class ApiError extends Error {
 }
 
 type Operation = "research" | "generate" | "scanner";
+
+export function generationNotice(coverage: GenerationCoverage | null, hasCoverage: boolean, saved: boolean): string {
+  const unavailable = coverage?.features.filter((feature) => feature.status === "unavailable").length ?? 0;
+  const implemented = coverage?.features.filter((feature) => feature.status === "implemented").length ?? 0;
+  const summary = unavailable > 0
+    ? `Script ready. ${implemented} requested features implemented; ${unavailable} need more game evidence. See the feature checklist below.`
+    : coverage && !coverage.uiVerified
+      ? "Script ready. The requested UI needs verification; review the coverage below."
+      : hasCoverage && !coverage
+        ? "Script ready, but its feature coverage could not be verified."
+        : "Complete script ready.";
+  const uiNotice = unavailable > 0 && coverage && !coverage.uiVerified ? " The requested UI needs verification." : "";
+  const storageNotice = saved ? " Saved as a new version." : " It could not be saved to History. Copy or download it to keep a backup.";
+  return summary + uiNotice + storageNotice + " Test it in the target game to confirm behavior.";
+}
 
 function failure(operation: Operation, status?: number): ApiError {
   if (status === 408 || status === 504) return new ApiError("The service timed out. Your input was preserved; please try again.", "timeout", status);
@@ -29,7 +45,7 @@ async function request(url: string, operation: Operation, init: RequestInit, sig
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
   else signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, operation === "generate" ? 240_000 : 45_000);
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, operation === "generate" ? 305_000 : 45_000);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
     const text = await response.text();
@@ -37,6 +53,9 @@ async function request(url: string, operation: Operation, init: RequestInit, sig
     try { data = JSON.parse(text); } catch {
       if (!response.ok) throw failure(operation, response.status);
       throw new ApiError(operation === "scanner" ? "The scanner service returned an invalid response." : "The service returned an incomplete response. Your input was preserved.", "invalid_response", response.status);
+    }
+    if (isRecord(data) && data.code === "REQUIREMENTS_NOT_MET") {
+      throw new ApiError("The generated script is missing requested features or UI requirements. Your input and previous script were preserved. Please try again with clearer requirements or more game evidence.", "requirements_not_met", response.status);
     }
     if (!response.ok || (isRecord(data) && data.error)) {
       const errorText = isRecord(data) && typeof data.error === "string" ? data.error : "";
