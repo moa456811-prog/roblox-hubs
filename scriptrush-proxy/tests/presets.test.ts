@@ -2,11 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { appendPreset, SCRIPT_PRESETS } from "../lib/presets.ts";
 
-test("selecting Full Hub retains the user's exact UI and feature requirements", () => {
-  const draft = '\n  Interface cyan et violette, titre exact "Mon Hub".\r\nGarde les labels français et ajoute un bouton Rejoin.  \n';
+test("selecting Full Hub retains the exact French draft, custom names and visual requirements while requesting English UI", () => {
+  const draft = '\n  Interface cyan et violette, titre exact "Mon Hub", jeu "Étoile Royale".\r\nAjoute un bouton Rejoin dans un panneau 420x280 avec des onglets à gauche.  \n';
   const result = appendPreset(draft, "full-hub");
   assert.equal(result.slice(0, draft.length), draft);
   assert.ok(result.includes("Existing user requirements take priority"));
+  assert.ok(result.includes("Preserve custom hub titles, game names and other proper names exactly"));
+  assert.ok(result.includes("Generate functional UI in English"));
+  assert.ok(result.includes("even if the request is in French"));
+  assert.ok(result.includes("French prose does not imply French UI"));
+  assert.ok(result.includes("UI colors, layout, size and other visual properties"));
+  assert.doesNotMatch(result.slice(draft.length), /preserve[^.]*language/i);
   assert.equal(appendPreset(result, "full-hub"), result);
 });
 
@@ -14,7 +20,8 @@ test("Full Hub asks for every listed feature, tabbed controls and honest unavail
   const result = appendPreset("", "full-hub");
   for (const feature of ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot", "Settings"]) assert.ok(result.includes(feature));
   for (const requirement of ["tabbed interface", "each requested feature completely", "working controls", "visible but disabled", "Needs game profile", "precise reason", "Never invent remotes"]) assert.ok(result.includes(requirement));
-  assert.doesNotMatch(result, /black.and.white|English labels/i);
+  assert.doesNotMatch(result, /black.and.white/i);
+  for (const labelType of ["navigation", "section headings", "control labels", "help text", "status messages", "error messages"]) assert.ok(result.includes(labelType));
 });
 
 test("adding different presets preserves prior requirements without duplicate appends", () => {

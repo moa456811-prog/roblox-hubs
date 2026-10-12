@@ -54,14 +54,17 @@ test("fix sends original whitespace, non-ASCII characters and complete script", 
   } finally { globalThis.fetch = restoreFetch; }
 });
 
-test("Full Hub sends the original UI requirements and every expanded feature to the API", async () => {
+test("Full Hub sends the original French visual requirements, English UI instruction and every expanded feature to the API", async () => {
   const restoreFetch = globalThis.fetch;
-  const requirements = 'Interface bleu nuit et cyan. Titre exact "Aurora Panel". Labels français, onglets à gauche.';
+  const requirements = 'Interface bleu nuit et cyan, panneau 420x280. Titre exact "Mon Hub", jeu "Étoile Royale". Onglets à gauche.';
   const prompt = appendPreset(requirements, "full-hub");
   globalThis.fetch = async (_url, init) => {
     const posted = JSON.parse(String(init?.body));
     assert.equal(posted.prompt, prompt);
     assert.ok(posted.prompt.startsWith(requirements));
+    assert.ok(posted.prompt.includes("Generate functional UI in English"));
+    assert.ok(posted.prompt.includes("even if the request is in French"));
+    assert.ok(posted.prompt.includes("Preserve custom hub titles, game names and other proper names exactly"));
     for (const feature of ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot", "Settings"]) assert.ok(posted.prompt.includes(feature));
     return Response.json(response);
   };
