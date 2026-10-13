@@ -43,8 +43,8 @@ def main(stage="utility"):
                                     continue
                             if not isinstance(value, dict):
                                 continue
-                            safe = {key: item for key, item in value.items() if key in ("loss", "eval_loss", "grad_norm", "learning_rate", "epoch", "steps", "examples", "case", "outputTokens", "acceleratorCount", "maxSequenceTokens", "memoryAllocatedGb", "peakMemoryGb", "finished", "expectedOutputs") and isinstance(item, (int, float))}
-                            if value.get("phase") in ("dependencies", "verify_adapter", "load_model", "token_budget_verified", "smoke_variant_passed", "generation_smoke_passed", "training", "inference", "worker_complete", "development_comparison", "final_comparison", "complete", "failed"):
+                            safe = {key: item for key, item in value.items() if key in ("loss", "eval_loss", "grad_norm", "learning_rate", "epoch", "steps", "examples", "case", "outputTokens", "acceleratorCount", "maxSequenceTokens", "memoryAllocatedGb", "peakMemoryGb", "finished", "expectedOutputs", "durationMs", "loadAndSmokeSeconds", "outputs") and isinstance(item, (int, float))}
+                            if value.get("phase") in ("dependencies", "verify_adapter", "load_model", "token_budget_verified", "smoke_variant_passed", "generation_smoke_passed", "training", "inference", "worker_complete", "development_comparison", "final_comparison", "complete", "failed", "isolated_environment", "engine_subprocess", "verified_completed_adapter", "load_engine", "smoke_passed", "batch_complete"):
                                 safe["phase"] = value["phase"]
                             if value.get("variant") in ("base", "specialist"):
                                 safe["variant"] = value["variant"]
