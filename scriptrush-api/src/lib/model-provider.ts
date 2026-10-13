@@ -1,9 +1,9 @@
 import "server-only";
-import { selectProvider } from "./provider-config.ts";
+import { selectProviders } from "./provider-config.ts";
 import { createProviderRunner } from "./provider-client.ts";
 
-// Preserve the existing authorized production provider selection. Kaggle's
-// personal benchmark access is not enabled for public visitor generations.
+// APInex is preferred. Its capacity/quota failures can continue the same stage
+// through the configured free OpenRouter model, within the original deadline.
 export const runModel = createProviderRunner({
-  providers: () => [selectProvider({ APINEX_API_KEY: process.env.APINEX_API_KEY, OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY })],
+  providers: () => selectProviders({ APINEX_API_KEY: process.env.APINEX_API_KEY, OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY }),
 });

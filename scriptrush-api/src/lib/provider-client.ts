@@ -3,7 +3,7 @@ import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema } from "./hub-spec.ts";
 import { type ProviderConfig } from "./provider-config.ts";
 import { readProviderCompletion } from "./provider-response.ts";
 import { providerDelay, throwIfCallerAborted, withProviderAbort } from "./provider-abort.ts";
-import { capacityRetryDelay } from "./provider-capacity.ts";
+import { capacityRetryDelay, parseProviderResetAt } from "./provider-capacity.ts";
 import { executeProviderChain, MAX_PROVIDER_HOPS, ProviderCooldowns, ProviderUnavailableError } from "./provider-failover.ts";
 
 export type ProviderResult = { content: string; model: string; incomplete: boolean; provider: string; attempts: number };
@@ -34,8 +34,15 @@ async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderC
       try {
         response = await fetcher(provider.endpoint, {
           method: "POST", signal, redirect: "error",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}`, ...(provider.name === "openrouter" ? { "X-Title": "ScriptRush" } : {}) },
-          body: JSON.stringify({ model: provider.model, temperature: responseFormat ? 0.1 : 0.25, max_tokens: maxTokens, ...(provider.name === "apinex" ? { stream: true, thinking: { type: "disabled" } } : { reasoning: { enabled: false } }), ...(responseFormat ? { response_format: responseFormat } : {}), messages: [{ role: "system", content: instructions }, { role: "user", content: user }] }),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}`, ...(provider.name === "openrouter" ? { "X-OpenRouter-Title": "ScriptRush", "HTTP-Referer": "https://scriptrush.vercel.app" } : {}) },
+          body: JSON.stringify({
+            model: provider.model, temperature: responseFormat ? 0.1 : 0.25, max_tokens: maxTokens,
+            ...(provider.name === "apinex"
+              ? { stream: true, thinking: { type: "disabled" } }
+              : { reasoning: { enabled: false }, provider: { only: ["novita"], require_parameters: true, allow_fallbacks: false, max_price: { prompt: 0, completion: 0 } } }),
+            ...(responseFormat ? { response_format: responseFormat } : {}),
+            messages: [{ role: "system", content: instructions }, { role: "user", content: user }],
+          }),
         });
       } catch (error) {
         // Only transport failures from fetch are classified as network failures.
@@ -49,7 +56,8 @@ async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderC
           const data = await response.json().catch(() => null) as { error?: { message?: string; metadata?: { raw?: string } } } | null;
           const description = `${data?.error?.message || ""} ${data?.error?.metadata?.raw || ""}`;
           const quota = /per.day|daily|day limit|monthly|month limit/i.test(description);
-          throw new ProviderUnavailableError(quota ? "quota" : "capacity", { status: 429, retryAfter: response.headers.get("retry-after") });
+          const resetAtMs = parseProviderResetAt(response.headers.get("x-ratelimit-reset"), Date.now());
+          throw new ProviderUnavailableError(quota ? "quota" : "capacity", { status: 429, retryAfter: response.headers.get("retry-after"), resetAtMs });
         }
         await response.body?.cancel().catch(() => {});
         if (response.status === 402) {
@@ -80,6 +88,7 @@ export function createProviderRunner(options: {
     try {
       throwIfCallerAborted(budget.signal);
       const providers = options.providers();
+      if (providers.some(provider => provider.name === "openrouter" && !provider.model.endsWith(":free"))) throw new Error("INVALID_PROVIDER_CONFIGURATION");
       const now = Date.now();
       const timeoutMs = budget.timeoutMs ?? (compactStage(system) ? 40_000 : 170_000);
       const stageDeadline = Math.min(budget.deadlineMs ?? Infinity, now + timeoutMs);

@@ -3,6 +3,7 @@ import test from "node:test";
 import { PLANNER_SYSTEM } from "../src/lib/generation-contract.ts";
 import { createProviderRunner, providerAttemptCount } from "../src/lib/provider-client.ts";
 import type { ProviderConfig } from "../src/lib/provider-config.ts";
+import { selectProviders } from "../src/lib/provider-config.ts";
 import { ProviderCooldowns } from "../src/lib/provider-failover.ts";
 
 const routes: ProviderConfig[] = [
@@ -307,5 +308,40 @@ test("caller cancellation during minute-reset wait prevents its second request",
   const error = await rejected(run("Write script", "complete prompt", 8000, { timeoutMs: 4000, signal: caller.signal }));
   assert.equal((error as Error).name, "AbortError");
   assert.equal(providerAttemptCount(error), 1);
+  assert.equal(transport.requests.length, 1);
+});
+
+test("the actual configured chain enables the free Novita route only after an APInex limit", async () => {
+  const configured = selectProviders({ APINEX_API_KEY: "dummy-primary-key", OPENROUTER_API_KEY: "dummy-secondary-key" });
+  const transport = mockTransport((_request, index) => index === 1 ? Response.json({ error: { message: "daily quota exhausted" } }, { status: 429 }) : complete());
+  const run = createProviderRunner({ providers: () => configured, fetch: transport.fetcher });
+  const result = await run(PLANNER_SYSTEM, "all requested UI and features", 14_000, { timeoutMs: 10_000 });
+  assert.equal(result.provider, "openrouter");
+  assert.equal(result.attempts, 2);
+  assert.equal(transport.requests[1].body.model, "apodex/apodex-1.1-mini:free");
+  assert.deepEqual(transport.requests[1].body.provider, { only: ["novita"], require_parameters: true, allow_fallbacks: false, max_price: { prompt: 0, completion: 0 } });
+  assert.equal((transport.requests[1].body.response_format as { type: string }).type, "json_schema");
+  assert.equal(transport.requests[1].body.models, undefined);
+  assert.equal(transport.requests[1].body.plugins, undefined);
+});
+
+test("a paid OpenRouter model is refused before making an HTTP request", async () => {
+  const transport = mockTransport(() => complete());
+  const run = createProviderRunner({ providers: () => [{ ...routes[1], model: "apodex/apodex-1.1-mini" }], fetch: transport.fetcher });
+  const error = await rejected(run("Write script", "complete prompt", 8000, { timeoutMs: 4000 }));
+  assert.match(String(error), /INVALID_PROVIDER_CONFIGURATION/);
+  assert.equal(providerAttemptCount(error), 0);
+  assert.equal(transport.requests.length, 0);
+});
+
+test("the platform reset header suppresses further exhausted-provider probes until its known reset", async () => {
+  const cooldowns = new ProviderCooldowns();
+  const resetAtMs = Math.floor(Date.now() / 1000) * 1000 + 120_000;
+  const transport = mockTransport(() => Response.json({ error: { message: "daily request limit" } }, { status: 429, headers: { "x-ratelimit-reset": String(resetAtMs) } }));
+  const run = createProviderRunner({ providers: () => [routes[1]], fetch: transport.fetcher, cooldowns });
+  await rejected(run("Write script", "first prompt", 8000, { timeoutMs: 4000 }));
+  assert.equal(cooldowns.availableAt("openrouter", Date.now()), resetAtMs);
+  const error = await rejected(run("Write script", "second prompt", 8000, { timeoutMs: 4000 }));
+  assert.equal(providerAttemptCount(error), 0);
   assert.equal(transport.requests.length, 1);
 });
