@@ -1,0 +1,15 @@
+{
+  "formatVersion": 1,
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+  "servedModel": "scriptrush-specialist-v2",
+  "trainingManifestSha256": "REPLACE_WITH_QUALIFIED_TRAINING_MANIFEST_SHA256",
+  "trainingSummarySha256": "REPLACE_WITH_EXACT_TRAINING_SUMMARY_FILE_SHA256",
+  "adapterSha256": {
+    "adapter_config.json": "REPLACE_WITH_EXACT_ADAPTER_CONFIG_FILE_SHA256",
+    "adapter_model.safetensors": "REPLACE_WITH_EXACT_ADAPTER_WEIGHTS_FILE_SHA256"
+  },
+  "allowedSystemSha256": [
+    "REPLACE_WITH_EXACT_QUALIFIED_COMPOSER_SYSTEM_UTF8_SHA256"
+  ]
+}

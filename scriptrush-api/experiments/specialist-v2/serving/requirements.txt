@@ -1,0 +1,6 @@
+# CUDA-enabled Torch must already be supplied by the selected GPU runtime.
+# No Torch installation/replacement is performed by the server or tests.
+transformers==4.51.3
+peft==0.15.2
+accelerate==1.6.0
+bitsandbytes==0.45.5
