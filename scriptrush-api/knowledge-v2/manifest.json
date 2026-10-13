@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "packVersion": "2.0.0",
+  "packSha256": "d9d3653e0b22dab55e388709a528917a8e50ff531132f292bfd2668046f8b16a",
+  "files": {
+    "catalog.json": {
+      "sha256": "3ae4d13c1660e6337b2347b0dc684732dd2d510bf5a378b90676e73b727088da",
+      "entries": 78,
+      "sourceSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+    },
+    "recipes.json": {
+      "sha256": "6484018afccda09f4a9ed2abfd2ab81e2af36a56ae1110bf607526091d2b3e5a",
+      "entries": 36,
+      "sourceSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+    }
+  },
+  "codeRepositoriesFetched": 0,
+  "gameFunctionalityVerified": false
+}

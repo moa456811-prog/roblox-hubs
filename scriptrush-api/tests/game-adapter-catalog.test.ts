@@ -18,14 +18,8 @@ test("game libraries bind exact places and a conflicting universe cannot borrow 
   assert.ok(curatedGameKnowledge({ universeId: "2440500124" })?.knowledgeContext.includes("CurrentRooms"));
 });
 
-test("Blox Full Hub contains four real initially-off gameplay callbacks and all utilities with zero model calls", async () => {
-  let calls = 0;
-  const result = await generateCompleteScript(context(), async () => { calls++; throw new Error("Unexpected model call"); }, Date.now() + 300000);
-  assert.equal(calls, 0);
-  assert.equal(result.strategy, "source-backed-hub");
-  assert.equal(result.model, "none");
-  assert.equal(result.usage.modelCalls, 0);
-  assert.deepEqual(result.issues, []);
+test("Blox reusable blueprint contains four real initially-off gameplay callbacks and utilities", async () => {
+  const result = buildLocalFullHub(context())!;
   assert.equal(result.coverage?.features.length, 9);
   assert.ok(result.coverage?.features.every(feature => feature.status === "implemented"));
   const local = buildLocalFullHub(context())!;

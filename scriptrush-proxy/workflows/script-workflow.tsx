@@ -151,8 +151,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       setResult(output.script); setCoverage(report); setPrevious(old); setSaved(undefined); setCompare(false);
       setResultResearch(output.researchKnowledge ?? null);
       const usage = parseGenerationUsage(output.metadata.usage);
-      const localBuild = output.metadata.model === "none" && typeof output.metadata.review === "object" && output.metadata.review !== null && "strategy" in output.metadata.review && (output.metadata.review.strategy === "local-profile-hub" || output.metadata.review.strategy === "source-backed-hub");
-      const usageNotice = usage ? usage.modelCalls === 0 && localBuild ? " Built locally · 0 AI calls · no AI tokens used." : ` AI calls: ${usage.modelCalls}.` : "";
+      const usageNotice = usage ? ` AI calls: ${usage.modelCalls}.` : "";
       try {
         saveResult(output.script, selection, old, Boolean(loaded));
         setOriginal(output.script);

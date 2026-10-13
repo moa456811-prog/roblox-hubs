@@ -112,6 +112,22 @@ test("research and generation expose normalized optional knowledge without chang
   } finally { globalThis.fetch = restoreFetch; }
 });
 
+test("descriptive source observations survive research and generation without becoming a supported feature", async () => {
+  const previous = globalThis.fetch, revision = "a".repeat(40);
+  const note = { id: "ANALYSIS_fixture", basis: "source-observed", summary: "Historical source observations only.", observations: ["Lobby and combat contexts are distinct; no game test was performed."], provenance: { url: `https://github.com/example/game/blob/${revision}/main.luau`, revision, sha256: "b".repeat(64) }, license: "UNKNOWN", reusePolicy: "analysis-only", runtimeVerified: false };
+  const researchKnowledge = { summary: "No licensed interaction implementation was established.", sources: [], features: [{ id: "farm", label: "Auto Farm", basis: "unknown", summary: "Game evidence remains incomplete.", sourceIds: [] }], sourceAnalysis: [note] };
+  globalThis.fetch = async url => String(url).startsWith("/api/research-game")
+    ? Response.json({ profile: { name: "Anime Zero", placeId: "123", researchKnowledge: { ...researchKnowledge, sourceCode: "PRIVATE_RAW_CODE" } } })
+    : Response.json({ ...response, researchKnowledge: { ...researchKnowledge, sourceCode: "PRIVATE_RAW_CODE" } });
+  try {
+    const researched = await researchGame("Anime Zero"), generated = await generateScript(build);
+    for (const value of [researched.researchKnowledge, generated.researchKnowledge]) {
+      assert.deepEqual(value, researchKnowledge); assert.equal(value?.features[0].basis, "unknown");
+      assert.equal(value?.sourceAnalysis?.[0].runtimeVerified, false); assert.doesNotMatch(JSON.stringify(value), /PRIVATE_RAW_CODE/);
+    }
+  } finally { globalThis.fetch = previous; }
+});
+
 test("bad request fields fail before network access and keep caller input intact", async () => {
   const restoreFetch = globalThis.fetch;
   let calls = 0;
@@ -258,21 +274,58 @@ test("backend rate-limit reasons retain measured usage and avoid exposing provid
   } finally { globalThis.fetch = restoreFetch; }
 });
 
-test("missing game evidence and malformed model JSON have separate safe diagnostics with no client retry", async () => {
+test("malformed model JSON keeps safe measured diagnostics without promising generation was skipped", async () => {
   const previous = globalThis.fetch;
   const snapshot = JSON.stringify(build);
   try {
-    for (const [code, expected, count] of [["GAME_EVIDENCE_REQUIRED", "game_evidence_required", 0], ["MODEL_OUTPUT_INVALID", "model_output_invalid", 2]] as const) {
+    for (const count of [2, 3, 4]) {
       let requests = 0;
-      globalThis.fetch = async () => { requests++; return Response.json({ code, error: "private model payload", review: { issues: ["private prompt"] }, usage: { modelCalls: count, inputCharacters: 120, outputCharacters: 80 } }, { status: code === "GAME_EVIDENCE_REQUIRED" ? 422 : 502 }); };
+      const generationProfile = { quality: { verification: "composition-structure-only", issues: ["Requested size is absent"] }, knowledge: { verifiedGameMechanics: false } };
+      globalThis.fetch = async () => { requests++; return Response.json({ code: "MODEL_OUTPUT_INVALID", error: "private model payload", review: { issues: ["private prompt"] }, usage: { modelCalls: count, inputCharacters: 120, outputCharacters: 80 }, generationProfile }, { status: 502 }); };
       await assert.rejects(generateScript(build), issue => {
-        assert.ok(issue instanceof ApiError); assert.equal(issue.code, expected);
+        assert.ok(issue instanceof ApiError); assert.equal(issue.code, "model_output_invalid");
         assert.match(issue.message, new RegExp(`AI calls: ${count}\\.`));
-        assert.doesNotMatch(issue.message, /private|try again|Failed checks/);
+        assert.doesNotMatch(issue.message, /private|try again|Failed checks|skipped|no further automatic/);
+        assert.deepEqual(issue.generationProfile, generationProfile);
         return true;
       });
       assert.equal(requests, 1); assert.equal(JSON.stringify(build), snapshot);
     }
+  } finally { globalThis.fetch = previous; }
+});
+
+test("Full Hub without source files still requests AI generation and preserves quality metadata", async () => {
+  const previous = globalThis.fetch;
+  const prompt = appendPreset('Exact custom title "Mon Hub", purple UI.', "full-hub");
+  const generationProfile = { quality: { verification: "composition-structure-only", checks: [{ requirement: "window.title", passed: true }] }, knowledge: { retrievedSources: [], verifiedGameMechanics: false } };
+  let requests = 0;
+  globalThis.fetch = async (_url, init) => {
+    requests++;
+    const posted = JSON.parse(String(init?.body));
+    assert.equal(posted.prompt, prompt); assert.deepEqual(posted.sources, []);
+    return Response.json({ ...response, model: "fixture-ai-provider", usage: { modelCalls: 3, inputCharacters: 500, outputCharacters: 300 }, generationProfile, review: { passed: true } });
+  };
+  try {
+    const result = await generateScript({ ...build, game: "Anime Zero", placeId: "123456", prompt, sources: [] });
+    assert.equal(requests, 1); assert.equal(result.metadata.model, "fixture-ai-provider");
+    assert.deepEqual(result.metadata.generationProfile, generationProfile);
+    assert.deepEqual(result.metadata.usage, { modelCalls: 3, inputCharacters: 500, outputCharacters: 300 });
+  } finally { globalThis.fetch = previous; }
+});
+
+test("failed quality checks remain available for a targeted correction without changing the supplied script", async () => {
+  const previous = globalThis.fetch;
+  const currentScript = "\n-- custom UI must survive\r\nprint('keep existing code')\n";
+  const body: GenerationRequest = { ...build, mode: "fix", currentScript, prompt: "Fix only the missing Jump Power control." };
+  const generationProfile = { quality: { verification: "composition-structure-only", issues: ["Jump Power control missing"] }, knowledge: { verifiedGameMechanics: false } };
+  globalThis.fetch = async () => Response.json({ code: "REQUIREMENTS_NOT_MET", review: { issues: ["Jump Power control missing"] }, generationProfile, usage: { modelCalls: 4, inputCharacters: 2000, outputCharacters: 1000 } }, { status: 502 });
+  try {
+    await assert.rejects(generateScript(body), issue => {
+      assert.ok(issue instanceof ApiError); assert.equal(issue.code, "requirements_not_met");
+      assert.deepEqual(issue.generationProfile, generationProfile); assert.equal(issue.usage?.modelCalls, 4);
+      assert.match(issue.message, /Jump Power control missing/); return true;
+    });
+    assert.equal(body.currentScript, currentScript);
   } finally { globalThis.fetch = previous; }
 });
 

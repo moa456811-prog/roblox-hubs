@@ -1,32 +1,35 @@
 {
-  "measuredAt": "2026-10-13T15:21:11.259536+00:00",
+  "measuredAt": "2026-10-13T17:23:05.463484+00:00",
   "node": "v24.19.0",
   "os": "Windows",
   "local": [
     {
       "application": "scriptrush-api",
-      "passed": 210,
+      "passed": 260,
       "failed": 0,
       "skipped": 0,
       "typecheck": "passed",
       "build": "passed",
-      "testLogSha256": "857259bb013eee7bacafc64eb26bfc1b2519ce9250231b23689d3b0f37b6a265",
-      "buildLogSha256": "2c73edb8acf90c30eb09b30c8ea827cf5c06abc60bdc366b3ca623c6135f449b"
+      "testLogSha256": "a63ed01dca3ff1bd8b0e1d8e2df1e302d49a8f2200ca22d20097ab4a76ddb6d7",
+      "buildLogSha256": "96377e574273c8b841608ab20d00d7f973f6a17e8a74045ee133c8ccd2cf0a7f",
+      "typecheckLogSha256": "06c35e9508cb23bfb88ebc720493228e800eac784d12a318150f0bb90571a3c2"
     },
     {
       "application": "scriptrush-proxy",
-      "passed": 69,
+      "passed": 78,
       "failed": 0,
       "skipped": 0,
       "typecheck": "passed",
       "build": "passed",
-      "testLogSha256": "e48b58c3ac1d0e7aa4730ee5bfeaeac5d5b91a2caba617066afa968d00b3b6ca",
-      "buildLogSha256": "1a9ea2622d585b7f9ec5ceab1a3cd88bfd69650500f00b1a21b1ee842190b480"
+      "testLogSha256": "3b99f50a0ec483a9f084c1de7587d901de1baf79f17100c33a6662d74e0674c5",
+      "buildLogSha256": "96ceaac036ece2de92345c030062a4f297ba9ef0220937229f1e9afdeb37cd21",
+      "typecheckLogSha256": "c7c413dd159a7ee2a17012d734fc2b925b60cd3fa6fa30878361809e1d02e88a"
     }
   ],
-  "totalPassed": 279,
+  "totalPassed": 338,
   "actualLuauCompiler": "0.742",
-  "modelProviderRequests": 0,
+  "modelEvaluation": "model-evaluation.json",
   "gameplayObserved": false,
-  "remoteCi": "See PR checks; pending when this record was written"
+  "productionDeployed": false,
+  "remoteCi": "See current PR checks"
 }

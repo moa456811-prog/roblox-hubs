@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildSourceKnowledge, exactGameSearchMatch, githubResearchQueries, MAX_KNOWLEDGE_CHARACTERS, normalizeGameName, referenceMatchesGame, SharedResearchCache, sourceHash, type PublicReference } from "../src/lib/source-knowledge.ts";
+import { MIT_LICENSE_BODY } from "../src/lib/knowledge-v2/ingest.ts";
+import { pinnedMitLicense, publicSourceGitBlobHash } from "../src/lib/public-source-analysis.ts";
 
 const game = { name: "Blox Fruits", placeId: "2753915549", universeId: "994732206" };
 const example = `local questRemote = game:GetService("ReplicatedStorage").Remotes.Quest
 local function acceptQuest(questName)
     questRemote:InvokeServer("StartQuest", questName)
 end`;
-const reference = (overrides: Partial<PublicReference> = {}): PublicReference => ({ kind: "github", title: "owner/Blox-Fruits/quest.lua", url: "https://github.com/owner/Blox-Fruits/blob/" + "a".repeat(40) + "/quest.lua", snippet: example, game: "Blox Fruits", revision: "a".repeat(40), ...overrides });
+const testLicense = "MIT License\n\nCopyright (c) 2026 Synthetic Test Fixture\n\n" + MIT_LICENSE_BODY;
+const license = pinnedMitLicense("owner/Blox-Fruits", "a".repeat(40), { type: "file", encoding: "base64", license: { spdx_id: "MIT" }, path: "LICENSE", content: Buffer.from(testLicense).toString("base64"), sha: publicSourceGitBlobHash(testLicense), size: Buffer.byteLength(testLicense) })!;
+const reference = (overrides: Partial<PublicReference> = {}): PublicReference => ({ kind: "github", title: "owner/Blox-Fruits/quest.lua", url: "https://github.com/owner/Blox-Fruits/blob/" + "a".repeat(40) + "/quest.lua", snippet: example, game: "Blox Fruits", revision: "a".repeat(40), license, ...overrides });
 
 test("official name search accepts an exact normalized identity and never borrows the first unrelated result", () => {
   const unrelated = { name: "Blox Fruits", placeId: "2753915549", universeId: "994732206" };
@@ -18,9 +22,9 @@ test("official name search accepts an exact normalized identity and never borrow
   assert.equal(exactGameSearchMatch("", [unrelated]), undefined);
 });
 
-test("GitHub source search uses a canonical game phrase and language, with one optional exact place query", () => {
-  assert.deepEqual(githubResearchQueries("[HALLOWEEN] Blox Fruits 🎃", "2753915549"), ['"Blox Fruits" language:Lua', '2753915549 language:Lua']);
-  assert.deepEqual(githubResearchQueries("DOORS"), ['"DOORS" language:Lua']);
+test("GitHub source search distinguishes place and universe queries and covers Lua and Luau", () => {
+  assert.deepEqual(githubResearchQueries("[HALLOWEEN] Blox Fruits 🎃", "2753915549", "994732206"), ['"Blox Fruits" language:Lua', '2753915549 language:Lua', '994732206 language:Lua', '"Blox Fruits" language:Luau', '2753915549 language:Luau', '994732206 language:Luau']);
+  assert.deepEqual(githubResearchQueries("DOORS"), ['"DOORS" language:Lua', '"DOORS" language:Luau']);
   assert.deepEqual(githubResearchQueries("", "not-an-id"), []);
   assert.equal(githubResearchQueries("x".repeat(200))[0], '"' + "x".repeat(120) + '" language:Lua');
 });
@@ -32,6 +36,7 @@ test("matched public code reaches compact context with real calls, aliases, immu
   assert.equal(result.researchKnowledge.sources.length, 1);
   assert.equal(result.researchKnowledge.sources[0].hash, sourceHash(example));
   assert.equal(result.researchKnowledge.sources[0].revision, "a".repeat(40));
+  assert.deepEqual(result.licenseAttributions, [{ sourceId: result.researchKnowledge.sources[0].id, url: reference().url, revision: "a".repeat(40), licenseText: testLicense }]);
   const quest = result.researchKnowledge.features.find(feature => feature.id === "quest-farm")!;
   assert.equal(quest.basis, "source-backed");
   assert.deepEqual(quest.sourceIds, [result.researchKnowledge.sources[0].id]);
@@ -48,7 +53,7 @@ test("code after long UI headers is retained instead of truncating every source 
   const snippet = "-- unrelated UI documentation\n".repeat(400) + example;
   const result = buildSourceKnowledge(game, [reference({ snippet })]);
   assert.match(result.knowledgeContext, /StartQuest/);
-  assert.ok(result.knowledgeContext.length < 2500);
+  assert.ok(result.knowledgeContext.length < 4500, "Complete license provenance is retained alongside the compact excerpt");
 });
 
 test("exact normalized names or executable game guards establish identity; search position and conflicting names do not", () => {
@@ -59,6 +64,17 @@ test("exact normalized names or executable game guards establish identity; searc
   assert.equal(referenceMatchesGame(reference({ game: undefined, snippet: `if 2753915549 == game.PlaceId then\n${example}\nend` }), game), true);
   assert.equal(referenceMatchesGame(reference({ snippet: `if game.PlaceId == 111 then\n${example}\nend` }), game), false);
   assert.equal(referenceMatchesGame(reference({ game: undefined, snippet: `-- game.PlaceId == 2753915549\n${example}` }), game), false);
+});
+
+test("a contradictory universe cannot borrow exact names or place IDs; other places require a confirmed common universe", () => {
+  assert.equal(referenceMatchesGame(reference({ universeId: "999", placeId: game.placeId }), game), false);
+  assert.equal(referenceMatchesGame(reference({ universeId: "999" }), game), false);
+  assert.equal(referenceMatchesGame(reference({ placeId: "999" }), game), false);
+  assert.equal(referenceMatchesGame(reference({ placeId: "999", universeId: game.universeId }), game), true);
+  assert.equal(referenceMatchesGame(reference({ placeId: "999", universeId: game.universeId }), { ...game, universeId: undefined }), false);
+  assert.equal(referenceMatchesGame(reference({ snippet: `if game.PlaceId == ${game.placeId} and game.GameId == 999 then\n${example}\nend` }), game), false);
+  const rejected = buildSourceKnowledge(game, [reference({ universeId: "999" })]);
+  assert.equal(rejected.knowledgeContext, ""); assert.deepEqual(rejected.licenseAttributions, []);
 });
 
 test("universal source excerpts never borrow payloads from another game's branch", () => {
@@ -109,7 +125,8 @@ test("ScriptBlox verification, keyword labels and loaders alone never become usa
     assert.ok(result.researchKnowledge.features.every(feature => feature.basis === "unknown"));
   }
   const source = buildSourceKnowledge(game, [reference({ kind: "scriptblox", url: "https://scriptblox.com/script/example", verified: true })]);
-  assert.equal(source.researchKnowledge.features.find(feature => feature.id === "quest-farm")?.basis, "source-backed");
+  assert.equal(source.researchKnowledge.features.find(feature => feature.id === "quest-farm")?.basis, "unknown", "A ScriptBlox verified badge does not supply a code reuse license");
+  assert.deepEqual(source.licenseAttributions, []);
 });
 
 test("malicious, obfuscated, patched, oversized and cross-game references are excluded without executing or following anything", () => {
@@ -138,6 +155,8 @@ test("repeated sources deduplicate by content and the total model source context
   assert.ok(result.researchKnowledge.sources.length < references.length);
   const duplicate = buildSourceKnowledge(game, [reference(), reference({ url: reference().url + "?duplicate" })]);
   assert.equal(duplicate.researchKnowledge.sources.length, 1);
+  assert.equal(duplicate.licenseAttributions.length, 1);
+  assert.deepEqual(result.licenseAttributions.map(item => item.sourceId), result.researchKnowledge.sources.map(source => source.id), "Only excerpts actually retained in the bounded model context receive notices");
 });
 
 test("a cancelled cache caller detaches while another caller receives the shared result once", async () => {

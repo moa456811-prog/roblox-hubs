@@ -1,9 +1,22 @@
 export type ResearchBasis = "source-backed" | "runtime-verified" | "unknown";
 
+export interface ResearchSourceAnalysis {
+  id: string;
+  basis: "source-observed";
+  summary: string;
+  observations: string[];
+  provenance: { url: string; revision: string; sha256: string };
+  license: "MIT" | "UNKNOWN";
+  reusePolicy: "analysis-only";
+  runtimeVerified: false;
+  gameProfile?: { universeId: string; rootPlaceId: string; combatPlaceId: string; genre: string; observedAt: string; identityEvidenceUrls: string[] };
+}
+
 export interface ResearchKnowledge {
   summary: string;
   sources: { id: string; title: string; url: string; kind: string }[];
   features: { id: string; label: string; basis: ResearchBasis; summary: string; sourceIds: string[]; missing?: string[] }[];
+  sourceAnalysis?: ResearchSourceAnalysis[];
   researchedAt?: string;
 }
 
@@ -21,6 +34,46 @@ function sourceUrl(value: unknown): string | null {
     if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
     return url.href;
   } catch { return null; }
+}
+
+/** Descriptive observations have their own channel; they never establish a
+ * supported feature, reuse permission for code, or a successful live-game test. */
+function sourceAnalysis(value: unknown): ResearchSourceAnalysis[] | null {
+  if (!Array.isArray(value) || value.length > 4) return null;
+  const notes: ResearchSourceAnalysis[] = [], ids = new Set<string>();
+  for (const note of value) {
+    if (!isRecord(note) || note.basis !== "source-observed" || note.reusePolicy !== "analysis-only" || note.runtimeVerified !== false || (note.license !== "MIT" && note.license !== "UNKNOWN") || !isRecord(note.provenance)) return null;
+    const id = text(note.id, 128), summary = text(note.summary, 1_000);
+    const revision = text(note.provenance.revision, 40), sha256 = text(note.provenance.sha256, 64), url = sourceUrl(note.provenance.url);
+    if (!id || !summary || ids.has(id) || !revision || !/^[a-f0-9]{40}$/.test(revision) || !sha256 || !/^[a-f0-9]{64}$/.test(sha256) || !url) return null;
+    const provenance = new URL(url), pinned = provenance.pathname.match(/^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/blob\/([a-f0-9]{40})\/[^?#]+$/);
+    if (provenance.hostname !== "github.com" || provenance.port || provenance.search || provenance.hash || pinned?.[1] !== revision) return null;
+    if (!Array.isArray(note.observations) || !note.observations.length || note.observations.length > 8) return null;
+    const observations: string[] = [];
+    for (const observation of note.observations) {
+      const detail = text(observation, 800);
+      if (!detail || observations.includes(detail)) return null;
+      observations.push(detail);
+    }
+    let gameProfile: ResearchSourceAnalysis["gameProfile"];
+    if (note.gameProfile !== undefined) {
+      const profile = note.gameProfile;
+      if (!isRecord(profile)) return null;
+      const identifier = (value: unknown) => typeof value === "string" && /^[1-9]\d{0,18}$/.test(value) ? value : null;
+      const universeId = identifier(profile.universeId), rootPlaceId = identifier(profile.rootPlaceId), combatPlaceId = identifier(profile.combatPlaceId);
+      const genre = text(profile.genre, 180), observedAt = text(profile.observedAt, 80);
+      if (!universeId || !rootPlaceId || !combatPlaceId || !genre || !observedAt || !Number.isFinite(Date.parse(observedAt)) || !Array.isArray(profile.identityEvidenceUrls) || !profile.identityEvidenceUrls.length || profile.identityEvidenceUrls.length > 4) return null;
+      const identityEvidenceUrls: string[] = [];
+      for (const reference of profile.identityEvidenceUrls) {
+        const safe = sourceUrl(reference); if (!safe || identityEvidenceUrls.includes(safe)) return null;
+        identityEvidenceUrls.push(safe);
+      }
+      gameProfile = { universeId, rootPlaceId, combatPlaceId, genre, observedAt, identityEvidenceUrls };
+    }
+    ids.add(id);
+    notes.push({ id, basis: "source-observed", summary, observations, provenance: { url, revision, sha256 }, license: note.license, reusePolicy: "analysis-only", runtimeVerified: false, ...(gameProfile ? { gameProfile } : {}) });
+  }
+  return notes;
 }
 
 /** Only public summaries and source links cross this display boundary. Source
@@ -70,7 +123,9 @@ export function parseResearchKnowledge(value: unknown): ResearchKnowledge | null
     if (!date || !Number.isFinite(Date.parse(date))) return null;
     researchedAt = new Date(date).toISOString();
   }
-  return { summary, sources, features, ...(researchedAt ? { researchedAt } : {}) };
+  const analysis = value.sourceAnalysis === undefined ? undefined : sourceAnalysis(value.sourceAnalysis);
+  if (analysis === null) return null;
+  return { summary, sources, features, ...(analysis !== undefined ? { sourceAnalysis: analysis } : {}), ...(researchedAt ? { researchedAt } : {}) };
 }
 
 export function researchBasisLabel(basis: ResearchBasis): string {

@@ -1,35 +1,37 @@
-# Correctif du JSON de hub et des appels inutiles
+# Qualité des générations IA de ScriptRush
 
-Branche isolée `codex/hub-json-recovery`, base `cd09a4a` de `codex/scriptrush-multipage`. La branche de l'autre session et la PR Knowledge Engine V2 ne sont pas modifiées. Aucun déploiement, changement de clé ou appel à un fournisseur IA n'a été effectué pour ces essais.
+Branche isolée `codex/hub-json-recovery`, base `cd09a4a` de `codex/scriptrush-multipage`. Aucune modification de la branche de l’autre session, des scripts sauvegardés ou de la production. Le site conserve son interface et ses fournisseurs.
 
-## Problème observé
+## Comportement livré
 
-La capture montre « Invalid hub composition: Expected ',' or ']' after array element » après trois appels IA, avec aucune implémentation de jeu exploitable. Le code traitait une erreur de syntaxe JSON comme un défaut d'implémentation et envoyait une réparation complète du hub. La réponse brute du fournisseur n'est pas disponible ; les tests reproduisent cette classe d'erreur, sans prétendre connaître son contenu exact à la position indiquée.
+Full Hub utilise le pipeline IA **plan → composition complète → revue des effets**, y compris avec une recherche de jeu incomplète. Le blocage `GAME_EVIDENCE_REQUIRED` et le raccourci de génération locale ont été retirés de ce parcours. `buildLocalFullHub` reste un constructeur de référence testé, sans appel depuis le générateur du site. L’objectif est la qualité du résultat IA, pas zéro appel.
 
-## Comportement corrigé
+La génération reçoit un contexte RAG local versionné et borné : catalogue de 78 candidats, 36 recettes, exemples originaux du pack fourni et extraits admis selon leur licence et environnement. Tous les candidats ne sont pas des bibliothèques installées. Les rôles client/serveur/exécuteur restent distincts ; les recettes conceptuelles sont identifiées séparément. Les extraits Janitor MIT gardent commit, hashes et licence complète. Le serveur conserve aussi les notices complètes dans le script final pour tous les extraits licenciés envoyés au modèle, même si celui-ci oublie de les reproduire. Les exemples ne prouvent aucune mécanique du jeu. Une défaillance d’enrichissement n’envoie aucune donnée douteuse et conserve le parcours IA existant.
 
-- JSON strict en premier. Récupération locale de huit virgules maximum, uniquement hors des chaînes : séparateurs manquants entre éléments/propriétés ou virgules finales. Aucun appel IA, aucune modification des valeurs, chaînes Luau, couleurs, titres ou identifiants. Les validations de schéma, exigences, rôles des contrôles et revue du script restent obligatoires.
-- JSON ambigu, clés décodées dupliquées, quotes cassées, valeurs/délimiteurs manquants et sortie tronquée sont refusés. Aucun script partiel, aucun hub de secours. Une erreur de protocole ne déclenche plus une régénération complète payante.
-- Une réponse tronquée, initiale ou après une réparation légitime d'implémentation, garde le diagnostic `INCOMPLETE_RESPONSE` jusqu'au navigateur. Les appels déjà exécutés restent comptabilisés. Les messages ne prétendent pas qu'aucune réparation n'a eu lieu si une réparation avait déjà été tentée.
-- Le preset Full Hub exact, sans contexte exploitable ni implémentation recherchée, s'arrête avant tout appel IA. Un hub personnalisé peut nécessiter le plan, puis s'arrête avant écriture/revue lorsqu'il réclame les mêmes actions sans preuve. Les utilitaires standard et demandes purement UI ne sont pas bloqués par l'absence de mécaniques du jeu.
-- Les fichiers ou diagnostics fournis peuvent justifier une analyse : ils ne certifient pas un mécanisme. Les garde-fous suivants restent nécessaires. Le préflight personnalisé reconnaît les fonctionnalités inventoriées par la recherche ; il ne garantit pas zéro appel pour toutes les formulations libres.
-- Le frontend distingue manque de preuves, JSON invalide et troncature, préserve la demande/le script, affiche le nombre d'appels réellement rapporté et ne relance pas automatiquement la requête.
+Un inventaire extrait les demandes explicites, puis contrôle les **valeurs réellement rendues** : titre, taille, navigation, pages et ordre, police, palette principale/alternative et présence des contrôles. Une omission de fonctionnalité reconnue dans un nouveau plan reçoit une correction ciblée. Les simples mentions de propriétés dans un diagnostic ne créent pas de contrôles supplémentaires en mode réparation. L’anglais fonctionnel est conservé ; titres personnalisés et noms propres restent exacts, sans marque imposée.
 
-Le pipeline garde son architecture et son interface. Les scripts générés restent en anglais, avec un titre personnalisé conservé et sans marque imposée. Les réparations sémantiques utiles gardent leur budget complet ; seules les répétitions provoquées par une réponse invalide sont arrêtées.
+La recherche distingue Place ID et Universe ID, couvre Lua/Luau et favorise les noms de fichiers liés aux identifiants. Les wrappers de packets et contrôleurs peuvent fournir des observations descriptives ; un appel générique `:fire()` ne suffit jamais à valider une fonction. Le profil Anime Zero décrit une référence historique précise, avec séparation lobby/combat, commit, hash et identité publique. Aucun code tiers sans licence n’est copié dans les prompts. Les notes n’affirment ni compatibilité actuelle ni succès en jeu.
 
-## Preuves
+## Validation et corrections
 
-- Tests API : **210 passent**, dont parseur, pipeline, dépenses/absence de nouvel appel, compilation Luau, conservation des exigences et contexte, fournisseurs/fallback et jeux déjà pris en charge.
-- Tests frontend : **69 passent**, dont transport des trois diagnostics, absence de retry, conservation des requêtes/scripts et régressions de confidentialité du scanner.
-- Les deux builds Next et contrôles TypeScript sont vérifiés avant livraison. La CI Linux Node 22.19/24 exécute les mêmes tests et un compilateur officiel Luau 0.742 avec SHA-256 vérifié ; voir les checks de la PR pour son résultat.
-- La composition corrigée localement est égale à la composition originale, son rendu Luau reste identique octet par octet, et ce script complet compile réellement. Les callbacks Luau ne sont jamais exécutés par le parseur JSON.
-- [Test HTTP réel](http-proof.json) : demande locale « Anime Zero [Void Arbiter] », preset exact Full Hub, sans fichier ; recherche publique sans code admis, réponse `422 GAME_EVIDENCE_REQUIRED`, **0 appel IA**, aucun script renvoyé, environ **3,24 secondes** sur cet essai. Ce n'est pas un test dans Roblox.
-- Une règle `.gitattributes` ciblée préserve les octets LF de la fixture scanner déjà revue. Le checkout Windows faisait sinon échouer son test CRLF. Aucun code de scanner ni hash de confiance n'est assoupli.
+- JSON strict, puis récupération bornée des seules virgules manquantes/finales hors chaînes ; aucune modification de valeurs, code Luau ou titre.
+- Sortie ambiguë ou schéma incorrect : une correction complète et ciblée de la composition peut être demandée, en conservant tout le contexte. Sortie tronquée : jamais acceptée.
+- Écarts de fonctionnalités/UI : une réparation ciblée, suivie d’une nouvelle revue indépendante. Les erreurs de sélection de preuves font corriger la revue, sans réécrire les effets déjà corrects.
+- Maximum deux réponses de planification ; réparations/revues bornées par le délai partagé existant. Les comptes d’appels reflètent les tentatives réellement faites, sans prétendre mesurer des tokens à partir de caractères.
+- Les erreurs préservent la demande et le script antérieur. Les métadonnées transmettent la version de connaissance et les contrôles structuraux, avec `runtimeVerified: false`.
 
-Les essais de génération utilisent des réponses auteur injectées. Aucune qualité réelle de modèle, économie en dollars, remboursement de tokens déjà consommés ou compatibilité en jeu n'est mesurée. Les requêtes normales avec preuves continuent à utiliser les fournisseurs existants.
+Les tests couvrent le vrai handler HTTP avec dépendances simulées, le transport frontend, le retrait du bypass, les omissions, les valeurs d’UI erronées, les titres français, la confidentialité des recherches, les licences, les hashes et les chemins existants. Les builds Next et contrôles TypeScript sont exécutés sur les deux applications. La CI Linux Node 22.19/24 utilise le compilateur officiel Luau 0.742, téléchargé avec vérification SHA-256.
 
-## Activation et rollback
+Les chiffres finaux et les essais réels de modèle sont consignés dans `verification.json` et `model-evaluation.json`. Deux demandes sans fichier ont été testées avec le vrai modèle APInex : le hub de quatre utilitaires passe en 33,09 s (3 appels, 45 803 tokens rapportés, 56 simulations) ; la demande française corrigée passe en 23,36 s (3 appels, 29 419 tokens, 24 simulations). Le premier candidat français avait échoué : lecture erronée de « aucun Rejoin » et rejet de helpers inutilisés du renderer ; ces défauts ont été corrigés puis retestés. La baseline n’acceptait qu’un des deux cas. Les résultats finaux du candidat viennent de deux snapshots distincts, explicités dans le rapport ; il s’agit d’un diagnostic limité, pas d’une preuve d’amélioration universelle. Le coût USD reste inconnu. Les scripts exacts figurent dans `demo/`. Les anciennes preuves HTTP célébrant une réponse 422 sans appel IA ont été retirées : ce comportement n’est plus le livrable.
 
-Correctif livré en PR indépendante, **non déployé en production**. Le site public continue d'utiliser sa version actuelle tant que le déploiement n'est pas approuvé. Après accord, déployer l'API et le frontend du même commit, vérifier le preset sans preuves (422, zéro appel), une composition avec preuve, les utilitaires UI et une correction de script existant. Revenir au déploiement précédent des deux applications pour annuler ; aucune migration de données n'est nécessaire.
+## Limites
 
-Ce correctif ne transforme pas les fonctions inconnues d'Anime Zero en fonctionnalités prouvées. La PR Knowledge Engine V2 reste une livraison séparée pour développer la provenance, le stockage et les niveaux de vérification.
+L’inventaire déterministe couvre les formulations explicites reconnues ; la revue sémantique reste nécessaire pour les formulations libres, comportements personnalisés, couleurs nommées et images de référence. Une présence de contrôle ne prouve pas son effet. Compilation et tests simulés ne prouvent pas le résultat dans Roblox. Aucun essai en jeu n’a été observé dans cette livraison. Farm, boss, quest et loot ne sont pas quatre systèmes confirmés d’Anime Zero.
+
+L’IA peut toujours échouer ou manquer d’éléments sur un protocole privé. Elle doit signaler ce manque, sans inventer des remotes ni présenter des boutons désactivés comme des fonctionnalités implémentées. Les nouvelles notes améliorent l’analyse ; elles ne constituent pas une nouvelle bibliothèque de gameplay certifiée.
+
+## Déploiement après accord et rollback
+
+Livraison en PR, **sans déploiement en production**. Après accord, déployer l’API et le frontend depuis le même commit. Vérifier Full Hub via le lien/Place ID sans `.rbxl`, une demande de palette/pages personnalisées et la réparation ciblée d’un script existant. Contrôler les vrais appels IA, les métadonnées et l’absence de régression sur l’historique. Revenir aux déploiements API/frontend précédents pour annuler ; aucune migration de données n’est nécessaire.
+
+La PR Knowledge Engine V2 (#3) reste séparée pour ses routes de projets persistants et niveaux de vérification. Les fichiers de son noyau RAG repris ici sont identiques aux blobs de cette PR afin de faciliter leur rapprochement.
