@@ -4,7 +4,7 @@ Private, reproducible model experiment. Nothing in this directory changes the
 production provider chain, deploys an endpoint or activates the candidate model.
 The current production generator remains the baseline to beat.
 
-Measured status at **2026-10-13 04:38 UTC** is recorded in [RESULTS.md](RESULTS.md).
+Measured status at **2026-10-13 04:53 UTC** is recorded in [RESULTS.md](RESULTS.md).
 The utility development comparison accepts 4/4 specialist hubs versus 0/4 base
 hubs; the base still passes 23/39 individual feature instances. The original
 production continuation ended in ERROR on a rank-1 NCCL ALLGATHER timeout after
@@ -25,7 +25,9 @@ the admitted actions and English UI, but one invents a tab from a scope note and
 one changes a requested RGB channel by one. Base outputs all exhaust their
 240-second budget without EOS. The specialist takes 152–169 seconds, exceeding
 the site's 120-second writer budget. No final or APInex quality comparison has
-been run. A further continuation is being prepared on the same training data;
+been run. A further 64-step continuation on the same teaching messages was
+accepted as `sciptrush/scriptrush-v2-production-retry-9e81c8ff`, version 1,
+at 04:51:56 UTC. Its raw metadata/script bytes survived submission unchanged;
 no final qualification, usable hosted GPU endpoint or activation is established.
 
 ## Model and fitting
@@ -58,6 +60,14 @@ with eight independent production validation and four development cases. It uses
 every 16 steps. The optional assistant-only vocabulary projection preserves the
 causal predictor before the first assistant token; numerical tests verify both
 loss and gradients. The original utility submission remains frozen.
+
+The [further continuation](README-production-retry.md) uses the verified recovered
+checkpoint-32 weights, the exact same 144/8 teaching rows, LR 0.00002 and seed
+39119 for 64 additional optimizer steps. It starts a fresh optimizer and selects
+the best checkpoint by validation every 16 steps. Fitting receipts explicitly
+retain `external-pending` development status; a separate independent DEV job
+must succeed before untouched final or API comparisons. No failed DEV output is
+repaired, substituted or inserted into training.
 
 ## Evidence and acceptance
 

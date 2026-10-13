@@ -47,6 +47,10 @@ def compact(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
+def canonical_digest(value):
+    return digest(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False))
+
+
 def digest(value):
     return hashlib.sha256(value if isinstance(value, bytes) else value.encode("utf-8")).hexdigest()
 
@@ -82,7 +86,7 @@ def validate_bundle(bundle):
     if not isinstance(bundle, dict) or set(bundle) not in ((recovered_allowed,recovered_allowed|{"checkpointDatasetTransport"}) if recovered else (allowed, allowed | {"mode"})):
         raise ValueError("UNEXPECTED_BUNDLE_FIELDS_OR_LABELS")
     mode = bundle.get("mode", "final")
-    if mode not in ("final", "development-retry", "production-development-retry", "final-recovered-checkpoint") or recovered != (mode in ("production-development-retry","final-recovered-checkpoint")):
+    if mode not in ("final", "development-retry", "production-development-retry", "production-development-completed", "final-recovered-checkpoint") or recovered != (mode in ("production-development-retry","final-recovered-checkpoint")):
         raise ValueError("UNEXPECTED_INFERENCE_MODE")
     if bundle["formatVersion"] != 1 or not allowed_source_notebook(bundle["sourceNotebook"]) or bundle["model"] != MODEL or bundle["revision"] != REVISION:
         raise ValueError("UNEXPECTED_SOURCE_MODEL_OR_NOTEBOOK")
@@ -93,6 +97,8 @@ def validate_bundle(bundle):
         validate_recovery_bundle(bundle)
         if "checkpointDatasetTransport" in bundle:
             validate_checkpoint_dataset_transport(bundle["checkpointDatasetTransport"],bundle)
+    elif mode == "production-development-completed":
+        validate_completed_production_sources(bundle)
     if bundle["limits"] != {"maxInputTokens": MAX_INPUT_TOKENS, "maxNewTokens": MAX_NEW_TOKENS, "maxSeconds": MAX_SECONDS}:
         raise ValueError("INFERENCE_BUDGET_CHANGED")
     hashes = bundle["adapterSha256"]
@@ -105,7 +111,7 @@ def validate_bundle(bundle):
     if not isinstance(cases, list) or not cases or len(cases) > 20:
         raise ValueError("INVALID_CASE_BUDGET")
     ids = set()
-    groups = {"dev": 0} if mode in ("development-retry","production-development-retry") else {"test": 0, "production": 0}
+    groups = {"dev": 0} if mode in ("development-retry","production-development-retry","production-development-completed") else {"test": 0, "production": 0}
     for row in cases:
         if not isinstance(row, dict) or set(row) != {"id", "group", "messages", "promptSha256", "preparedInputTokens"}:
             raise ValueError("CASE_LABEL_OR_UNEXPECTED_FIELD")
@@ -124,7 +130,7 @@ def validate_bundle(bundle):
     if mode == "development-retry":
         if tuple(row["id"] for row in cases) != DEV_IDS or groups != {"dev": 4} or bundle["sourceNotebook"] != SOURCE_NOTEBOOK or bundle["datasetManifestSha256"] != V2_TRAINING_MANIFEST_SHA256:
             raise ValueError("ONLY_FOUR_ORIGINAL_UTILITY_DEVELOPMENT_CASES_ALLOWED")
-    elif mode == "production-development-retry":
+    elif mode in ("production-development-retry", "production-development-completed"):
         if tuple(row["id"] for row in cases) != PRODUCTION_DEV_IDS or groups != {"dev":4}:
             raise ValueError("ONLY_FOUR_FROZEN_PRODUCTION_DEVELOPMENT_CASES_ALLOWED")
     elif mode == "final-recovered-checkpoint":
@@ -133,6 +139,57 @@ def validate_bundle(bundle):
     elif groups["test"] != 12 or groups["production"] > 8:
         raise ValueError("TWELVE_FINAL_TESTS_AND_AT_MOST_EIGHT_PRODUCTION_CASES_REQUIRED")
     return bundle
+
+
+def validate_completed_production_sources(bundle):
+    sources = bundle["sourceFiles"]
+    keys = {"productionManifestSha256", "productionDevSha256", "sourceScriptSha256", "sourceSubmissionReceiptSha256", "initialRecoveredCheckpointSha256"}
+    if not isinstance(sources, dict) or set(sources) != keys or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value) for value in sources.values()):
+        raise ValueError("COMPLETED_PRODUCTION_SOURCE_HASHES_REQUIRED")
+    if sources["productionManifestSha256"] != PRODUCTION_FIXTURE_MANIFEST or sources["productionDevSha256"] != PRODUCTION_DEV_FILE:
+        raise ValueError("FROZEN_PRODUCTION_DEVELOPMENT_SOURCE_CHANGED")
+    if not re.fullmatch(r"sciptrush/scriptrush-v2-production-retry-[0-9a-f]{8}", bundle["sourceNotebook"]):
+        raise ValueError("OWNED_COMPLETED_PRODUCTION_RETRY_SOURCE_REQUIRED")
+    if bundle["datasetManifestSha256"] == PRODUCTION_MANIFEST:
+        raise ValueError("NEW_CONTINUATION_DATASET_MANIFEST_REQUIRED")
+
+
+def validate_completed_production_summary(summary, bundle):
+    """A completed fit is required; four DEV outputs never qualify promotion."""
+    validate_completed_production_sources(bundle)
+    required = {"model": MODEL, "revision": REVISION, "method": "QLoRA-NF4", "steps": 64, "seed": 39119,
+                "fitStatus": "complete", "developmentStatus": "external-pending", "developmentMode": "external",
+                "developmentSkipped": False, "diagnosticOnly": False, "productionPromotionEligible": False,
+                "runPurpose": "production-continuation-fit", "maxContext": 8192, "assistantLogitsOnly": True,
+                "evaluationSteps": 16, "trainExamples": 144, "validationExamples": 8, "trainOversizeSkipped": 0,
+                "effectiveBatchSize": 4, "initialProductionSteps": 32, "additionalProductionSteps": 64,
+                "cumulativeProductionSteps": 96, "optimizerStateResumed": False,
+                "datasetManifestSha256": bundle["datasetManifestSha256"], "initialManifestSha256": PRODUCTION_MANIFEST,
+                "scriptSha256": bundle["sourceFiles"]["sourceScriptSha256"], "adapterSha256": bundle["adapterSha256"],
+                "developmentIds": list(PRODUCTION_DEV_IDS)}
+    if not isinstance(summary, dict) or any(type(summary.get(key)) is not type(value) or summary.get(key) != value for key, value in required.items()):
+        raise ValueError("COMPLETED_PRODUCTION_FIT_LINEAGE_OR_RECIPE_MISMATCH")
+    if not isinstance(summary.get("learningRate"), (int, float)) or isinstance(summary["learningRate"], bool) or not math.isclose(summary["learningRate"], 2e-5, rel_tol=0, abs_tol=1e-12):
+        raise ValueError("COMPLETED_PRODUCTION_LEARNING_RATE_MISMATCH")
+    if summary.get("initialSummarySha256") is not None:
+        raise ValueError("RECOVERED_INITIAL_SUMMARY_MUST_NOT_BE_FABRICATED")
+    initial = summary.get("initialRecoveredCheckpoint")
+    if not isinstance(initial, dict) or canonical_digest(initial) != bundle["sourceFiles"]["initialRecoveredCheckpointSha256"]:
+        raise ValueError("COMPLETED_PRODUCTION_INITIAL_RECOVERY_LINEAGE_MISMATCH")
+    validate_recovery_bundle(initial)
+    validate_checkpoint_dataset_transport(initial.get("checkpointDatasetTransport"), initial)
+    if summary.get("initialAdapterSha256") != initial["adapterSha256"]:
+        raise ValueError("COMPLETED_PRODUCTION_INITIAL_ADAPTER_MISMATCH")
+    for key in ("validationLoss", "bestValidationLoss", "trainingLoss"):
+        value = summary.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise ValueError("COMPLETED_PRODUCTION_FINITE_LOSS_REQUIRED")
+    selected = re.search(r"/checkpoint-(16|32|48|64)$", str(summary.get("selectedCheckpoint", "")).replace("\\", "/"))
+    if (not selected or type(summary.get("selectedCheckpointStep")) is not int or summary["selectedCheckpointStep"] != int(selected.group(1))
+            or type(summary.get("selectedCumulativeProductionSteps")) is not int
+            or summary["selectedCumulativeProductionSteps"] != 32 + summary["selectedCheckpointStep"]):
+        raise ValueError("COMPLETED_PRODUCTION_VALIDATION_SELECTED_CHECKPOINT_REQUIRED")
+    return summary
 
 
 def validate_recovery_bundle(bundle):
@@ -311,7 +368,13 @@ def resolve_adapter(root,bundle):
             except RuntimeError:pass
             return find_recovered_checkpoint(extract_checkpoint_dataset(root,bundle),bundle)
         return find_recovered_checkpoint(root,bundle)
-    return find_adapter(root,bundle["adapterSha256"],bundle["adapterSummarySha256"],bundle["datasetManifestSha256"])
+    directory = find_adapter(root,bundle["adapterSha256"],bundle["adapterSummarySha256"],bundle["datasetManifestSha256"])
+    if bundle.get("mode") == "production-development-completed":
+        validate_completed_production_summary(json.loads((directory.parent / "training-summary.json").read_bytes()), bundle)
+        config = json.loads((directory / "adapter_config.json").read_bytes())
+        if config.get("revision") != REVISION:
+            raise ValueError("COMPLETED_PRODUCTION_ADAPTER_REVISION_MISMATCH")
+    return directory
 
 
 def assignment(cases, worker, count):
@@ -377,7 +440,7 @@ def smoke_generation(model, tokenizer, torch, worker, count, mode):
     del inputs
     torch.cuda.empty_cache()
     (OUT / f"smoke-worker-{worker}.json").write_text(compact({"worker": worker, "passed": True, "autocast": "cuda-float16"}), encoding="utf-8")
-    if mode in ("development-retry","production-development-retry","final-recovered-checkpoint"):
+    if mode in ("development-retry","production-development-retry","production-development-completed","final-recovered-checkpoint"):
         # Both independent GPUs must clear their small diagnostic before either
         # spends time on a full developer case. No DDP/collective is constructed.
         deadline = time.monotonic() + 900
@@ -481,6 +544,7 @@ def worker_main(worker, count):
                           "adapterManifestSha256": digest(compact(bundle["adapterSha256"])), "artifactKind":bundle.get("artifactKind","completed-training-adapter"),
                           **({"sourceVersion":bundle["sourceVersion"],"trainerStateSha256":bundle["trainerStateSha256"],"recoveryReceiptSha256":bundle["recoveryReceiptSha256"]} if bundle.get("artifactKind")=="recovered-checkpoint" else {}),
                           **({"checkpointDatasetReceiptSha256":bundle["checkpointDatasetTransport"]["receiptSha256"]} if "checkpointDatasetTransport" in bundle else {}),
+                          **({"mode":bundle["mode"], "adapterSummarySha256":bundle["adapterSummarySha256"], "datasetManifestSha256":bundle["datasetManifestSha256"]} if bundle.get("mode")=="production-development-completed" else {}),
                           "maxNewTokens": MAX_NEW_TOKENS, "maxTimeSeconds": MAX_SECONDS}
                 torch.cuda.synchronize(worker)
                 before = time.perf_counter()
@@ -519,6 +583,8 @@ def main():
         OUT = Path("/kaggle/working/scriptrush-specialist-v2-dev-inference")
     elif bundle.get("mode") == "production-development-retry":
         OUT = Path("/kaggle/working/scriptrush-v2-production-dev-inference")
+    elif bundle.get("mode") == "production-development-completed":
+        OUT = Path("/kaggle/working/scriptrush-v2-production-retry-dev-inference")
     elif bundle.get("mode") == "final-recovered-checkpoint":
         OUT = Path("/kaggle/working/scriptrush-v2-final-recovered-inference")
     if len(sys.argv) == 4 and sys.argv[1] == "--worker":

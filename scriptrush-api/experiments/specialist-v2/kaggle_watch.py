@@ -8,7 +8,7 @@ import json
 import logging
 import os
 import time
-from kaggle_remote import WORK, STAGES, sanitized_failure, read_credential
+from kaggle_remote import WORK, STAGES, sanitized_failure, read_credential, resolve_kernel_identity
 
 
 def main(stage="utility"):
@@ -21,11 +21,12 @@ def main(stage="utility"):
             from kaggle.api.kaggle_api_extended import KaggleApi
             api = KaggleApi()
             api.authenticate()
-        metadata = json.loads((WORK / STAGES[stage][0] / "kernel-metadata.json").read_text(encoding="utf-8"))
+            owner = api.get_config_value("username")
+        identifier = resolve_kernel_identity(WORK / STAGES[stage][0], owner)
         with (WORK / ("kaggle-live.jsonl" if stage == "utility" else f"{stage}-kaggle-live.jsonl")).open("a", encoding="utf-8") as handle:
             for attempt in range(120):
                 try:
-                    for event in api.kernels_logs_stream(metadata["id"]):
+                    for event in api.kernels_logs_stream(identifier):
                         encoded = json.dumps(event)
                         if encoded in seen:
                             continue

@@ -17,6 +17,8 @@ WORK = ROOT / "test-results" / "specialist-v2"
 RUN = WORK / "kaggle-run"
 STAGES = {"utility": ("kaggle-run", "kaggle-output", "kaggle-runtime.log"),
           "production": ("production-kaggle-run", "production-kaggle-output", "production-kaggle-runtime.log"),
+          "production-retry": ("production-retry-kaggle-run", "production-retry-kaggle-output", "production-retry-kaggle-runtime.log"),
+          "production-retry-dev-inference": ("production-retry-dev-inference-run", "production-retry-dev-inference-kaggle-output", "production-retry-dev-inference-kaggle-runtime.log"),
           "dev-inference": ("dev-inference-run", "dev-inference-kaggle-output", "dev-inference-kaggle-runtime.log"),
           "production-dev-inference": ("production-dev-inference-run", "production-dev-inference-kaggle-output", "production-dev-inference-kaggle-runtime.log"),
           "production-dev-dataset-inference": ("production-dev-dataset-inference-run", "production-dev-dataset-inference-kaggle-output", "production-dev-dataset-inference-kaggle-runtime.log"),

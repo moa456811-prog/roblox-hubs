@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import importlib.metadata
 import json
+import re
 import os
 from pathlib import Path
 import random
@@ -21,6 +22,9 @@ MAX_CONTEXT = 4608
 MAX_NEW_TOKENS = 4096
 STEPS = 96
 SEED = 39107
+PRODUCTION_RETRY_RECOVERY_SHA256 = "4457a3c35aa37ba853257b231b20c637b16453cff306b2f83b337df93ad6421c"
+PRODUCTION_RETRY_TRANSPORT_SHA256 = "c4a41179b29326e8274797b3d18eb48c9f3c0b694aac19f12afa595593c0efb3"
+PRODUCTION_RETRY_INITIAL_MANIFEST = "1ff9b06300ada84a1be8576278b053ecd3f9d508bc6c5add8eb8e214e9a9a3ca"
 
 
 def masked_causal_loss(logits, labels, chunk_size=128):
@@ -55,6 +59,8 @@ def assistant_logit_span(labels):
 
 def mounted_adapter(config, model, revision):
     """Find only a complete, hash-pinned output adapter in a mounted private run."""
+    if "initialRecoveredCheckpoint" in config:
+        return mounted_recovered_adapter(config, model, revision)
     hashes = config.get("initialAdapterSha256")
     summary_hash = config.get("initialSummarySha256")
     manifest_hash = config.get("initialManifestSha256")
@@ -75,6 +81,62 @@ def mounted_adapter(config, model, revision):
     if len(matches) != 1:
         raise RuntimeError("UNIQUE_COMPLETE_PINNED_INITIAL_ADAPTER_NOT_FOUND")
     return matches[0]
+
+
+def validate_production_retry_bundle(bundle):
+    """Exactly the original teaching rows, with independent external DEV only."""
+    if not isinstance(bundle, dict) or set(bundle) != {"train", "validation", "dev", "manifestSha256", "run"}:
+        raise RuntimeError("INVALID_PRODUCTION_RETRY_BUNDLE_FIELDS")
+    config = bundle["run"]
+    fields = {"steps", "evaluationSteps", "learningRate", "maxContext", "assistantLogitsOnly", "seed", "developmentMode", "runPurpose", "initialAdapterSha256", "initialManifestSha256", "initialRecoveredCheckpoint", "inputRowsSha256"}
+    if not isinstance(config, dict) or set(config) != fields or any(type(config[name]) is not int or config[name] != expected for name, expected in (("steps", 64), ("evaluationSteps", 16), ("maxContext", 8192), ("seed", 39119))) or type(config["learningRate"]) not in (int, float) or config["learningRate"] != 2e-5 or config["assistantLogitsOnly"] is not True or config["developmentMode"] != "external" or config["runPurpose"] != "production-continuation-fit" or config["initialManifestSha256"] != PRODUCTION_RETRY_INITIAL_MANIFEST:
+        raise RuntimeError("PRODUCTION_RETRY_RECIPE_CHANGED")
+    expected_ids = {"train": [f"production-teach-train-{i:03d}" for i in range(1, 49)] + [f"v2-train-{i:03d}" for i in range(1, 97)],
+                    "validation": [f"production-teach-validation-{i:03d}" for i in range(1, 9)],
+                    "dev": [f"production-teach-dev-{i:03d}" for i in range(1, 5)]}
+    hashes = config["inputRowsSha256"]
+    if not isinstance(hashes, dict) or set(hashes) != set(expected_ids) or not isinstance(bundle["manifestSha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", bundle["manifestSha256"]):
+        raise RuntimeError("INVALID_PRODUCTION_RETRY_DATASET_PINS")
+    for split, identifiers in expected_ids.items():
+        rows = bundle[split]
+        roles = ["system", "user"] if split == "dev" else ["system", "user", "assistant"]
+        if not isinstance(rows, list) or any(not isinstance(row, dict) or set(row) != {"id", "messages"} for row in rows) or [row["id"] for row in rows] != identifiers:
+            raise RuntimeError("PRODUCTION_RETRY_TEACHING_IDS_CHANGED")
+        for row in rows:
+            messages = row["messages"]
+            if not isinstance(messages, list) or any(not isinstance(message, dict) or set(message) != {"role", "content"} or not isinstance(message["content"], str) or not message["content"] for message in messages) or [message["role"] for message in messages] != roles:
+                raise RuntimeError("PRODUCTION_RETRY_MESSAGES_OR_LABEL_LEAKAGE")
+        raw = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if hashlib.sha256(raw).hexdigest() != hashes[split]:
+            raise RuntimeError("FROZEN_PRODUCTION_RETRY_ROWS_CHANGED")
+    initial = config["initialRecoveredCheckpoint"]
+    fields = {"artifactKind", "mode", "sourceNotebook", "sourceVersion", "model", "revision", "adapterSha256", "trainerStateSha256", "recoveryReceiptSha256", "recoveryReceiptRaw", "datasetManifestSha256", "sourceFiles", "checkpointDatasetTransport"}
+    if not isinstance(initial, dict) or set(initial) != fields or initial["artifactKind"] != "recovered-checkpoint" or initial["mode"] != "production-development-retry" or initial["model"] != MODEL or initial["revision"] != REVISION or initial["adapterSha256"] != config["initialAdapterSha256"] or initial["datasetManifestSha256"] != config["initialManifestSha256"] or initial["recoveryReceiptSha256"] != PRODUCTION_RETRY_RECOVERY_SHA256 or not isinstance(initial["checkpointDatasetTransport"], dict) or initial["checkpointDatasetTransport"].get("receiptSha256") != PRODUCTION_RETRY_TRANSPORT_SHA256:
+        raise RuntimeError("PRODUCTION_RETRY_RECOVERY_LINEAGE_CHANGED")
+    return bundle
+
+
+def mounted_recovered_adapter(config, model, revision, root=None, extraction=None):
+    """Standalone prepared script embeds audited stdlib-only runner validators."""
+    if model != MODEL or revision != REVISION or "initialSummarySha256" in config:
+        raise RuntimeError("RECOVERED_ADAPTER_CANNOT_USE_COMPLETED_SUMMARY")
+    initial = config["initialRecoveredCheckpoint"]
+    if not isinstance(initial, dict) or initial.get("artifactKind") != "recovered-checkpoint" or initial.get("mode") != "production-development-retry" or initial.get("model") != MODEL or initial.get("revision") != REVISION or initial.get("adapterSha256") != config.get("initialAdapterSha256") or initial.get("datasetManifestSha256") != PRODUCTION_RETRY_INITIAL_MANIFEST or initial.get("recoveryReceiptSha256") != PRODUCTION_RETRY_RECOVERY_SHA256 or not isinstance(initial.get("checkpointDatasetTransport"), dict) or initial["checkpointDatasetTransport"].get("receiptSha256") != PRODUCTION_RETRY_TRANSPORT_SHA256:
+        raise RuntimeError("PRODUCTION_RETRY_RECOVERY_LINEAGE_CHANGED")
+    source = globals().get("SCRIPTRUSH_RECOVERY_VALIDATORS")
+    expected = globals().get("SCRIPTRUSH_RECOVERY_VALIDATORS_SHA256")
+    if not isinstance(source, str) or not isinstance(expected, str):
+        raise RuntimeError("EMBEDDED_RECOVERY_VALIDATORS_REQUIRED")
+    raw = zlib.decompress(base64.b64decode(source, validate=True))
+    if hashlib.sha256(raw).hexdigest() != expected:
+        raise RuntimeError("EMBEDDED_RECOVERY_VALIDATORS_CHANGED")
+    import tempfile
+    scratch = Path(extraction) if extraction is not None else Path(tempfile.gettempdir()) / "scriptrush-recovered-input" / ("rank-" + os.environ.get("LOCAL_RANK", "0"))
+    namespace = {"__name__": "scriptrush_embedded_recovery", "OUT": scratch}
+    exec(compile(raw.decode("utf-8"), "<pinned-recovery-validators>", "exec"), namespace)
+    namespace["validate_recovery_bundle"](initial)
+    namespace["validate_checkpoint_dataset_transport"](initial["checkpointDatasetTransport"], initial)
+    return namespace["resolve_adapter"](Path(root) if root is not None else Path("/kaggle/input"), initial)
 
 
 def checkpoint_safe_trainer(trainer_type):
@@ -123,10 +185,22 @@ def write_json_atomic(path, value):
             temporary.unlink()
 
 
+def selected_training_lineage(config, steps, best_step):
+    """Distinguish fitting progress from the earlier best exported adapter."""
+    if type(steps) is not int or type(best_step) is not int or not 1 <= best_step <= steps:
+        raise RuntimeError("INVALID_SELECTED_CHECKPOINT_STEP")
+    selected = {"selectedCheckpointStep": best_step}
+    if "initialRecoveredCheckpoint" in config:
+        selected.update(initialProductionSteps=32, additionalProductionSteps=steps,
+                        cumulativeProductionSteps=32 + steps, selectedCumulativeProductionSteps=32 + best_step,
+                        optimizerStateResumed=False)
+    return selected
+
+
 def persist_fit_summary(output_directory, summary):
     """Commit fitting proof before optional autoregressive development work."""
-    value = {**summary, "fitStatus": "complete",
-             "developmentStatus": "skipped" if summary.get("developmentSkipped", False) else "pending"}
+    status = "external-pending" if summary.get("developmentMode") == "external" else "skipped" if summary.get("developmentSkipped", False) else "pending"
+    value = {**summary, "fitStatus": "complete", "developmentStatus": status}
     output_directory = Path(output_directory)
     # The separate fit receipt remains immutable when the DEV summary changes.
     write_json_atomic(output_directory / "fit-summary.json", value)
@@ -141,6 +215,9 @@ def development_policy(config):
         raise RuntimeError("INVALID_SKIP_DEVELOPMENT_FLAG")
     if skip and config.get("runPurpose") != "pipeline-smoke":
         raise RuntimeError("DEVELOPMENT_SKIP_REQUIRES_DIAGNOSTIC_PIPELINE_SMOKE")
+    mode = config.get("developmentMode", "inline")
+    if mode not in ("inline", "external") or (mode == "external" and (skip or config.get("runPurpose") != "production-continuation-fit")) or (config.get("runPurpose") == "production-continuation-fit" and mode != "external"):
+        raise RuntimeError("INVALID_EXTERNAL_DEVELOPMENT_POLICY")
     return skip
 
 
@@ -172,6 +249,15 @@ def install():
 
 def main():
     start = time.perf_counter()
+    bundle = json.loads(zlib.decompress(base64.b64decode(SCRIPTRUSH_DATA_BUNDLE)))
+    config = bundle.get("run", {})
+    skip_development = development_policy(config)
+    external_development = config.get("developmentMode") == "external"
+    if "initialRecoveredCheckpoint" in config or external_development:
+        validate_production_retry_bundle(bundle)
+    seed = config.get("seed", SEED)
+    if type(seed) is not int or not 1 <= seed < 2**31:
+        raise RuntimeError("INVALID_TRAINING_SEED")
     os.environ.update({"HF_HUB_DISABLE_TELEMETRY": "1", "WANDB_DISABLED": "true", "TOKENIZERS_PARALLELISM": "false", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"})
     checkpoint("dependencies")
     dependencies = install()
@@ -185,11 +271,8 @@ def main():
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     torch.cuda.set_device(local_rank)
-    set_seed(SEED)
-    random.seed(SEED)
-    bundle = json.loads(zlib.decompress(base64.b64decode(SCRIPTRUSH_DATA_BUNDLE)))
-    config = bundle.get("run", {})
-    skip_development = development_policy(config)
+    set_seed(seed)
+    random.seed(seed)
     steps = int(config.get("steps", STEPS))
     max_context = int(config.get("maxContext", MAX_CONTEXT))
     assistant_logits_only = config.get("assistantLogitsOnly", False)
@@ -205,6 +288,7 @@ def main():
         raise RuntimeError("FINAL_TEST_MUST_REMAIN_LOCAL_DURING_DEVELOPMENT")
     if any(any(message["role"] == "assistant" for message in row["messages"]) for row in bundle["dev"]):
         raise RuntimeError("DEVELOPMENT_ANSWER_LEAKAGE")
+    initial_adapter = mounted_adapter(config, MODEL, REVISION) if config.get("initialAdapterSha256") else None
     checkpoint("load_model", gpu=torch.cuda.get_device_name(local_rank), acceleratorCount=world_size, model=MODEL, revision=REVISION)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, revision=REVISION, trust_remote_code=False)
     tokenizer.pad_token = tokenizer.eos_token
@@ -217,7 +301,6 @@ def main():
     # in FP32, but avoid spending several GB on frozen vocabulary matrices.
     model.get_input_embeddings().to(dtype=torch.float16)
     model.get_output_embeddings().to(dtype=torch.float16)
-    initial_adapter = mounted_adapter(config, MODEL, REVISION) if config.get("initialAdapterSha256") else None
     if initial_adapter:
         model = PeftModel.from_pretrained(model, str(initial_adapter), is_trainable=True)
     else:
@@ -299,7 +382,7 @@ def main():
         fp16=True, gradient_checkpointing=True, gradient_checkpointing_kwargs={"use_reentrant": False},
         logging_steps=4, eval_strategy="steps", eval_steps=evaluation_steps, save_strategy="steps", save_steps=evaluation_steps,
         save_total_limit=1, save_only_model=True, load_best_model_at_end=True, metric_for_best_model="eval_loss",
-        greater_is_better=False, report_to=[], optim="adamw_torch", seed=SEED, data_seed=SEED,
+        greater_is_better=False, report_to=[], optim="adamw_torch", seed=seed, data_seed=seed,
         remove_unused_columns=False, dataloader_num_workers=0, disable_tqdm=True,
         per_device_eval_batch_size=1, label_names=["labels"], ddp_find_unused_parameters=False, prediction_loss_only=True)
     trainer = checkpoint_safe_trainer(Trainer)(model=model, args=args, train_dataset=Rows(train_rows), eval_dataset=Rows(val_rows[:8]), data_collator=collate)
@@ -314,11 +397,14 @@ def main():
     model.forward = original_forward
     model.save_pretrained(OUT / "adapter", safe_serialization=True)
     tokenizer.save_pretrained(OUT / "tokenizer")
-    summary = {"model": MODEL, "revision": REVISION, "method": "QLoRA-NF4", "seed": SEED, "steps": steps,
+    summary = {"model": MODEL, "revision": REVISION, "method": "QLoRA-NF4", "seed": seed, "steps": steps,
         "maxContext": max_context, "assistantLogitsOnly": assistant_logits_only, "learningRate": learning_rate,
         "evaluationSteps": evaluation_steps,
         "initialAdapterSha256": config.get("initialAdapterSha256"),
         "initialSummarySha256": config.get("initialSummarySha256"), "initialManifestSha256": config.get("initialManifestSha256"),
+        **({"initialRecoveredCheckpoint": config["initialRecoveredCheckpoint"]}
+           if "initialRecoveredCheckpoint" in config else {}),
+        **selected_training_lineage(config, steps, trainer.state.best_global_step),
         "gradientAccumulationPerDevice": 4 // world_size, "acceleratorCount": world_size, "effectiveBatchSize": 4,
         "trainableParameters": trainable, "trainExamples": len(train_rows),
         "trainEpochs": steps * 4 / len(train_rows), "trainOversizeSkipped": train_skipped,
@@ -330,14 +416,15 @@ def main():
         "datasetManifestSha256": bundle["manifestSha256"],
         "adapterSha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (OUT / "adapter").iterdir() if path.is_file()},
         "scriptSha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "developmentSkipped": skip_development, "diagnosticOnly": config.get("runPurpose") == "pipeline-smoke",
+        "developmentSkipped": skip_development, "developmentMode": config.get("developmentMode", "inline"),
+        "diagnosticOnly": config.get("runPurpose") == "pipeline-smoke", "productionPromotionEligible": False,
         "runPurpose": config.get("runPurpose", "development-training"),
         "totalSeconds": round(time.perf_counter() - start, 2), "gpu": torch.cuda.get_device_name(0),
         "peakMemoryGb": round(torch.cuda.max_memory_allocated() / 2**30, 3), "torch": torch.__version__, "packages": dependencies,
         "scope": "Development only; final held-out test remains local; no public serving from Kaggle."}
     summary = persist_fit_summary(OUT, summary)
     checkpoint("fit_complete", **summary)
-    if skip_development:
+    if skip_development or external_development:
         checkpoint("complete", **summary)
         return
     model.gradient_checkpointing_disable()

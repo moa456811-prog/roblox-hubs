@@ -1,6 +1,6 @@
 # ScriptRush specialist v2 — measured status
 
-Snapshot: **2026-10-13 04:38 UTC**. The specialist is **not activated on ScriptRush**. The corrected utility development harness accepts four of four specialist outputs versus zero of four base outputs. The base nevertheless passes 23 of 39 required feature instances after missing valid Roblox interfaces were added to the mock. On the actual production-writer development inputs, the recovered continuation accepts **two of four** specialist outputs: all four complete at EOS, include all four gameplay actions and pass English/identity checks, but two violate exact requested UI. Base outputs all exhaust the 240-second budget and fail JSON/schema parsing, so that comparison does not isolate learned quality. No final or APInex quality comparison has been run. The production source job ended in ERROR after step 32; its actual checkpoint was recovered without inventing a completed training summary. The corrected training runner separately completed its two-T4 diagnostic. A further bounded continuation is being prepared using the same training/validation data; DEV and final answers remain excluded.
+Snapshot: **2026-10-13 04:53 UTC**. The specialist is **not activated on ScriptRush**. The corrected utility development harness accepts four of four specialist outputs versus zero of four base outputs. The base nevertheless passes 23 of 39 required feature instances after missing valid Roblox interfaces were added to the mock. On the actual production-writer development inputs, the recovered continuation accepts **two of four** specialist outputs: all four complete at EOS, include all four gameplay actions and pass English/identity checks, but two violate exact requested UI. Base outputs all exhaust the 240-second budget and fail JSON/schema parsing, so that comparison does not isolate learned quality. No final or APInex quality comparison has been run. The production source job ended in ERROR after step 32; its actual checkpoint was recovered without inventing a completed training summary. The corrected training runner separately completed its two-T4 diagnostic. A further bounded 64-step continuation was accepted at 04:51:56 UTC using the identical teaching messages; DEV and final answers remain excluded.
 
 ## Current experiments
 
@@ -15,6 +15,7 @@ Snapshot: **2026-10-13 04:38 UTC**. The specialist is **not activated on ScriptR
 | Corrected pipeline smoke, `sciptrush/scriptrush-v2-pipeline-smoke-1751cdb7` | COMPLETE; one optimizer step, two T4s, 144/8/4 bundle unchanged, validated checkpoint 1, fitting receipts and adapter exported. All 392 adapter tensors (40,370,176 parameters) are finite; exported hashes match the receipt. | Real two-GPU pipeline validation. Explicitly diagnostic, with development generation skipped; no model-quality or promotion evidence. |
 | Private checkpoint dataset, `sciptrush/scriptrush-v2-checkpoint-1188a68d` | API-confirmed READY, private, correct owner and version 1; four remote files listed directly under `checkpoint-32/`. Local source/probe hashes unchanged. | The private transfer is available without retraining. Remote listing does not independently verify downloaded file bytes or model quality. |
 | Dataset-mounted production DEV retry, `sciptrush/scriptrush-v2-prod-dev-bba41b91` | COMPLETE; version 1/kernel 138431883. Eight raw outputs have matching prompt/output/adapter/recovery/dataset hashes and zero inference errors. Specialist: 2/4 accepted, EOS 4/4; base: 0/4 accepted, budget exhausted 4/4. | Actual production-shaped DEV evidence with two genuine UI failures. Not eligible for final qualification or activation. |
+| Further production continuation, `sciptrush/scriptrush-v2-production-retry-9e81c8ff` | Version 1/kernel 138436258 accepted at 04:51:56 UTC; dependencies started. Exact same 144/8/4 messages, 64 additional steps, LR 0.00002, seed 39119, validation every 16 steps. | Accepted training job only. No new fitting or quality success yet. |
 
 The generation correction uses explicit CUDA FP16 autocast with FP32 stabilized norms and the FP16 vocabulary head. The new continuation also performs a two-token smoke **before training**. The original failure remains a generation/pipeline failure; its eight errors are retained rather than counted as evidence of poor learned behavior. No fallback reference answer or repaired synthetic output replaces a model error.
 
@@ -38,6 +39,8 @@ The first dataset-mounted notebook metadata used a 55-character slug/title and w
 `production-teach-dev-002` wrongly creates a fifth tab from the requested scope note rather than placing that note inside the first of the four requested tabs. Its six runtime failures concern only tab count/order and scope placement; gameplay, stop and lifecycle assertions pass and no runtime exception occurs. `production-teach-dev-004` produces muted RGB `[171,181,174]` instead of requested `[172,181,174]`; the exact static UI gate rejects that genuine color error. DEV001 and DEV003 pass every check. The independent audit found no new missing valid mock API. The runtime does not assert every rendered color channel, so its 3/4 score must not replace exact UI acceptance.
 
 Specialist generation takes 151,630.875–168,860.984 ms (median 165,803.4935 ms), exceeding the site's 120-second writer budget. Base generations all reach approximately 240 seconds without EOS and yield invalid partial JSON. This is not a controlled proof of model superiority; further training, untouched final/API comparisons and endpoint latency qualification are still required. No APInex tokens have been spent on this failed DEV candidate.
+
+The further continuation warm-starts only the verified checkpoint-32 LoRA weights; the absent optimizer state is not claimed to resume. A local preflight verifies identical training, validation and unlabelled DEV messages against the original frozen bundle, actual recovered file bytes, embedded standalone recovery validators, complete sequence lengths and raw script/metadata hashes. Its fitting-only mode remains non-diagnostic with `developmentStatus:external-pending` and promotion false. A separate future two-GPU DEV notebook requires the real completed fit summary and exported adapter; it is not submitted yet. The prepared metadata bytes remain unchanged after the accepted push. The new recipe schedules 96 cumulative production fitting steps, while the actual exported best-checkpoint step and selected cumulative steps will be recorded separately.
 
 ## Measured utility development comparison
 
@@ -86,6 +89,8 @@ Raw SHA-256 values below were checked against local artifact bytes. Windows CRLF
 | Confirmed private checkpoint transport receipt | `c4a41179b29326e8274797b3d18eb48c9f3c0b694aac19f12afa595593c0efb3` |
 | Dataset-mounted production DEV script | `4d22eaf63a432452bc9087441f5606942ad17f17bb8aee7e0efb986bc0a411f2` |
 | Dataset-mounted production DEV raw outputs | `a1860cb4d9b08e84e1495fe8e5da09fab8028a86e0423054cc0c326e6922752d` |
+| Further production continuation script | `7b62bec0cc3c852ab0f1d62c273fa5d028c196b964793607f4d4622265612a99` |
+| Further production continuation dataset manifest | `518c8e0242ab6d26ac992029493dbeedd14e1fa05c0ff556383a413516960230` |
 
 The continuation's mounted source is the completed private utility notebook. Its loader requires exactly one matching summary and verifies every listed adapter file, base revision and initial dataset lineage before loading trainable weights. Development uploads contain only `system,user` messages; their assistant references remain local. Training/validation uploads contain only admitted teaching messages. The production bundle contains 144 training, eight validation and four development records, with no final IDs or final user/assistant messages. No final answer is included in a model prompt.
 
@@ -100,13 +105,14 @@ These counts are **tooling regression tests**, not generated-model success rates
 | Suite | Last reported passing tests | Scope |
 |---|---:|---|
 | Node experiment/evaluator/runtime suites | 68 | Root rerun at 04:02 UTC: schema, coverage, exact UI, full denominators, negative mutations, closed Luau execution and production writer parameter capture. |
-| Inference helpers | 53 | Root rerun at 04:16 UTC: input/lineage restrictions, bundles, limits, checkpoint transport, metadata length and development/final separation. |
+| Inference helpers | 61 | Root rerun at 04:53 UTC: existing restrictions plus completed-continuation DEV admission and exact selection/lineage; no new model-quality claim. |
 | Private checkpoint dataset helper | 6 | Root rerun at 04:15 UTC: offline preparation, private transport and recovery of an unknown create outcome; no model-quality evidence. |
 | Staged serving contract | 36 | Root rerun at 04:38 UTC: existing mocked HTTP contract plus explicit recovered-checkpoint provenance; no served GPU or endpoint evidence. |
 | Private Kaggle control helper | 8 | Root rerun at 04:38 UTC: metadata byte preservation, accepted identity admission and inference-only duplicate-checkpoint exclusion. |
 | Masked-loss numerical tests | 4 | CE values/gradients and assistant-head slicing alignment. |
 | API benchmark helper | 17 | Offline provenance, production-prompt/parameter admission, utility settings unchanged, bounded requests and quota stop; no API quality result. |
 | Training recovery helpers | 8 | Rank convergence, best checkpoint selection and durable fitting receipts; offline only. |
+| Root Python experiment helpers | 41 | Root rerun at 04:49 UTC, including ten new recovered-continuation/fit-only tests. This overlaps the named helper suites and is not additive. |
 | Checkpoint download probe | 7 | Fixed owned source, bounded downloads, safe redirects and incomplete-file rejection; offline only. |
 | Pipeline smoke preparer | 5 | Frozen source and bundle admission, no final/DEV labels, raw LF hashing and no replacement of prior runs. |
 
