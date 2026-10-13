@@ -1,0 +1,32 @@
+{
+  "measuredAt": "2026-10-13T15:17:41.162036+00:00",
+  "node": "v24.19.0",
+  "os": "Windows",
+  "local": [
+    {
+      "application": "scriptrush-api",
+      "passed": 209,
+      "failed": 0,
+      "skipped": 0,
+      "typecheck": "passed",
+      "build": "passed",
+      "testLogSha256": "69790e45184a661ec0beaa12687a2b0716a9cd4162791a2c47c3557e79d0bf46",
+      "buildLogSha256": "443b47ba1dfc0447372c0d439d33460261e22def8c98c1c80e3397b75b3e1682"
+    },
+    {
+      "application": "scriptrush-proxy",
+      "passed": 69,
+      "failed": 0,
+      "skipped": 0,
+      "typecheck": "passed",
+      "build": "passed",
+      "testLogSha256": "e48b58c3ac1d0e7aa4730ee5bfeaeac5d5b91a2caba617066afa968d00b3b6ca",
+      "buildLogSha256": "1a9ea2622d585b7f9ec5ceab1a3cd88bfd69650500f00b1a21b1ee842190b480"
+    }
+  ],
+  "totalPassed": 278,
+  "actualLuauCompiler": "0.742",
+  "modelProviderRequests": 0,
+  "gameplayObserved": false,
+  "remoteCi": "See PR checks; pending when this record was written"
+}

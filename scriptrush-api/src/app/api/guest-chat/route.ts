@@ -50,10 +50,17 @@ export async function POST(request: Request) {
       game,
       supportedFeatures: supported, ledger,
       researchContext: [profile?.knowledgeContext || "", pack ? "" : curated?.knowledgeContext || ""].filter(Boolean).join("\n\n").slice(0, 12_000),
+      gameEvidence: {
+        hasContextToAnalyze: Boolean(pack || supported.length || input.sources.length || input.runtimeDiagnostic || profile?.knowledgeContext || curated?.knowledgeContext),
+        missingFeatures: researchKnowledge?.features.filter(feature => feature.basis === "unknown").map(feature => feature.label) ?? ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot"],
+      },
       sources: input.sources.map(source => `--- ${source.name} ---\n${source.content}`).join("\n\n"), diagnostic: input.runtimeDiagnostic || "", signal: request.signal,
     }, runModel, startedAt + 285_000);
     const review = { passed: !result.issues.length && Boolean(result.script && result.coverage), issues: result.issues, providerIncomplete: result.incomplete, strategy: result.strategy, repaired: result.repaired };
     if (!review.passed) {
+      if (result.reason === "GAME_EVIDENCE_REQUIRED") return NextResponse.json({ error: "No usable game-specific implementation was found for the requested hub. Generation stopped before writing or reviewing a disabled-only hub. Your input and previous script were preserved.", code: result.reason, reason: result.reason, review, usage: result.usage, researchKnowledge }, { status: 422 });
+      if (result.reason === "MODEL_OUTPUT_INVALID") return NextResponse.json({ error: "The AI returned malformed or ambiguous hub data. Your input and previous script were preserved; no further automatic full regeneration was started after this invalid response.", code: result.reason, reason: result.reason, review, usage: result.usage }, { status: 502 });
+      if (result.reason === "INCOMPLETE_RESPONSE") return NextResponse.json({ error: "The provider returned a truncated response. No partial script was accepted. Your input and previous script were preserved.", code: result.reason, reason: result.reason, review, usage: result.usage }, { status: 502 });
       const missing = result.reason === "REQUIREMENTS_NOT_MET" || result.reason === "INCOMPLETE_REQUIREMENTS";
       const error = missing
         ? "ScriptRush could not satisfy every requested feature or UI requirement. Your request and previous script were preserved."

@@ -4,7 +4,7 @@ import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema, parseHubComposition, val
 import { renderHubComposition } from "./hub-composer.ts";
 import { groundCompositionReview, libraryCompositionProofs } from "./composition-evidence.ts";
 import { applyEnglishUiLabels, englishUiIssues, SCRIPT_UI_LANGUAGE_POLICY, translateFunctionalUiText } from "./ui-language.ts";
-import { buildLocalFullHub } from "./local-full-hub.ts";
+import { buildLocalFullHub, isLocalFullHubPrompt } from "./local-full-hub.ts";
 import { adapterGenerationContext, gameAdapterFor, gameplayBindingIssues } from "./game-adapters/catalog.ts";
 import { compositionUsesGameplay } from "./game-actions.ts";
 import { providerAttemptCount } from "./provider-client.ts";
@@ -13,6 +13,8 @@ export type ModelCall = (system: string, user: string, maxTokens: number, budget
 export type GenerationContext = {
   prompt: string; currentScript: string; patch: boolean; game: Record<string, unknown>;
   supportedFeatures: string[]; ledger: string; sources: string; diagnostic: string; signal?: AbortSignal; researchContext?: string;
+  /** Server research only. Counts/descriptions never establish executable mechanics. */
+  gameEvidence?: { hasContextToAnalyze: boolean; missingFeatures: string[] };
 };
 export type GenerationOutcome = {
   script: string; model: string; incomplete: boolean; issues: string[]; reason: string;
@@ -80,6 +82,15 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
   };
   try {
     context.signal?.throwIfAborted();
+    const missingGameEvidence = context.gameEvidence && !context.gameEvidence.hasContextToAnalyze && !context.patch;
+    const stopForEvidence = () => {
+      outcome.reason = "GAME_EVIDENCE_REQUIRED";
+      outcome.issues = context.gameEvidence!.missingFeatures.map(label => `${label}: no game-matched implementation or recorded interaction flow is available.`);
+      return outcome;
+    };
+    // The exact shipped preset already declares its gameplay requirements.
+    // Do not spend model tokens on a hub containing only unavailable actions.
+    if (missingGameEvidence && isLocalFullHubPrompt(context.prompt)) return stopForEvidence();
     const local = buildLocalFullHub(context);
     if (local) return { ...outcome, ...local, strategy: local.profile.gameAdapters === "source-backed" ? "source-backed-hub" : "local-profile-hub", model: "none" };
     let planned = await request(PLANNER_SYSTEM, original, 5000, 70_000);
@@ -94,6 +105,11 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
       planned = await request(PLANNER_SYSTEM, original + correction, 5000, Math.min(40_000, remaining - 180_000));
       outcome.contract = parseContract(planned.content, context.prompt, context.supportedFeatures);
     }
+    if (missingGameEvidence && outcome.contract.fullHub) {
+      const identity = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const missing = new Set(context.gameEvidence!.missingFeatures.map(identity));
+      if (outcome.contract.features.some(feature => missing.has(identity(feature.id)) || missing.has(identity(feature.label)))) return stopForEvidence();
+    }
     let requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
     const complex = outcome.contract.fullHub || outcome.contract.features.length > 2 || context.currentScript.length > 16_000;
     const tokens = complex ? Math.min(24_000, Math.max(14_000, Math.ceil(context.currentScript.length / 3))) : 8000;
@@ -106,10 +122,12 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
     let compositionText = "";
     let composition: HubComposition | null = null;
     let compositionIssues: string[] = [];
+    let compositionFormatFailure = false;
     let evidenceOnlyFailure = false;
     const implement = (content: string) => {
       if (!composed) { outcome.script = extractCode(content); return; }
       compositionText = content;
+      compositionFormatFailure = false;
       try {
         const beforeTranslation = parseHubComposition(content);
         const spec = applyEnglishUiLabels(beforeTranslation);
@@ -123,10 +141,13 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
         const usesGameplay = compositionUsesGameplay(spec);
         outcome.script = renderHubComposition(spec, usesGameplay && gamePack ? { gameplayFactory: gamePack.factory } : {});
       } catch (error) {
+        compositionFormatFailure = error instanceof SyntaxError;
         const details = error && typeof error === "object" && "issues" in error && Array.isArray(error.issues)
           ? error.issues.slice(0, 12).map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ")
           : error instanceof Error ? error.message : "invalid JSON value object";
-        compositionIssues = [`Invalid hub composition: ${details}. Return actual values in the exact requested object shape, preserving every page and feature.`];
+        compositionIssues = compositionFormatFailure
+          ? ["The model returned malformed or ambiguous hub JSON. No partial script was accepted and no further automatic AI regeneration was started after this invalid response."]
+          : [`Invalid hub composition: ${details}. Return actual values in the exact requested object shape, preserving every page and feature.`];
         composition = null;
         outcome.script = "";
       }
@@ -134,9 +155,15 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
     stage = "generate";
     const generated = await call(writer, writerRequirements, tokens, { timeoutMs: 120_000, deadlineMs, attempts: 1 });
     outcome.model = generated.model; outcome.incomplete = generated.incomplete;
+    if (outcome.incomplete) {
+      outcome.reason = "INCOMPLETE_RESPONSE";
+      outcome.issues = ["The provider response was truncated. No partial script was accepted and no further automatic AI regeneration was started after this invalid response."];
+      return outcome;
+    }
     implement(generated.content);
 
     const inspect = async () => {
+      if (compositionFormatFailure) { outcome.issues = compositionIssues; return; }
       const staticIssues = reviewScript(outcome.script, context.currentScript, context.patch);
       staticIssues.push(...compositionIssues);
       if (outcome.incomplete) staticIssues.push("provider response was incomplete");
@@ -171,15 +198,20 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
       evidenceOnlyFailure = assessment.evidenceIssues.length > 0 && assessment.issues.every(issue => assessment.evidenceIssues.includes(issue));
     };
     await inspect();
-    if (outcome.issues.length && !evidenceOnlyFailure && (outcome.script || (composed && compositionText)) && deadlineMs - Date.now() > 70_000) {
+    if (outcome.issues.length && !compositionFormatFailure && !evidenceOnlyFailure && (outcome.script || (composed && compositionText)) && deadlineMs - Date.now() > 70_000) {
       stage = "repair";
       const repaired = await call(`${writer}\nREPAIR MODE: Repair every listed omission/UI issue while preserving all already working features. Return ${composed ? "the FULL corrected composition JSON object" : "the FULL corrected script"}.`, `${writerRequirements}\n\nACCEPTANCE FAILURES:\n${outcome.issues.join("\n")}\n\n${composed ? "COMPOSITION TO REPAIR:\n" + compositionText : "SCRIPT TO REPAIR:\n" + outcome.script}`, tokens, { timeoutMs: Math.max(1000, Math.min(110_000, deadlineMs - Date.now() - 60_000)), deadlineMs, attempts: 1 });
       outcome.model = repaired.model; outcome.incomplete = repaired.incomplete; outcome.repaired = true;
+      if (outcome.incomplete) {
+        outcome.script = ""; outcome.coverage = null; outcome.reason = "INCOMPLETE_RESPONSE";
+        outcome.issues = ["The provider repair response was truncated. No partial script was accepted and no further automatic regeneration was started."];
+        return outcome;
+      }
       implement(repaired.content);
       outcome.coverage = null;
       await inspect();
     }
-    if (outcome.issues.length) outcome.reason = "REQUIREMENTS_NOT_MET";
+    if (outcome.issues.length) outcome.reason = compositionFormatFailure ? "MODEL_OUTPUT_INVALID" : "REQUIREMENTS_NOT_MET";
   } catch (error) {
     if (context.signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     const message = error instanceof Error ? error.message : "";

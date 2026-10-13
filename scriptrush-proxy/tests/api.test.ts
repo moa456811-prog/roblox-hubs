@@ -258,6 +258,34 @@ test("backend rate-limit reasons retain measured usage and avoid exposing provid
   } finally { globalThis.fetch = restoreFetch; }
 });
 
+test("missing game evidence and malformed model JSON have separate safe diagnostics with no client retry", async () => {
+  const previous = globalThis.fetch;
+  const snapshot = JSON.stringify(build);
+  try {
+    for (const [code, expected, count] of [["GAME_EVIDENCE_REQUIRED", "game_evidence_required", 0], ["MODEL_OUTPUT_INVALID", "model_output_invalid", 2]] as const) {
+      let requests = 0;
+      globalThis.fetch = async () => { requests++; return Response.json({ code, error: "private model payload", review: { issues: ["private prompt"] }, usage: { modelCalls: count, inputCharacters: 120, outputCharacters: 80 } }, { status: code === "GAME_EVIDENCE_REQUIRED" ? 422 : 502 }); };
+      await assert.rejects(generateScript(build), issue => {
+        assert.ok(issue instanceof ApiError); assert.equal(issue.code, expected);
+        assert.match(issue.message, new RegExp(`AI calls: ${count}\\.`));
+        assert.doesNotMatch(issue.message, /private|try again|Failed checks/);
+        return true;
+      });
+      assert.equal(requests, 1); assert.equal(JSON.stringify(build), snapshot);
+    }
+  } finally { globalThis.fetch = previous; }
+});
+
+test("explicit truncation reasons survive the API boundary without disclosing the provider body", async () => {
+  const previous = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; return Response.json({ code: "INCOMPLETE_RESPONSE", reason: "INCOMPLETE_RESPONSE", error: "private provider data", usage: { modelCalls: 2, inputCharacters: 200, outputCharacters: 50 } }, { status: 502 }); };
+  try {
+    await assert.rejects(generateScript(build), issue => issue instanceof ApiError && issue.code === "incomplete_response" && issue.usage?.modelCalls === 2 && !issue.message.includes("private"));
+    assert.equal(requests, 1);
+  } finally { globalThis.fetch = previous; }
+});
+
 test("generation notices count implemented and unavailable features and require target game testing", () => {
   const coverage: GenerationCoverage = { features: [
     { id: "farm", label: "Farm", status: "implemented" },

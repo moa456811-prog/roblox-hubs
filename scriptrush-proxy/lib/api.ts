@@ -65,6 +65,13 @@ async function request(url: string, operation: Operation, init: RequestInit, sig
       if (!response.ok) throw failure(operation, response.status);
       throw new ApiError(operation === "scanner" ? "The scanner service returned an invalid response." : "The service returned an incomplete response. Your input was preserved.", "invalid_response", response.status);
     }
+    if (operation === "generate" && isRecord(data) && data.code === "GAME_EVIDENCE_REQUIRED") {
+      const usage = parseGenerationUsage(data.usage);
+      throw new ApiError("No usable game-specific implementation was found for the requested hub. Writing and reviewing a disabled-only hub were skipped. Your input and previous script were preserved." + (usage ? ` AI calls: ${usage.modelCalls}.` : "") + " Another generation with the same evidence will not establish the missing game mechanics.", "game_evidence_required", response.status, { usage });
+    }
+    if (operation === "generate" && isRecord(data) && data.code === "MODEL_OUTPUT_INVALID") {
+      throw withUsage(new ApiError("The AI returned malformed or ambiguous hub data. No partial script was accepted and no further automatic full regeneration was started after this invalid response. Your input and previous script were preserved.", "model_output_invalid", response.status), data.usage);
+    }
     if (isRecord(data) && data.code === "REQUIREMENTS_NOT_MET") {
       const issues = parseReviewIssues(data.review);
       const usage = parseGenerationUsage(data.usage);
@@ -76,7 +83,7 @@ async function request(url: string, operation: Operation, init: RequestInit, sig
       const usage = isRecord(data) ? data.usage : undefined;
       if (reason === "RATE_LIMITED") throw withUsage(failure(operation, 429), usage);
       if (reason === "AI_TIMEOUT" || /timeout|timed out/i.test(errorText)) throw withUsage(failure(operation, 504), usage);
-      if (/incomplete|truncat|no complete script/i.test(errorText)) throw withUsage(new ApiError("The model returned an incomplete response. Your previous script was preserved.", "incomplete_response", response.status), usage);
+      if (reason === "INCOMPLETE_RESPONSE" || /incomplete|truncat|no complete script/i.test(errorText)) throw withUsage(new ApiError("The model returned an incomplete response. Your previous script was preserved.", "incomplete_response", response.status), usage);
       throw withUsage(failure(operation, response.status), usage);
     }
     return data;

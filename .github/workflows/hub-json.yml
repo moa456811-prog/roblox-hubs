@@ -1,0 +1,39 @@
+name: Hub JSON recovery verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22.19.0, 24.x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install checksum-pinned official Luau compiler
+        run: |
+          curl --fail --location --retry 2 https://github.com/luau-lang/luau/releases/download/0.742/luau-ubuntu.zip --output "$RUNNER_TEMP/luau.zip"
+          echo "152058b98c60ff1f5b5ec9bca0b8eb37793cae161dd3a05608cc3d8738ba1a4d  $RUNNER_TEMP/luau.zip" | sha256sum --check
+          mkdir "$RUNNER_TEMP/luau"
+          unzip -q "$RUNNER_TEMP/luau.zip" -d "$RUNNER_TEMP/luau"
+          chmod +x "$RUNNER_TEMP/luau/luau-compile"
+          echo "SCRIPTRUSH_TEST_LUAU_COMPILE=$RUNNER_TEMP/luau/luau-compile" >> "$GITHUB_ENV"
+      - name: API regression tests, build and typecheck
+        working-directory: scriptrush-api
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npm run typecheck
+      - name: Existing interface regression tests, build and typecheck
+        working-directory: scriptrush-proxy
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npm run typecheck

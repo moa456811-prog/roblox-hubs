@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import type { GenerationContract } from "./generation-contract.ts";
 import { SCRIPT_UI_LANGUAGE_POLICY } from "./ui-language.ts";
 import { requestedStandardActions, standardActionAllowedForRequirement } from "./composition-actions.ts";
+import { parseCompositionJson } from "./composition-json.ts";
 
 const id = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const featureIds = z.array(id).max(32);
@@ -33,8 +34,7 @@ export type HubItem = z.infer<typeof hubItemSchema>;
 export const hubCompositionJsonSchema = z.toJSONSchema(hubCompositionSchema, { target: "draft-7" });
 
 export function parseHubComposition(content: string): HubComposition {
-  const raw = content.trim().replace(/^```json\s*\n/i, "").replace(/\n```\s*$/, "");
-  const spec = hubCompositionSchema.parse(JSON.parse(raw));
+  const spec = hubCompositionSchema.parse(parseCompositionJson(content));
   const ids = [...spec.pages.map(page => page.id), ...spec.pages.flatMap(page => page.items.map(item => item.id))];
   if (new Set(ids).size !== ids.length) throw new Error("DUPLICATE_HUB_IDS");
   if (spec.window.navigation === "none" && spec.pages.length !== 1) throw new Error("UNREACHABLE_HUB_PAGES");

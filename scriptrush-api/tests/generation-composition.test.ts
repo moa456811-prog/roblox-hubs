@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildSourceCatalog, PLANNER_SYSTEM, REVIEW_SYSTEM } from "../src/lib/generation-contract.ts";
 import { generateCompleteScript, type ModelCall } from "../src/lib/generation.ts";
 import { HUB_COMPOSER_SYSTEM, type HubComposition } from "../src/lib/hub-spec.ts";
+import { LOCAL_FULL_HUB_PRESET } from "../src/lib/local-full-hub.ts";
 
 const plan = {
   features: [
@@ -65,6 +66,71 @@ test("invalid composition shape is repaired once before review without a fallbac
   assert.equal(outcome.repaired, true);
   assert.equal(writes, 2);
   assert.equal(outcome.coverage?.features.length, 2);
+});
+
+test("missing RGB commas are recovered locally without a paid composition repair", async () => {
+  const calls: string[] = [];
+  const call: ModelCall = async (system, user) => {
+    calls.push(system);
+    const content = system === PLANNER_SYSTEM ? JSON.stringify(plan) : system.startsWith(HUB_COMPOSER_SYSTEM)
+      ? JSON.stringify(spec).replace('"background":[18,24,42]', '"background":[18 24 42]') : JSON.stringify(review(user));
+    return { content, model: "offline-fixture", incomplete: false };
+  };
+  const outcome = await generateCompleteScript(input, call, Date.now() + 285000);
+  assert.equal(outcome.reason, ""); assert.equal(outcome.repaired, false);
+  assert.deepEqual(calls, [PLANNER_SYSTEM, HUB_COMPOSER_SYSTEM, REVIEW_SYSTEM]);
+  assert.match(outcome.script, /Color3.fromRGB\(18,\s*24,\s*42\)/);
+  assert.equal(outcome.coverage?.features.length, 2);
+});
+
+test("ambiguous or truncated hub JSON is refused after one writer without full regeneration", async () => {
+  for (const reply of [{ content: '{"window":', incomplete: false }, { content: JSON.stringify(spec).slice(0, 500), incomplete: true }]) {
+    const calls: string[] = [];
+    const outcome = await generateCompleteScript(input, async system => {
+      calls.push(system);
+      return system === PLANNER_SYSTEM ? { content: JSON.stringify(plan), model: "fixture", incomplete: false } : { ...reply, model: "fixture" };
+    }, Date.now() + 285000);
+    assert.equal(outcome.reason, reply.incomplete ? "INCOMPLETE_RESPONSE" : "MODEL_OUTPUT_INVALID");
+    assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null); assert.equal(outcome.repaired, false);
+    assert.deepEqual(calls, [PLANNER_SYSTEM, HUB_COMPOSER_SYSTEM]); assert.equal(outcome.usage.modelCalls, 2);
+    assert.ok(!outcome.issues.some(issue => issue.includes("no complete Lua")));
+  }
+});
+
+test("a failed semantic repair retains its actual cost and classifies invalid or truncated output honestly", async () => {
+  for (const incomplete of [false, true]) {
+    let writes = 0;
+    const outcome = await generateCompleteScript(input, async system => {
+      if (system === PLANNER_SYSTEM) return { content: JSON.stringify(plan), model: "fixture", incomplete: false };
+      writes++;
+      return writes === 1 ? { content: JSON.stringify({ ...spec, window: { ...spec.window, palette: [] } }), model: "fixture", incomplete: false }
+        : { content: '{"window":', model: "fixture", incomplete };
+    }, Date.now() + 285000);
+    assert.equal(outcome.reason, incomplete ? "INCOMPLETE_RESPONSE" : "MODEL_OUTPUT_INVALID");
+    assert.equal(outcome.repaired, true); assert.equal(writes, 2); assert.equal(outcome.usage.modelCalls, 3);
+    assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null);
+    assert.match(outcome.issues.join(" "), /no further automatic/i);
+  }
+});
+
+const missingEvidence = { hasContextToAnalyze: false, missingFeatures: ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot"] };
+test("the shipped full hub with established missing evidence stops before any model request", async () => {
+  let calls = 0;
+  const outcome = await generateCompleteScript({ ...input, prompt: LOCAL_FULL_HUB_PRESET, supportedFeatures: [], gameEvidence: missingEvidence }, async () => { calls++; throw new Error("must not call model"); }, Date.now() + 285000);
+  assert.equal(outcome.reason, "GAME_EVIDENCE_REQUIRED"); assert.equal(calls, 0); assert.equal(outcome.usage.modelCalls, 0);
+  assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null); assert.equal(outcome.issues.length, 4);
+});
+test("a customized hub with missing gameplay evidence stops after planning and keeps the requested UI", async () => {
+  let calls = 0;
+  const request = "Full hub with Auto Farm and Auto Boss, exact title My Hub, purple UI";
+  const gameplayPlan = { features: missingEvidence.missingFeatures.map((label, index) => ({ id: `feature-${index}`, label, behavior: "Perform the requested game interaction", availability: "needs-runtime", evidence: "No matching interaction flow", interaction: true })), ui: { instructions: "Exact title My Hub, purple UI", requiredText: ["My Hub"] } };
+  const outcome = await generateCompleteScript({ ...input, prompt: request, gameEvidence: missingEvidence, supportedFeatures: [] }, async () => { calls++; return { content: JSON.stringify(gameplayPlan), incomplete: false, model: "fixture" }; }, Date.now() + 285000);
+  assert.equal(outcome.reason, "GAME_EVIDENCE_REQUIRED"); assert.equal(calls, 1); assert.equal(outcome.usage.modelCalls, 1);
+  assert.equal(outcome.contract?.ui.instructions, gameplayPlan.ui.instructions); assert.equal(outcome.script, "");
+});
+test("missing game evidence never blocks a full hub made only of standard client UI utilities", async () => {
+  const outcome = await generateCompleteScript({ ...input, gameEvidence: missingEvidence }, async (system, user) => ({ content: JSON.stringify(system === PLANNER_SYSTEM ? plan : system.startsWith(HUB_COMPOSER_SYSTEM) ? spec : review(user)), model: "fixture", incomplete: false }), Date.now() + 285000);
+  assert.equal(outcome.reason, ""); assert.equal(outcome.coverage?.features.length, 2);
 });
 
 test("malformed planner JSON or shape gets one full-context correction before composition and review", async () => {
