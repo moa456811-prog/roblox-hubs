@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { buildSourceKnowledge, exactGameSearchMatch, githubResearchQueries, normalizeGameName, SharedResearchCache, sourceHash, type PublicReference, type ResearchKnowledge } from "./source-knowledge.ts";
+import { buildSourceKnowledge, exactGameSearchMatch, githubResearchQueries, normalizeGameName, SharedResearchCache, sourceHash, type PublicReference, type ResearchKnowledge, type PublicSourceAttribution } from "./source-knowledge.ts";
+import { ANIME_ZERO_PUBLIC_REFERENCE, matchesAnimeZeroIdentity, pinnedMitLicense, publicSourceGitBlobHash, type SourceAnalysisNote } from "./public-source-analysis.ts";
 export type { PublicReference, ResearchKnowledge } from "./source-knowledge.ts";
 
 export type FeatureSignal = { feature: string; confidence: "high" | "medium" | "low"; score: number; sources: string[] };
@@ -11,6 +12,9 @@ export type ResearchProfile = {
   sourceCounts: { scriptBlox: number; github: number }; warnings: string[]; researchedAt: string;
   /** Server-only source excerpts: deliberately omitted by publicResearchView. */
   knowledgeContext: string; researchKnowledge: ResearchKnowledge;
+  sourceAnalysis?: SourceAnalysisNote[];
+  /** Complete notices for admitted server-only excerpts; never public raw data. */
+  licenseAttributions: PublicSourceAttribution[];
 };
 export type ResearchOptions = { placeId?: string; signal?: AbortSignal };
 const researchCache = new SharedResearchCache<ResearchProfile>(600_000, 40);
@@ -108,8 +112,8 @@ const gameNameFromLabel = (label: string, target: string): string | undefined =>
   const candidate = label.replace(/\.(lua|luau)$/i, "").replace(/(?:[-_ ](?:roblox|scripts?|hubs?))+$/i, "");
   return normalizeGameName(candidate) === normalizeGameName(target) ? candidate : undefined;
 };
-async function searchGithub(gameName: string, placeId: string | undefined, signal: AbortSignal): Promise<PublicReference[]> {
-  const queries = githubResearchQueries(gameName, placeId);
+async function searchGithub(gameName: string, placeId: string | undefined, universeId: string | undefined, signal: AbortSignal): Promise<PublicReference[]> {
+  const queries = githubResearchQueries(gameName, placeId, universeId);
   const found = await Promise.all(queries.map(async query => {
     try {
       const endpoint = new URL("https://api.github.com/search/repositories");
@@ -118,30 +122,45 @@ async function searchGithub(gameName: string, placeId: string | undefined, signa
       return Array.isArray(data.items) ? data.items : [];
     } catch { return []; }
   }));
-  const repos = [...new Map(found.flat().map(item => [String(item.full_name), item])).values()].filter(repo => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repo.full_name))).slice(0, 3);
+  const repos = [...new Map(found.flat().map(item => [String(item.full_name), item])).values()].filter(repo => repo.private === false && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repo.full_name))).slice(0, 3);
   const references = await Promise.all(repos.map(async repo => {
     try {
       const repoName = String(repo.full_name), branch = String(repo.default_branch || "main");
       const commit = await jsonRequest(`https://api.github.com/repos/${repoName}/commits/${encodeURIComponent(branch)}`, signal, 500_000, githubHeaders);
       const revision = String(commit.sha || ""), treeSha = String(commit.commit?.tree?.sha || "");
       if (!/^[a-f0-9]{40}$/i.test(revision) || !/^[a-f0-9]{40}$/i.test(treeSha)) return [];
+      let license: PublicReference["license"];
+      try { license = pinnedMitLicense(repoName, revision, await jsonRequest(`https://api.github.com/repos/${repoName}/license?ref=${revision}`, signal, 80_000, githubHeaders)); } catch { /* Unknown licenses permit descriptive analysis only. */ }
       const tree = await jsonRequest(`https://api.github.com/repos/${repoName}/git/trees/${treeSha}?recursive=1`, signal, 2_000_000, githubHeaders);
       const files = (Array.isArray(tree.tree) ? tree.tree : []).filter((file: any) => file.type === "blob" && /\.(lua|luau)$/i.test(String(file.path)) && Number(file.size) > 0 && Number(file.size) <= 120_000 && !String(file.path).split(/[\\/]/).some((part: string) => part === ".." || part === "."))
         .sort((left: any, right: any) => {
-          const score = (file: any) => (gameNameFromLabel(String(file.path).split("/").pop() || "", gameName) ? 4 : 0) + (/(hub|script|auto|farm|boss|quest|main)/i.test(String(file.path)) ? 1 : 0);
+          const score = (file: any) => (gameNameFromLabel(String(file.path).split("/").pop() || "", gameName) ? 4 : 0) + ([placeId, universeId].some(id => id && String(file.path).split("/").pop()?.replace(/\.(?:lua|luau)$/i, "") === id) ? 6 : 0) + (/(hub|script|auto|farm|boss|quest|main)/i.test(String(file.path)) ? 1 : 0);
           return score(right) - score(left);
         }).slice(0, 2);
       return (await Promise.all(files.map(async (file: any): Promise<PublicReference | null> => {
         try {
           const rawPath = String(file.path).split("/").map(encodeURIComponent).join("/");
           const source = await textRequest(`https://raw.githubusercontent.com/${repoName}/${revision}/${rawPath}`, signal, 120_000);
-          if (source.length < 40) return null;
-          return { kind: "github", title: `${repoName}/${file.path}`.slice(0, 180), url: `https://github.com/${repoName}/blob/${revision}/${rawPath}`, snippet: source, revision, contentHash: sourceHash(source), game: gameNameFromLabel(String(file.path).split("/").pop() || "", gameName) || gameNameFromLabel(String(repo.name || repoName.split("/")[1]), gameName) };
+          if (source.length < 40 || !/^[a-f0-9]{40}$/.test(String(file.sha)) || publicSourceGitBlobHash(source) !== file.sha) return null;
+          const fileId = String(file.path).split("/").pop()?.replace(/\.(?:lua|luau)$/i, "");
+          return { kind: "github", title: `${repoName}/${file.path}`.slice(0, 180), url: `https://github.com/${repoName}/blob/${revision}/${rawPath}`, snippet: source, revision, contentHash: sourceHash(source), ...(license ? { license } : {}), ...(fileId === universeId ? { universeId } : {}), ...(fileId === placeId ? { placeId } : {}), game: gameNameFromLabel(String(file.path).split("/").pop() || "", gameName) || gameNameFromLabel(String(repo.name || repoName.split("/")[1]), gameName) };
         } catch { return null; }
       }))).filter((item): item is PublicReference => item !== null);
     } catch { return []; }
   }));
   return references.flat().slice(0, 6);
+}
+
+/** Public, reviewed immutable locator supplements repository-name discovery.
+ * Never follows a loader or uses account credentials; no code is persisted. */
+async function reviewedPublicReferences(identity: { universeId?: string }, signal: AbortSignal): Promise<PublicReference[]> {
+  if (!matchesAnimeZeroIdentity(identity)) return [];
+  const source = ANIME_ZERO_PUBLIC_REFERENCE;
+  try {
+    const snippet = await textRequest(source.rawUrl, signal, 120_000);
+    if (sourceHash(snippet) !== source.sha256) return [];
+    return [{ kind: "github", title: `${source.repository}/${source.path}`, url: source.url, snippet, revision: source.revision, contentHash: source.sha256, universeId: source.universeId }];
+  } catch { return []; }
 }
 
 /** These scores remain discovery hints; they do not determine action support. */
@@ -175,13 +194,14 @@ async function loadResearch(query: string, options: ResearchOptions): Promise<Re
   try {
     const resolved = await resolveGame(query, options, controller.signal), details = resolved.details;
     const name = typeof details?.name === "string" ? details.name : resolved.candidateName || query;
-    const [scriptBlox, github] = await Promise.all([searchScriptBlox(name, resolved.placeId, controller.signal), searchGithub(name, resolved.placeId, controller.signal)]);
+    const [scriptBlox, discoveredGithub, reviewedGithub] = await Promise.all([searchScriptBlox(name, resolved.placeId, controller.signal), searchGithub(name, resolved.placeId, resolved.universeId, controller.signal), reviewedPublicReferences(resolved, controller.signal)]);
+    const github = [...new Map([...reviewedGithub, ...discoveredGithub].map(reference => [reference.url, reference])).values()];
     const publicScripts = [...scriptBlox, ...github], warnings: string[] = [];
     if (!scriptBlox.length) warnings.push("No usable ScriptBlox source matched this game.");
     if (!github.length) warnings.push("No usable GitHub source was found or public search was rate limited.");
     const researchedAt = new Date().toISOString();
     const knowledge = buildSourceKnowledge({ name, placeId: resolved.placeId, universeId: resolved.universeId }, publicScripts, researchedAt);
-    return { query, name, placeId: resolved.placeId, universeId: resolved.universeId, description: typeof details?.description === "string" ? details.description : "", creator: details?.creator, created: details?.created, updated: details?.updated, playing: details?.playing, visits: details?.visits, maxPlayers: details?.maxPlayers, genre: details?.genre, confidence: resolved.universeId ? "high" : resolved.placeId ? "medium" : "low", featureSignals: buildFeatureSignals(publicScripts), publicScripts, sourceCounts: { scriptBlox: scriptBlox.length, github: github.length }, warnings, researchedAt, ...knowledge };
+    return { query, name, placeId: resolved.placeId, universeId: resolved.universeId, description: typeof details?.description === "string" ? details.description : "", creator: details?.creator, created: details?.created, updated: details?.updated, playing: details?.playing, visits: details?.visits, maxPlayers: details?.maxPlayers, genre: details?.genre, confidence: resolved.universeId ? "high" : resolved.placeId ? "medium" : "low", featureSignals: buildFeatureSignals(publicScripts), publicScripts, sourceCounts: { scriptBlox: scriptBlox.length, github: github.length }, warnings, researchedAt, ...knowledge, ...(knowledge.researchKnowledge.sourceAnalysis ? { sourceAnalysis: knowledge.researchKnowledge.sourceAnalysis } : {}) };
   } finally { clearTimeout(timer); }
 }
 export async function researchGame(query: string, options: ResearchOptions = {}): Promise<ResearchProfile> {
@@ -190,7 +210,7 @@ export async function researchGame(query: string, options: ResearchOptions = {})
   return researchCache.get(cacheKey, () => loadResearch(trimmed, { placeId }), options.signal);
 }
 export function publicResearchView(profile: ResearchProfile) {
-  return { gameKey: gameKeyFor(profile), query: profile.query, name: profile.name, placeId: profile.placeId, universeId: profile.universeId, description: profile.description, creator: profile.creator, created: profile.created, updated: profile.updated, playing: profile.playing, visits: profile.visits, maxPlayers: profile.maxPlayers, genre: profile.genre, confidence: profile.confidence, featureSignals: profile.featureSignals, sourceCounts: profile.sourceCounts, publicScripts: profile.publicScripts.map(({ kind, title, url, verified, patched, game, revision, contentHash }) => ({ kind, title: title.slice(0, 180), url, verified, patched, game, revision, contentHash })), researchKnowledge: profile.researchKnowledge, warnings: profile.warnings, researchedAt: profile.researchedAt };
+  return { gameKey: gameKeyFor(profile), query: profile.query, name: profile.name, placeId: profile.placeId, universeId: profile.universeId, description: profile.description, creator: profile.creator, created: profile.created, updated: profile.updated, playing: profile.playing, visits: profile.visits, maxPlayers: profile.maxPlayers, genre: profile.genre, confidence: profile.confidence, featureSignals: profile.featureSignals, sourceCounts: profile.sourceCounts, publicScripts: profile.publicScripts.map(({ kind, title, url, verified, patched, game, revision, contentHash }) => ({ kind, title: title.slice(0, 180), url, verified, patched, game, revision, contentHash })), researchKnowledge: profile.researchKnowledge, ...(profile.sourceAnalysis ? { sourceAnalysis: profile.sourceAnalysis } : {}), warnings: profile.warnings, researchedAt: profile.researchedAt };
 }
 export function gameKeyFor(profile: Pick<ResearchProfile, "name" | "placeId" | "universeId">) {
   if (profile.universeId) return `universe:${profile.universeId}`;

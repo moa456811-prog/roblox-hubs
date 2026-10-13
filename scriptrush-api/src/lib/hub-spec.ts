@@ -1,8 +1,10 @@
+import { GENERATION_QUALITY_GUIDE } from "./generation-quality-guide.ts";
 import { a7devGenerationGuide } from "./a7dev-generation-guide.ts";
 import { z } from "zod/v4";
 import type { GenerationContract } from "./generation-contract.ts";
 import { SCRIPT_UI_LANGUAGE_POLICY } from "./ui-language.ts";
 import { requestedStandardActions, standardActionAllowedForRequirement } from "./composition-actions.ts";
+import { parseCompositionJson } from "./composition-json.ts";
 
 const id = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const featureIds = z.array(id).max(32);
@@ -33,8 +35,7 @@ export type HubItem = z.infer<typeof hubItemSchema>;
 export const hubCompositionJsonSchema = z.toJSONSchema(hubCompositionSchema, { target: "draft-7" });
 
 export function parseHubComposition(content: string): HubComposition {
-  const raw = content.trim().replace(/^```json\s*\n/i, "").replace(/\n```\s*$/, "");
-  const spec = hubCompositionSchema.parse(JSON.parse(raw));
+  const spec = hubCompositionSchema.parse(parseCompositionJson(content));
   const ids = [...spec.pages.map(page => page.id), ...spec.pages.flatMap(page => page.items.map(item => item.id))];
   if (new Set(ids).size !== ids.length) throw new Error("DUPLICATE_HUB_IDS");
   if (spec.window.navigation === "none" && spec.pages.length !== 1) throw new Error("UNREACHABLE_HUB_PAGES");
@@ -89,7 +90,7 @@ export function shellFeaturePresent(spec: HubComposition, feature: GenerationCon
   return true;
 }
 
-export const HUB_COMPOSER_SYSTEM = `You are a Luau hub composition engineer. ${a7devGenerationGuide("composer")} ${SCRIPT_UI_LANGUAGE_POLICY} Return JSON ONLY containing actual VALUES matching the supplied HUB COMPOSITION JSON SCHEMA. Never return a JSON schema, Lua block or prose.
+export const HUB_COMPOSER_SYSTEM = `You are a Luau hub composition engineer. ${a7devGenerationGuide("composer")} ${SCRIPT_UI_LANGUAGE_POLICY} ${GENERATION_QUALITY_GUIDE} Return JSON ONLY containing actual VALUES matching the supplied HUB COMPOSITION JSON SCHEMA. Never return a JSON schema, Lua block or prose.
 The root object MUST have exactly window and pages. Here is a VALUES shape (replace every example according to the user's design and features): {"window":{"title":"","width":480,"height":360,"radius":12,"draggable":true,"navigation":"top","font":"Gotham","textSize":14,"closeLabel":"Close","minimizeLabel":"Minimize","restoreLabel":"Restore","palette":{"background":[18,24,42],"foreground":[240,245,255],"accent":[85,221,255],"control":[30,43,68],"muted":[175,191,213]},"alternatePalette":null,"featureIds":[]},"pages":[{"id":"page-id","label":"User's exact tab label","featureIds":[],"items":[]}]}. palette and alternatePalette MUST be OBJECTS with these FIVE NAMED properties (background,foreground,accent,control,muted), NEVER arrays of colors. A color itself is a three-number RGB array. Use null for an unwanted alternate palette.
 Read the ENTIRE original user request and requirements. Design ALL pages, visible texts and independent controls together. Bind EVERY requirement ID using featureIds on its relevant item, page or window. A whole-interface/UI-only requirement can bind window.featureIds; title/navigation/close/minimize requirements can bind window.featureIds too. A behavioral feature belongs on its real control. Never choose one representative feature or invent new gameplay. Explicit requested title, dimensions, radius, colors and navigation win over defaults; translate French functional labels and page content into English. For unspecified design only, choose readable coherent values. Window palette RGB arrays are actual applied values. Use alternatePalette only when a theme switch is requested. Set navigation top or left as requested; none requires one page. Text items display real requested page content. FeatureIds must use the supplied requirement IDs exactly; all id strings are lowercase kebab-case and unique across pages/items.
 EVERY distinct requested tab must have its OWN page object with its requested English label and relevant content (translate French functional labels into English). If the user requests tabs Movement, Session, Settings, pages MUST contain three distinct objects labeled Movement, Session, Settings, with movement controls, session actions and settings on their appropriate pages. Never put all controls in one page labeled with the window title. If a French request mentions Accueil and Réglages, create distinct Home and Settings pages with the corresponding English page content. Do not invent extra pages or replace requested page labels.

@@ -49,11 +49,15 @@ export async function POST(request: Request) {
       prompt: input.prompt, currentScript: current, patch,
       game,
       supportedFeatures: supported, ledger,
+      referenceAttributions: profile?.licenseAttributions ?? [],
       researchContext: [profile?.knowledgeContext || "", pack ? "" : curated?.knowledgeContext || ""].filter(Boolean).join("\n\n").slice(0, 12_000),
       sources: input.sources.map(source => `--- ${source.name} ---\n${source.content}`).join("\n\n"), diagnostic: input.runtimeDiagnostic || "", signal: request.signal,
     }, runModel, startedAt + 285_000);
     const review = { passed: !result.issues.length && Boolean(result.script && result.coverage), issues: result.issues, providerIncomplete: result.incomplete, strategy: result.strategy, repaired: result.repaired };
+    const generationProfile = result.profile ?? null;
     if (!review.passed) {
+      if (result.reason === "MODEL_OUTPUT_INVALID") return NextResponse.json({ error: "The AI response could not be validated as complete hub data. Your request and previous script were preserved.", code: result.reason, reason: result.reason, review, usage: result.usage, generationProfile }, { status: 502 });
+      if (result.reason === "INCOMPLETE_RESPONSE") return NextResponse.json({ error: "The provider returned a truncated response. No partial script was accepted. Your input and previous script were preserved.", code: result.reason, reason: result.reason, review, usage: result.usage, generationProfile }, { status: 502 });
       const missing = result.reason === "REQUIREMENTS_NOT_MET" || result.reason === "INCOMPLETE_REQUIREMENTS";
       const error = missing
         ? "ScriptRush could not satisfy every requested feature or UI requirement. Your request and previous script were preserved."
@@ -62,12 +66,11 @@ export async function POST(request: Request) {
           : result.reason === "AI_TIMEOUT"
             ? "The AI model timed out. Your request and previous script were preserved; try again."
             : "ScriptRush could not validate a complete script against your requirements. Your request and previous script were preserved.";
-      return NextResponse.json({ error, code: missing ? "REQUIREMENTS_NOT_MET" : patch ? "PATCH_PRESERVED" : "GENERATION_REJECTED", reason: result.reason, model: result.model || null, patchMode: patch, review, usage: result.usage }, { status: 502 });
+      return NextResponse.json({ error, code: missing ? "REQUIREMENTS_NOT_MET" : patch ? "PATCH_PRESERVED" : "GENERATION_REJECTED", reason: result.reason, model: result.model || null, patchMode: patch, review, usage: result.usage, generationProfile }, { status: 502 });
     }
-    const localBuild = result.strategy === "local-profile-hub" || result.strategy === "source-backed-hub";
-    const plan = { mode: patch ? "patch-existing" : localBuild ? result.strategy : "requirements-build", requested: input.prompt, supportedFeatures: localBuild ? result.coverage!.features.filter(feature => feature.status === "implemented").map(feature => feature.label) : supported, requirements: result.contract, ...(result.profile ? { gameProfile: result.profile } : {}), sourceCounts: profile?.sourceCounts || { scriptBlox: 0, github: 0 } };
+    const plan = { mode: patch ? "patch-existing" : "requirements-build", requested: input.prompt, supportedFeatures: supported, requirements: result.contract, ...(result.profile ? { gameProfile: result.profile } : {}), sourceCounts: profile?.sourceCounts || { scriptBlox: 0, github: 0 } };
     const version = input.clientId ? await save(request, { op: "version_add", clientId: input.clientId, gameKey: key, mode: patch ? "fix" : input.mode, request: input.prompt, script: result.script, plan, review }) : null;
-    return NextResponse.json({ message: `\`\`\`lua\n${result.script}\n\`\`\``, status: "ok", model: result.model, usage: result.usage, research: profile ? { ...publicResearchView(profile), researchKnowledge, gameKey: key } : { gameKey: key, researchKnowledge }, researchKnowledge, gameKey: key, plan, review, coverage: result.coverage, patchMode: patch, version, unlimitedTestMode: true });
+    return NextResponse.json({ message: `\`\`\`lua\n${result.script}\n\`\`\``, status: "ok", model: result.model, usage: result.usage, research: profile ? { ...publicResearchView(profile), researchKnowledge, gameKey: key } : { gameKey: key, researchKnowledge }, researchKnowledge, gameKey: key, plan, review, coverage: result.coverage, patchMode: patch, generationProfile, version, unlimitedTestMode: true });
   } catch (error) {
     if (request.signal.aborted || (error instanceof Error && error.name === "AbortError")) return NextResponse.json({ error: "Request cancelled. Your previous script was preserved.", code: "CANCELLED" }, { status: 499 });
     return NextResponse.json({ error: error instanceof z.ZodError ? "Invalid request." : "Generation failed. Your previous script was preserved." }, { status: error instanceof z.ZodError ? 400 : 502 });

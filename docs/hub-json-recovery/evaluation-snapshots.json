@@ -1,0 +1,552 @@
+{
+  "iteration1": {
+    "baselineCommit": "cd09a4a5984cf3962ffb7583745429f6a82a700b",
+    "baselineFiles": [
+      {
+        "path": "scriptrush-api/src/lib/a7dev-generation-guide.ts",
+        "sha256": "24b425a8eacc67ed88cf9b87ae4e1702e7c470c865be3a6f84321b769e2bb3be"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-actions.ts",
+        "sha256": "5c272d2673eca638f54ab9d7eebdecd47e476100808851a9ae8c746a05aba8ca"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-evidence.ts",
+        "sha256": "d74d91038b3c54e20449923f8752d8b21c9fc0614b18e0750ecb3c8d2f32abea"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-actions.ts",
+        "sha256": "a1f662fd2458b4c37838fcbce4eb3fc1deef883ceed25766dc9cdd175e9ead4b"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-quest-data.ts",
+        "sha256": "7e531feb2596e7f002b186f2e7876fef07bb8ee5c28ab874708ed2c80842746b"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-runtime.ts",
+        "sha256": "ec52ae3e198e9f59b7690413b1afc4fd14b4c17898ddd8c5c55629f175e9e895"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/catalog.ts",
+        "sha256": "a4fc76063a275b68c5ac640b9199e4841066bb3c3f580b4809940a7cf50ac5fb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-contract.ts",
+        "sha256": "27a993e5a79c0f65e4c3d28d8de1f70453239f2b51190d2f9dff4bd9631dddf7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation.ts",
+        "sha256": "6485852aa8415e4d34d8f5a0b3e5f07a1bd3a4691c222329c9fec2f6c54fe781"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-composer.ts",
+        "sha256": "afd4ad0206050a33526374e89edc3da2fc8c570ac1c85dc3504e60aa96c391a0"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-spec.ts",
+        "sha256": "a5a1395faaa1dfd5a409f2c7adf23d524df9d79c8b76e718e7a1504d95ddf164"
+      },
+      {
+        "path": "scriptrush-api/src/lib/local-full-hub.ts",
+        "sha256": "e39e93e2c7d130dac054eec40de03c63fa49bf1583c48c44b03ac6718fba56d8"
+      },
+      {
+        "path": "scriptrush-api/src/lib/memory.ts",
+        "sha256": "1fbab4852234979c8db9f4364ad8352edfe68f7b65988420889f1040cd171017"
+      },
+      {
+        "path": "scriptrush-api/src/lib/model-provider.ts",
+        "sha256": "49c3d9e3471dbd3bba976cfc743e38900525c6a1315d11ff439d85a6dd72db5d"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-abort.ts",
+        "sha256": "c15e77751b3eaa50e3c77d23297f98efae5a2f8c9a8c4c23f430af513500a92f"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-capacity.ts",
+        "sha256": "2dce4c3ca99f9e9369659e30dc9e970b966646ff10afec50906e0eda27d6ebc1"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-client.ts",
+        "sha256": "476db4345753dbeb8c9d87fd193797ce65e9197b61c0a66b6357fdf6129ebeb9"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-config.ts",
+        "sha256": "c2055bda835c73607fb2afe54267a303243041f0fbdec24d3c402150c2182ab1"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-failover.ts",
+        "sha256": "d52bc446cc2e4e8b8015ec3400aa8ec03eae00aeb6fa9fd2e3a730a4e6a221a7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-response.ts",
+        "sha256": "a24f6fb42e7554b4d6a874674f383fbf2d47aaed4b31d436ae83c1a36739aa0b"
+      },
+      {
+        "path": "scriptrush-api/src/lib/research.ts",
+        "sha256": "257514c788b656bc12c61903c6b35a875a073b992eede07b7d9bc58f7283c9ec"
+      },
+      {
+        "path": "scriptrush-api/src/lib/script-output.ts",
+        "sha256": "94c232c355ec5b55e81491c74c1dc1d6af8cbb97d324b047cf9b6fb149abf700"
+      },
+      {
+        "path": "scriptrush-api/src/lib/source-knowledge.ts",
+        "sha256": "6d4e89763c7f5c4bf1f616ed94b0da8b3f435a31bd3f2b080b4fc80362ceacc6"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-generation-guide.ts",
+        "sha256": "fed36b97411735a981d9f95a7fdad7ce45bf5ccf5b9060b2e96a59d6787c7f26"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-language.ts",
+        "sha256": "f71242d560324c4f4f5915ab69083a089840aac69704ebb5c8640b613693f686"
+      }
+    ],
+    "improvedFiles": [
+      {
+        "path": "scriptrush-api/src/lib/a7dev-generation-guide.ts",
+        "sha256": "67969358dfc928892e64e27533155dd1a5f2f351538b7430dd90f9ed3b66cebd"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-actions.ts",
+        "sha256": "793e510b724a9be8cdb8429b5891885d4536cf64270bd0a6fdcb35b3926312e7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-evidence.ts",
+        "sha256": "9633a19c6671416334346d4251b13219e51e92fd0cb4c81a44ecb1d2dd9cb2e5"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-json.ts",
+        "sha256": "868965ac44d164567fdf201cfefedbd97c3782c9d21f3581a448c16f3e42c9de"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-actions.ts",
+        "sha256": "3ecd67f37e4e759bdbe343557ab4a93d0a461811cb52f181aa34085164a734be"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-quest-data.ts",
+        "sha256": "87b8d3af0e52cddbcf28f648ea4101d32601c2458f908916ad41572516dc29bd"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-runtime.ts",
+        "sha256": "27d79a6f97ac0fc658304e20ad7b03d07cde740b6b5f3412749f5cac11e9055d"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/catalog.ts",
+        "sha256": "639ec3a310197b89d8579249d41c4ed2c70b28471b5638530a045d00bca4d88d"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-contract.ts",
+        "sha256": "7529deb45b832e1ebf28ccf35a6b0517b53f67e336e8f302ab36957d197747b7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-knowledge.ts",
+        "sha256": "3be44ca6e237d5ad4a3935ab9d3fb332f419beae6d2243aacb926a5de4e3a001"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-quality-guide.ts",
+        "sha256": "b06909e9465e228ab2f06468f39d028b3904cc776a02172bb1d57c5fc0680bdc"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-quality.ts",
+        "sha256": "77203ade8efb257a1f6a63e69441c31eff4c5750ddbd6a214b0c4172f1062ac4"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation.ts",
+        "sha256": "6d7f35b76ac4c69edc4380cfb36da03808d6281ec0806b450996b0a1ac9473e2"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-composer.ts",
+        "sha256": "f99ff502e3c44c33ba072671a6f3f445ed864a0fcd76eb75a1056b17c9250ef8"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-spec.ts",
+        "sha256": "3ca416a4624f94410b04c2a6cd7637920dc529bc4e49b7576ead8b4ce8c03f5a"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/import-cli.ts",
+        "sha256": "9fffb9749ec49c1613df3a87666fdfbfedb6a0650c35a56d5abeabc8b2e4a77c"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/index.ts",
+        "sha256": "b1f3429427de6fe23f1b268bcdf03c57855db7a41d0fde2448410fe247b48de1"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/ingest.ts",
+        "sha256": "643599a049266f1f12127f7f48d332e2c07ea6c0bae01ce3b575faaad03bec55"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/resolver.ts",
+        "sha256": "d854b28bdf82dda6310f01d81f3723591d6adf0f303fb181ec37ed16fe72f942"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/types.ts",
+        "sha256": "aecfd1063883ddf8d05b24514ec6d272dca32c843d2f21deafdf7447251068fb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/util.ts",
+        "sha256": "7dabdc84ada8ec40672ef46e7c81f0abebabde33e965d9779fb1e4d4d942db4c"
+      },
+      {
+        "path": "scriptrush-api/src/lib/local-full-hub.ts",
+        "sha256": "5ffe03257333a0c592341a06326ee59d3b424bd9e9a7a3c61f3387b4a3f396cb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/memory.ts",
+        "sha256": "1d792de5fc0081022853f19ef9b37663adc2e9e0bddad9ec7de04a09463e6a1c"
+      },
+      {
+        "path": "scriptrush-api/src/lib/model-provider.ts",
+        "sha256": "bdb02e8cae3c1d6414f79f93da2949d514a58852c344667665f85bdfa999c645"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-abort.ts",
+        "sha256": "828877fc5f1e325c054e687d185dfc21b507cb1c1464c5968edaf10b19544297"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-capacity.ts",
+        "sha256": "a743f04828bb82cd240364419c9df814a33be57fd615bea832d3a5d8df883fdc"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-client.ts",
+        "sha256": "9f9557c6a67cf45665535886180594bc154624c8d238061386ee592a1785a1df"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-config.ts",
+        "sha256": "dce3cd86e450474e9a3322326cdd4bd5a7d72d6cea6b24c43bb31d79ae0d5626"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-failover.ts",
+        "sha256": "91842ab4f9f69b560fd23b0ee5cd7e5fa6f78b1530fc7b46d041b5e23a906a83"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-response.ts",
+        "sha256": "0e811f41ae9096c42d121fed3b71c9941ff8d7c50f272202eff51cb4b3472c13"
+      },
+      {
+        "path": "scriptrush-api/src/lib/public-source-analysis.ts",
+        "sha256": "ecda7a73cd5dbed2d98a43383e6623c28e6c3ebeffc5369fd9fb9bedd921812a"
+      },
+      {
+        "path": "scriptrush-api/src/lib/research.ts",
+        "sha256": "b3f5af2bba4a9c0d070a394a1c9e368ed1cbe3c44d1a6f058b7c014d4fb52fb6"
+      },
+      {
+        "path": "scriptrush-api/src/lib/script-output.ts",
+        "sha256": "98962709b083ad2006e761476e13d79abe028e7d1ac377e40c76be89b6ac7035"
+      },
+      {
+        "path": "scriptrush-api/src/lib/source-knowledge.ts",
+        "sha256": "faf6b40a1889405deb67293890a7b2472f55eedb43060095e319e32adb7d60eb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-generation-guide.ts",
+        "sha256": "0fca8a5a084f5c66f8da1fb496b3ffacde0b0d7589a38ce37c259dafba43f224"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-language.ts",
+        "sha256": "a62134ba978c2274ee1a7a28830f7dd87870e95c6b5b7435bd9d9e3b315f7686"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/catalog.json",
+        "sha256": "3ae4d13c1660e6337b2347b0dc684732dd2d510bf5a378b90676e73b727088da"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/imports.json",
+        "sha256": "e41b4e54b3276934924e94d6c1bf1008215e38ff082f4f4a8ec7b23765ef7458"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/manifest.json",
+        "sha256": "db4267618e932842983c3f3be3a886982c0c8a082a20616dd984835bddcd6677"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/README.md",
+        "sha256": "e6142008227709ccfd513e24fe87b672f75714669708da68863f1cb3da067a4b"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/recipes.json",
+        "sha256": "6484018afccda09f4a9ed2abfd2ab81e2af36a56ae1110bf607526091d2b3e5a"
+      }
+    ],
+    "improvedSnapshotIncludesUncommittedIntegration": true
+  },
+  "iteration2": {
+    "baselineCommit": "cd09a4a5984cf3962ffb7583745429f6a82a700b",
+    "baselineFiles": [
+      {
+        "path": "scriptrush-api/src/lib/a7dev-generation-guide.ts",
+        "sha256": "24b425a8eacc67ed88cf9b87ae4e1702e7c470c865be3a6f84321b769e2bb3be"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-actions.ts",
+        "sha256": "5c272d2673eca638f54ab9d7eebdecd47e476100808851a9ae8c746a05aba8ca"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-evidence.ts",
+        "sha256": "d74d91038b3c54e20449923f8752d8b21c9fc0614b18e0750ecb3c8d2f32abea"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-actions.ts",
+        "sha256": "a1f662fd2458b4c37838fcbce4eb3fc1deef883ceed25766dc9cdd175e9ead4b"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-quest-data.ts",
+        "sha256": "7e531feb2596e7f002b186f2e7876fef07bb8ee5c28ab874708ed2c80842746b"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-runtime.ts",
+        "sha256": "ec52ae3e198e9f59b7690413b1afc4fd14b4c17898ddd8c5c55629f175e9e895"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/catalog.ts",
+        "sha256": "a4fc76063a275b68c5ac640b9199e4841066bb3c3f580b4809940a7cf50ac5fb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-contract.ts",
+        "sha256": "27a993e5a79c0f65e4c3d28d8de1f70453239f2b51190d2f9dff4bd9631dddf7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation.ts",
+        "sha256": "6485852aa8415e4d34d8f5a0b3e5f07a1bd3a4691c222329c9fec2f6c54fe781"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-composer.ts",
+        "sha256": "afd4ad0206050a33526374e89edc3da2fc8c570ac1c85dc3504e60aa96c391a0"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-spec.ts",
+        "sha256": "a5a1395faaa1dfd5a409f2c7adf23d524df9d79c8b76e718e7a1504d95ddf164"
+      },
+      {
+        "path": "scriptrush-api/src/lib/local-full-hub.ts",
+        "sha256": "e39e93e2c7d130dac054eec40de03c63fa49bf1583c48c44b03ac6718fba56d8"
+      },
+      {
+        "path": "scriptrush-api/src/lib/memory.ts",
+        "sha256": "1fbab4852234979c8db9f4364ad8352edfe68f7b65988420889f1040cd171017"
+      },
+      {
+        "path": "scriptrush-api/src/lib/model-provider.ts",
+        "sha256": "49c3d9e3471dbd3bba976cfc743e38900525c6a1315d11ff439d85a6dd72db5d"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-abort.ts",
+        "sha256": "c15e77751b3eaa50e3c77d23297f98efae5a2f8c9a8c4c23f430af513500a92f"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-capacity.ts",
+        "sha256": "2dce4c3ca99f9e9369659e30dc9e970b966646ff10afec50906e0eda27d6ebc1"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-client.ts",
+        "sha256": "476db4345753dbeb8c9d87fd193797ce65e9197b61c0a66b6357fdf6129ebeb9"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-config.ts",
+        "sha256": "c2055bda835c73607fb2afe54267a303243041f0fbdec24d3c402150c2182ab1"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-failover.ts",
+        "sha256": "d52bc446cc2e4e8b8015ec3400aa8ec03eae00aeb6fa9fd2e3a730a4e6a221a7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-response.ts",
+        "sha256": "a24f6fb42e7554b4d6a874674f383fbf2d47aaed4b31d436ae83c1a36739aa0b"
+      },
+      {
+        "path": "scriptrush-api/src/lib/research.ts",
+        "sha256": "257514c788b656bc12c61903c6b35a875a073b992eede07b7d9bc58f7283c9ec"
+      },
+      {
+        "path": "scriptrush-api/src/lib/script-output.ts",
+        "sha256": "94c232c355ec5b55e81491c74c1dc1d6af8cbb97d324b047cf9b6fb149abf700"
+      },
+      {
+        "path": "scriptrush-api/src/lib/source-knowledge.ts",
+        "sha256": "6d4e89763c7f5c4bf1f616ed94b0da8b3f435a31bd3f2b080b4fc80362ceacc6"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-generation-guide.ts",
+        "sha256": "fed36b97411735a981d9f95a7fdad7ce45bf5ccf5b9060b2e96a59d6787c7f26"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-language.ts",
+        "sha256": "f71242d560324c4f4f5915ab69083a089840aac69704ebb5c8640b613693f686"
+      }
+    ],
+    "improvedFiles": [
+      {
+        "path": "scriptrush-api/src/lib/a7dev-generation-guide.ts",
+        "sha256": "67969358dfc928892e64e27533155dd1a5f2f351538b7430dd90f9ed3b66cebd"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-actions.ts",
+        "sha256": "793e510b724a9be8cdb8429b5891885d4536cf64270bd0a6fdcb35b3926312e7"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-evidence.ts",
+        "sha256": "9633a19c6671416334346d4251b13219e51e92fd0cb4c81a44ecb1d2dd9cb2e5"
+      },
+      {
+        "path": "scriptrush-api/src/lib/composition-json.ts",
+        "sha256": "868965ac44d164567fdf201cfefedbd97c3782c9d21f3581a448c16f3e42c9de"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-actions.ts",
+        "sha256": "3ecd67f37e4e759bdbe343557ab4a93d0a461811cb52f181aa34085164a734be"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-quest-data.ts",
+        "sha256": "87b8d3af0e52cddbcf28f648ea4101d32601c2458f908916ad41572516dc29bd"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/blox-fruits-runtime.ts",
+        "sha256": "27d79a6f97ac0fc658304e20ad7b03d07cde740b6b5f3412749f5cac11e9055d"
+      },
+      {
+        "path": "scriptrush-api/src/lib/game-adapters/catalog.ts",
+        "sha256": "639ec3a310197b89d8579249d41c4ed2c70b28471b5638530a045d00bca4d88d"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-attribution.ts",
+        "sha256": "35243c66e31ebd51fbef9dc532de574c3811a23e7c0b6808aee87a00b8ae0636"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-contract.ts",
+        "sha256": "11f18e7537a81034621d30ef573e9eaf94440fb75e814cc1c8e12c30bc8655b2"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-knowledge.ts",
+        "sha256": "3be44ca6e237d5ad4a3935ab9d3fb332f419beae6d2243aacb926a5de4e3a001"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-quality-guide.ts",
+        "sha256": "b06909e9465e228ab2f06468f39d028b3904cc776a02172bb1d57c5fc0680bdc"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation-quality.ts",
+        "sha256": "cf16b53a9d570815015803d0fbe72664a74a57d2e732d78047fbde2cc41aa345"
+      },
+      {
+        "path": "scriptrush-api/src/lib/generation.ts",
+        "sha256": "6bc302678932dae518056d3f06acc2607d706c7f53dca6e3d8868dad3350b310"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-composer.ts",
+        "sha256": "f99ff502e3c44c33ba072671a6f3f445ed864a0fcd76eb75a1056b17c9250ef8"
+      },
+      {
+        "path": "scriptrush-api/src/lib/hub-spec.ts",
+        "sha256": "3ca416a4624f94410b04c2a6cd7637920dc529bc4e49b7576ead8b4ce8c03f5a"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/import-cli.ts",
+        "sha256": "9fffb9749ec49c1613df3a87666fdfbfedb6a0650c35a56d5abeabc8b2e4a77c"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/index.ts",
+        "sha256": "b1f3429427de6fe23f1b268bcdf03c57855db7a41d0fde2448410fe247b48de1"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/ingest.ts",
+        "sha256": "643599a049266f1f12127f7f48d332e2c07ea6c0bae01ce3b575faaad03bec55"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/resolver.ts",
+        "sha256": "d854b28bdf82dda6310f01d81f3723591d6adf0f303fb181ec37ed16fe72f942"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/types.ts",
+        "sha256": "aecfd1063883ddf8d05b24514ec6d272dca32c843d2f21deafdf7447251068fb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/knowledge-v2/util.ts",
+        "sha256": "7dabdc84ada8ec40672ef46e7c81f0abebabde33e965d9779fb1e4d4d942db4c"
+      },
+      {
+        "path": "scriptrush-api/src/lib/local-full-hub.ts",
+        "sha256": "5ffe03257333a0c592341a06326ee59d3b424bd9e9a7a3c61f3387b4a3f396cb"
+      },
+      {
+        "path": "scriptrush-api/src/lib/memory.ts",
+        "sha256": "1d792de5fc0081022853f19ef9b37663adc2e9e0bddad9ec7de04a09463e6a1c"
+      },
+      {
+        "path": "scriptrush-api/src/lib/model-provider.ts",
+        "sha256": "bdb02e8cae3c1d6414f79f93da2949d514a58852c344667665f85bdfa999c645"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-abort.ts",
+        "sha256": "828877fc5f1e325c054e687d185dfc21b507cb1c1464c5968edaf10b19544297"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-capacity.ts",
+        "sha256": "a743f04828bb82cd240364419c9df814a33be57fd615bea832d3a5d8df883fdc"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-client.ts",
+        "sha256": "9f9557c6a67cf45665535886180594bc154624c8d238061386ee592a1785a1df"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-config.ts",
+        "sha256": "dce3cd86e450474e9a3322326cdd4bd5a7d72d6cea6b24c43bb31d79ae0d5626"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-failover.ts",
+        "sha256": "91842ab4f9f69b560fd23b0ee5cd7e5fa6f78b1530fc7b46d041b5e23a906a83"
+      },
+      {
+        "path": "scriptrush-api/src/lib/provider-response.ts",
+        "sha256": "0e811f41ae9096c42d121fed3b71c9941ff8d7c50f272202eff51cb4b3472c13"
+      },
+      {
+        "path": "scriptrush-api/src/lib/public-source-analysis.ts",
+        "sha256": "ecda7a73cd5dbed2d98a43383e6623c28e6c3ebeffc5369fd9fb9bedd921812a"
+      },
+      {
+        "path": "scriptrush-api/src/lib/research.ts",
+        "sha256": "1018be8d865d9507e97dad48e16e83a686ed4f4b1f56ed69784bbe7815fdbb04"
+      },
+      {
+        "path": "scriptrush-api/src/lib/script-output.ts",
+        "sha256": "98962709b083ad2006e761476e13d79abe028e7d1ac377e40c76be89b6ac7035"
+      },
+      {
+        "path": "scriptrush-api/src/lib/source-knowledge.ts",
+        "sha256": "b388809f7fbd4b72566170dbc43a42ef0b6a8b67394f5abced8ed61375af65f9"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-generation-guide.ts",
+        "sha256": "0fca8a5a084f5c66f8da1fb496b3ffacde0b0d7589a38ce37c259dafba43f224"
+      },
+      {
+        "path": "scriptrush-api/src/lib/ui-language.ts",
+        "sha256": "a62134ba978c2274ee1a7a28830f7dd87870e95c6b5b7435bd9d9e3b315f7686"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/catalog.json",
+        "sha256": "3ae4d13c1660e6337b2347b0dc684732dd2d510bf5a378b90676e73b727088da"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/imports.json",
+        "sha256": "e41b4e54b3276934924e94d6c1bf1008215e38ff082f4f4a8ec7b23765ef7458"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/manifest.json",
+        "sha256": "db4267618e932842983c3f3be3a886982c0c8a082a20616dd984835bddcd6677"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/README.md",
+        "sha256": "e6142008227709ccfd513e24fe87b672f75714669708da68863f1cb3da067a4b"
+      },
+      {
+        "path": "scriptrush-api/knowledge-v2/recipes.json",
+        "sha256": "6484018afccda09f4a9ed2abfd2ab81e2af36a56ae1110bf607526091d2b3e5a"
+      }
+    ],
+    "improvedSnapshotIncludesUncommittedIntegration": true,
+    "iteration": 2,
+    "capturedAt": "2026-10-13T17:19:41.217630+00:00"
+  }
+}

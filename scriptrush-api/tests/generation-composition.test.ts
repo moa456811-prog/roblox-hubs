@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildSourceCatalog, PLANNER_SYSTEM, REVIEW_SYSTEM } from "../src/lib/generation-contract.ts";
 import { generateCompleteScript, type ModelCall } from "../src/lib/generation.ts";
 import { HUB_COMPOSER_SYSTEM, type HubComposition } from "../src/lib/hub-spec.ts";
+import { LOCAL_FULL_HUB_PRESET } from "../src/lib/local-full-hub.ts";
 
 const plan = {
   features: [
@@ -65,6 +66,104 @@ test("invalid composition shape is repaired once before review without a fallbac
   assert.equal(outcome.repaired, true);
   assert.equal(writes, 2);
   assert.equal(outcome.coverage?.features.length, 2);
+});
+
+test("missing RGB commas are recovered locally without a paid composition repair", async () => {
+  const calls: string[] = [];
+  const call: ModelCall = async (system, user) => {
+    calls.push(system);
+    const content = system === PLANNER_SYSTEM ? JSON.stringify(plan) : system.startsWith(HUB_COMPOSER_SYSTEM)
+      ? JSON.stringify(spec).replace('"background":[18,24,42]', '"background":[18 24 42]') : JSON.stringify(review(user));
+    return { content, model: "offline-fixture", incomplete: false };
+  };
+  const outcome = await generateCompleteScript(input, call, Date.now() + 285000);
+  assert.equal(outcome.reason, ""); assert.equal(outcome.repaired, false);
+  assert.deepEqual(calls, [PLANNER_SYSTEM, HUB_COMPOSER_SYSTEM, REVIEW_SYSTEM]);
+  assert.match(outcome.script, /Color3.fromRGB\(18,\s*24,\s*42\)/);
+  assert.equal(outcome.coverage?.features.length, 2);
+});
+
+test("ambiguous JSON gets one focused format correction and truncated output is never accepted", async () => {
+  for (const reply of [{ content: '{"window":', incomplete: false }, { content: JSON.stringify(spec).slice(0, 500), incomplete: true }]) {
+    const calls: string[] = [];
+    const outcome = await generateCompleteScript(input, async system => {
+      calls.push(system);
+      return system === PLANNER_SYSTEM ? { content: JSON.stringify(plan), model: "fixture", incomplete: false } : { ...reply, model: "fixture" };
+    }, Date.now() + 285000);
+    assert.equal(outcome.reason, reply.incomplete ? "INCOMPLETE_RESPONSE" : "MODEL_OUTPUT_INVALID");
+    assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null); assert.equal(outcome.repaired, !reply.incomplete);
+    assert.equal(calls.length, reply.incomplete ? 2 : 3); assert.equal(outcome.usage.modelCalls, calls.length);
+    assert.equal(calls[0], PLANNER_SYSTEM); assert.ok(calls.slice(1).every(system => system.startsWith(HUB_COMPOSER_SYSTEM)));
+    assert.ok(!outcome.issues.some(issue => issue.includes("no complete Lua")));
+  }
+});
+
+test("a failed semantic repair retains its actual cost and classifies invalid or truncated output honestly", async () => {
+  for (const incomplete of [false, true]) {
+    let writes = 0;
+    const outcome = await generateCompleteScript(input, async system => {
+      if (system === PLANNER_SYSTEM) return { content: JSON.stringify(plan), model: "fixture", incomplete: false };
+      writes++;
+      return writes === 1 ? { content: JSON.stringify({ ...spec, window: { ...spec.window, palette: [] } }), model: "fixture", incomplete: false }
+        : { content: '{"window":', model: "fixture", incomplete };
+    }, Date.now() + 285000);
+    assert.equal(outcome.reason, incomplete ? "INCOMPLETE_RESPONSE" : "MODEL_OUTPUT_INVALID");
+    assert.equal(outcome.repaired, true); assert.equal(writes, 2); assert.equal(outcome.usage.modelCalls, 3);
+    assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null);
+    assert.match(outcome.issues.join(" "), /no partial script/i);
+  }
+});
+
+test("the exact Full Hub button always uses AI even without game-specific implementation evidence", async () => {
+  let calls = 0;
+  const outcome = await generateCompleteScript({ ...input, prompt: LOCAL_FULL_HUB_PRESET, supportedFeatures: [] }, async (system, user) => {
+    calls++; assert.equal(system, PLANNER_SYSTEM);
+    assert.ok(user.includes(LOCAL_FULL_HUB_PRESET));
+    assert.match(user, /SCRIPTRUSH VERSIONED ENGINEERING KNOWLEDGE/);
+    throw new Error("AI_TIMEOUT");
+  }, Date.now() + 285000);
+  assert.equal(outcome.reason, "AI_TIMEOUT"); assert.equal(calls, 1); assert.equal(outcome.usage.modelCalls, 1);
+  assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null);
+  assert.equal(outcome.strategy, "requirements-coverage-review");
+});
+
+test("all model stages receive selected versioned knowledge and an explicit UI inventory", async () => {
+  let calls = 0;
+  const outcome = await generateCompleteScript(input, async (system, user) => {
+    calls++;
+    assert.match(user, /SCRIPTRUSH VERSIONED ENGINEERING KNOWLEDGE/);
+    assert.match(user, /EXPLICIT REQUEST INVENTORY/);
+    assert.match(user, /gameMechanicsProven/);
+    return { content: JSON.stringify(system === PLANNER_SYSTEM ? plan : system.startsWith(HUB_COMPOSER_SYSTEM) ? spec : review(user)), model: "fixture", incomplete: false };
+  }, Date.now() + 285000);
+  assert.equal(outcome.reason, ""); assert.equal(calls, 3);
+  assert.equal(outcome.coverage?.features.length, 2);
+  assert.ok(outcome.profile?.knowledge);
+});
+
+test("actual UI values override a model's claim of completeness and get a focused repair", async () => {
+  let writes = 0, reviews = 0;
+  const prompt = input.prompt + " Background #12182A; accent #55DDFF; font Gotham; radius 8.";
+  const outcome = await generateCompleteScript({ ...input, prompt }, async (system, user) => {
+    if (system === PLANNER_SYSTEM) return { content: JSON.stringify(plan), model: "fixture", incomplete: false };
+    if (system.startsWith(HUB_COMPOSER_SYSTEM)) {
+      writes++;
+      if (writes === 2) {
+        assert.match(user, /Requested window.width/);
+        assert.match(user, /Requested accent color/);
+        assert.match(user, /COMPOSITION TO REPAIR/);
+      }
+      const candidate = writes === 1 ? { ...spec, window: { ...spec.window, width: 600, palette: { ...spec.window.palette, accent: [255,0,0] } } } : spec;
+      return { content: JSON.stringify(candidate), model: "fixture", incomplete: false };
+    }
+    reviews++; return { content: JSON.stringify(review(user)), model: "fixture", incomplete: false };
+  }, Date.now() + 285000);
+  assert.equal(outcome.reason, ""); assert.equal(outcome.repaired, true);
+  assert.equal(writes, 2); assert.equal(reviews, 1);
+  assert.match(outcome.script, /panel.Size = UDim2.fromOffset\(320, 200\)/);
+  assert.equal(outcome.coverage?.features.length, 2);
+  const quality = outcome.profile?.quality as { issues: string[]; checks: Array<{passed:boolean}> };
+  assert.deepEqual(quality.issues, []); assert.ok(quality.checks.every(check => check.passed));
 });
 
 test("malformed planner JSON or shape gets one full-context correction before composition and review", async () => {
@@ -130,4 +229,15 @@ test("French quoted required labels follow actual English composition while an i
   for (const text of ["Home", "Settings", "Welcome", "Preferences", "Close"]) assert.ok(outcome.script.includes(`"${text}"`));
   for (const text of ["Accueil", "Réglages", "Paramètres", "Fermer"]) assert.equal(outcome.script.includes(`"${text}"`), false);
   assert.deepEqual(frenchSpec, original, "translation must not mutate the model input object");
+});
+
+
+test("server retains every admitted complete license notice after independent review", async () => {
+  const { MIT_LICENSE_BODY } = await import("../src/lib/knowledge-v2/ingest.ts");
+  const licenseText = `MIT License\nCopyright (c) 2026 Synthetic Test\n${MIT_LICENSE_BODY}`;
+  const outcome = await generateCompleteScript({ ...input, referenceAttributions: [{ sourceId: "test-admitted-reference", url: "https://github.com/example/game/blob/" + "b".repeat(40) + "/LICENSE", revision: "b".repeat(40), licenseText }] }, async (system, user) => ({ content: JSON.stringify(system === PLANNER_SYSTEM ? plan : system.startsWith(HUB_COMPOSER_SYSTEM) ? spec : review(user)), model: "fixture", incomplete: false }), Date.now() + 285000);
+  assert.equal(outcome.reason, ""); assert.equal(outcome.usage.modelCalls, 3);
+  assert.match(outcome.script, /-- Copyright \(c\) 2026 Synthetic Test/);
+  assert.ok(outcome.script.includes(licenseText.split("\n").map(line => "-- " + line).join("\n")));
+  assert.equal(outcome.coverage?.uiVerified, true);
 });

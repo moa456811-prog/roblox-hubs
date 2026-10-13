@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-13T17:21:09.241Z",
+  "baselineCommit": "cd09a4a5984cf3962ffb7583745429f6a82a700b",
+  "method": "Actual APInex free/gpt-6-luna planner, writer and reviewer calls; actual official Luau compilation and isolated mocked Roblox interactions",
+  "initialIteration": [
+    {
+      "case": "utility-full-hub",
+      "variant": "baseline",
+      "startedAt": "2026-10-13T17:11:14.907Z",
+      "finishedAt": "2026-10-13T17:11:51.934Z",
+      "generationLatencyMs": 37026,
+      "generationAccepted": true,
+      "endToEndPassed": true,
+      "reason": "",
+      "actualHttpRequests": 3,
+      "successfulHttpRequests": 3,
+      "capacity429Responses": 0,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 3,
+        "httpRequests": 3,
+        "completeHttpCoverage": true,
+        "promptTokens": 32073,
+        "completionTokens": 1727,
+        "totalTokens": 33800,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 56,
+        "failedChecks": 0,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "realGameVerification": "not_run"
+    },
+    {
+      "case": "utility-full-hub",
+      "variant": "improved",
+      "startedAt": "2026-10-13T17:11:52.192Z",
+      "finishedAt": "2026-10-13T17:12:25.281Z",
+      "generationLatencyMs": 33090,
+      "generationAccepted": true,
+      "endToEndPassed": true,
+      "reason": "",
+      "actualHttpRequests": 3,
+      "successfulHttpRequests": 3,
+      "capacity429Responses": 0,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 3,
+        "httpRequests": 3,
+        "completeHttpCoverage": true,
+        "promptTokens": 44330,
+        "completionTokens": 1473,
+        "totalTokens": 45803,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 56,
+        "failedChecks": 0,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "realGameVerification": "not_run"
+    },
+    {
+      "case": "french-request-english-ui",
+      "variant": "baseline",
+      "startedAt": "2026-10-13T17:12:25.382Z",
+      "finishedAt": "2026-10-13T17:13:15.766Z",
+      "generationLatencyMs": 50385,
+      "generationAccepted": false,
+      "endToEndPassed": false,
+      "reason": "REQUIREMENTS_NOT_MET",
+      "actualHttpRequests": 6,
+      "successfulHttpRequests": 5,
+      "capacity429Responses": 1,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 5,
+        "httpRequests": 6,
+        "completeHttpCoverage": false,
+        "promptTokens": 46131,
+        "completionTokens": 1995,
+        "totalTokens": 48126,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "cbebb35bd26cb6bd9c138790f502381ee8b1315d9a532639097242acbb0b4475",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "cbebb35bd26cb6bd9c138790f502381ee8b1315d9a532639097242acbb0b4475"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 24,
+        "failedChecks": 0,
+        "sourceSha256": "cbebb35bd26cb6bd9c138790f502381ee8b1315d9a532639097242acbb0b4475"
+      },
+      "realGameVerification": "not_run"
+    },
+    {
+      "case": "french-request-english-ui",
+      "variant": "improved",
+      "startedAt": "2026-10-13T17:13:15.864Z",
+      "finishedAt": "2026-10-13T17:14:41.654Z",
+      "generationLatencyMs": 85791,
+      "generationAccepted": false,
+      "endToEndPassed": false,
+      "reason": "REQUIREMENTS_NOT_MET",
+      "actualHttpRequests": 8,
+      "successfulHttpRequests": 6,
+      "capacity429Responses": 2,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 6,
+        "httpRequests": 8,
+        "completeHttpCoverage": false,
+        "promptTokens": 60275,
+        "completionTokens": 2159,
+        "totalTokens": 62434,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "613895e7f149d546da5e0607aa41cfc96f8e3c44e253c4258e164e5da30ec012",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "613895e7f149d546da5e0607aa41cfc96f8e3c44e253c4258e164e5da30ec012"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 24,
+        "failedChecks": 0,
+        "sourceSha256": "613895e7f149d546da5e0607aa41cfc96f8e3c44e253c4258e164e5da30ec012"
+      },
+      "realGameVerification": "not_run"
+    }
+  ],
+  "correctionIteration": [
+    {
+      "case": "french-request-english-ui",
+      "variant": "improved",
+      "startedAt": "2026-10-13T17:19:41.695Z",
+      "finishedAt": "2026-10-13T17:20:05.051Z",
+      "generationLatencyMs": 23355,
+      "generationAccepted": true,
+      "endToEndPassed": true,
+      "reason": "",
+      "actualHttpRequests": 3,
+      "successfulHttpRequests": 3,
+      "capacity429Responses": 0,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 3,
+        "httpRequests": 3,
+        "completeHttpCoverage": true,
+        "promptTokens": 28597,
+        "completionTokens": 822,
+        "totalTokens": 29419,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "cba19a2246370f82baa8590fe57eecbf12a76b69327056e81d4ac6bebadb6776",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "cba19a2246370f82baa8590fe57eecbf12a76b69327056e81d4ac6bebadb6776"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 24,
+        "failedChecks": 0,
+        "sourceSha256": "cba19a2246370f82baa8590fe57eecbf12a76b69327056e81d4ac6bebadb6776"
+      },
+      "realGameVerification": "not_run"
+    }
+  ],
+  "finalObservedCases": [
+    {
+      "case": "utility-full-hub",
+      "variant": "baseline",
+      "startedAt": "2026-10-13T17:11:14.907Z",
+      "finishedAt": "2026-10-13T17:11:51.934Z",
+      "generationLatencyMs": 37026,
+      "generationAccepted": true,
+      "endToEndPassed": true,
+      "reason": "",
+      "actualHttpRequests": 3,
+      "successfulHttpRequests": 3,
+      "capacity429Responses": 0,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 3,
+        "httpRequests": 3,
+        "completeHttpCoverage": true,
+        "promptTokens": 32073,
+        "completionTokens": 1727,
+        "totalTokens": 33800,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 56,
+        "failedChecks": 0,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "realGameVerification": "not_run"
+    },
+    {
+      "case": "utility-full-hub",
+      "variant": "improved",
+      "startedAt": "2026-10-13T17:11:52.192Z",
+      "finishedAt": "2026-10-13T17:12:25.281Z",
+      "generationLatencyMs": 33090,
+      "generationAccepted": true,
+      "endToEndPassed": true,
+      "reason": "",
+      "actualHttpRequests": 3,
+      "successfulHttpRequests": 3,
+      "capacity429Responses": 0,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 3,
+        "httpRequests": 3,
+        "completeHttpCoverage": true,
+        "promptTokens": 44330,
+        "completionTokens": 1473,
+        "totalTokens": 45803,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 56,
+        "failedChecks": 0,
+        "sourceSha256": "9588a86e6adc64f42887e77b7fa842c282ff1f67241d5d055e9ce59799f570bd"
+      },
+      "realGameVerification": "not_run"
+    },
+    {
+      "case": "french-request-english-ui",
+      "variant": "baseline",
+      "startedAt": "2026-10-13T17:12:25.382Z",
+      "finishedAt": "2026-10-13T17:13:15.766Z",
+      "generationLatencyMs": 50385,
+      "generationAccepted": false,
+      "endToEndPassed": false,
+      "reason": "REQUIREMENTS_NOT_MET",
+      "actualHttpRequests": 6,
+      "successfulHttpRequests": 5,
+      "capacity429Responses": 1,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 5,
+        "httpRequests": 6,
+        "completeHttpCoverage": false,
+        "promptTokens": 46131,
+        "completionTokens": 1995,
+        "totalTokens": 48126,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "cbebb35bd26cb6bd9c138790f502381ee8b1315d9a532639097242acbb0b4475",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "cbebb35bd26cb6bd9c138790f502381ee8b1315d9a532639097242acbb0b4475"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 24,
+        "failedChecks": 0,
+        "sourceSha256": "cbebb35bd26cb6bd9c138790f502381ee8b1315d9a532639097242acbb0b4475"
+      },
+      "realGameVerification": "not_run"
+    },
+    {
+      "case": "french-request-english-ui",
+      "variant": "improved",
+      "startedAt": "2026-10-13T17:19:41.695Z",
+      "finishedAt": "2026-10-13T17:20:05.051Z",
+      "generationLatencyMs": 23355,
+      "generationAccepted": true,
+      "endToEndPassed": true,
+      "reason": "",
+      "actualHttpRequests": 3,
+      "successfulHttpRequests": 3,
+      "capacity429Responses": 0,
+      "models": [
+        "free/gpt-6-luna"
+      ],
+      "providerReportedUsage": {
+        "responsesWithUsage": 3,
+        "httpRequests": 3,
+        "completeHttpCoverage": true,
+        "promptTokens": 28597,
+        "completionTokens": 822,
+        "totalTokens": 29419,
+        "costTokens": 0,
+        "usdCost": null
+      },
+      "scriptSha256": "cba19a2246370f82baa8590fe57eecbf12a76b69327056e81d4ac6bebadb6776",
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "sourceSha256": "cba19a2246370f82baa8590fe57eecbf12a76b69327056e81d4ac6bebadb6776"
+      },
+      "mocks": {
+        "status": "passed",
+        "executed": true,
+        "checks": 24,
+        "failedChecks": 0,
+        "sourceSha256": "cba19a2246370f82baa8590fe57eecbf12a76b69327056e81d4ac6bebadb6776"
+      },
+      "realGameVerification": "not_run"
+    }
+  ],
+  "comparison": {
+    "baseline": {
+      "observedCases": 2,
+      "endToEndPassed": 1,
+      "actualHttpRequests": 9,
+      "providerReportedTokens": 81926,
+      "usdCost": null
+    },
+    "improved": {
+      "observedCases": 2,
+      "endToEndPassed": 2,
+      "actualHttpRequests": 6,
+      "providerReportedTokens": 75222,
+      "usdCost": null
+    }
+  },
+  "diagnosticOverhead": {
+    "initialMaskedCredential401Requests": 4,
+    "successfulPlannerOnlyCredentialProbeRequests": 1,
+    "probeReportedTokens": 1613,
+    "probeIncludedInQualityComparison": false
+  },
+  "provenance": {
+    "iteration1ReportSha256": "e3e3c6eca944456220909c55ddc840437601afc5697c1e28dc76b67c6afa3667",
+    "iteration1ManifestSha256": "f8205d4261109d1bd179b3cef9e68951323f330468a78c78c5a440a7ea314f19",
+    "iteration2ReportSha256": "e1bcbb6a52bc5deb13ac48c1285260c65ba7bcd80bc956342d965238664b4bfc",
+    "iteration2ManifestSha256": "62b194aa4b3f15ecd6af69bc940b25bb1f3214b7aa3e4a0846e562bf0627f085"
+  },
+  "limitations": [
+    "Only two UI/standard-utility requests were evaluated, without .rbxl input; no universal game-quality or statistical improvement is claimed.",
+    "The final improved observations combine utility case from iteration 1 and the corrected French case from iteration 2; exact source snapshot manifests are preserved separately.",
+    "Tokens are actual provider-reported sums for responses with usage. Missing usage on 429/errors remains unknown. Characters are not converted to token estimates.",
+    "The provider returned cost_tokens=0 for observed completions, but did not return USD cost; monetary cost is unknown.",
+    "The first utility mock verdict included an unrequested purple alternate accent. Its raw verdict was preserved; only this extra assertion was omitted, while actual colour changes and round-trip restoration stayed checked.",
+    "Mocks verify control flow, values, connection ownership and geometry approximations, not actual Roblox rendering, gameplay, teleport success or remote/server behavior.",
+    "Authentication probes, rejected masked-key requests, and the unsuccessful initial candidate French attempt are retained separately; they are not hidden or counted as successful quality cases."
+  ]
+}

@@ -203,16 +203,16 @@ test("full hub generation and repair keep the same budget of at least 14000 outp
   assert.ok(writes.every(call => call.tokens !== 4800 && call.budget.attempts === 1));
 });
 
-test("an incomplete provider response is repaired with the same complete-code budget", async () => {
+test("an incomplete provider response stops without another paid full regeneration", async () => {
   const first = { ...(lua(goodScript) as Exclude<Reply, Error>), incomplete: true };
   const mock = model([json(plan), first, lua(goodScript), json(implementedReview)]);
   const outcome = await generateCompleteScript(context(), mock.call, Date.now() + 300000);
-  assert.equal(accepted(outcome), true);
-  assert.equal(outcome.repaired, true);
-  assert.match(mock.calls[2].user, /provider response was incomplete/);
-  assert.equal(mock.calls[2].tokens, mock.calls[1].tokens);
-  assert.ok(mock.calls[2].tokens >= 14000);
-  assert.equal(mock.calls[3].system, REVIEW_SYSTEM);
+  assert.equal(accepted(outcome), false);
+  assert.equal(outcome.reason, "INCOMPLETE_RESPONSE");
+  assert.equal(outcome.repaired, false);
+  assert.equal(outcome.script, ""); assert.equal(outcome.coverage, null);
+  assert.equal(mock.calls.length, 2); assert.equal(outcome.usage.modelCalls, 2);
+  assert.ok(mock.calls[1].tokens >= 14000);
 });
 
 test("insufficient remaining deadline rejects omitted behavior instead of starting an unsafe partial repair", async () => {

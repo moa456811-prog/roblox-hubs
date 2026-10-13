@@ -9,13 +9,15 @@ export class ApiError extends Error {
   readonly status?: number;
   readonly issues: string[];
   readonly usage?: GenerationUsage;
-  constructor(message: string, code = "request_failed", status?: number, diagnostics: { issues?: string[]; usage?: GenerationUsage } = {}) {
+  readonly generationProfile?: Record<string, unknown>;
+  constructor(message: string, code = "request_failed", status?: number, diagnostics: { issues?: string[]; usage?: GenerationUsage; generationProfile?: Record<string, unknown> } = {}) {
     super(message);
     this.name = code === "cancelled" ? "AbortError" : "ApiError";
     this.code = code;
     this.status = status;
     this.issues = diagnostics.issues ?? [];
     this.usage = diagnostics.usage;
+    this.generationProfile = diagnostics.generationProfile;
   }
 }
 
@@ -45,9 +47,10 @@ function failure(operation: Operation, status?: number): ApiError {
   return new ApiError(message, operation + "_unavailable", status);
 }
 
-function withUsage(error: ApiError, value: unknown): ApiError {
+function withUsage(error: ApiError, value: unknown, profile?: unknown): ApiError {
   const usage = parseGenerationUsage(value);
-  return usage ? new ApiError(error.message + ` AI calls: ${usage.modelCalls}.`, error.code, error.status, { issues: error.issues, usage }) : error;
+  const generationProfile = isRecord(profile) ? profile : undefined;
+  return usage || generationProfile ? new ApiError(error.message + (usage ? ` AI calls: ${usage.modelCalls}.` : ""), error.code, error.status, { issues: error.issues, usage, generationProfile }) : error;
 }
 
 async function request(url: string, operation: Operation, init: RequestInit, signal?: AbortSignal): Promise<unknown> {
@@ -65,19 +68,23 @@ async function request(url: string, operation: Operation, init: RequestInit, sig
       if (!response.ok) throw failure(operation, response.status);
       throw new ApiError(operation === "scanner" ? "The scanner service returned an invalid response." : "The service returned an incomplete response. Your input was preserved.", "invalid_response", response.status);
     }
+    if (operation === "generate" && isRecord(data) && data.code === "MODEL_OUTPUT_INVALID") {
+      throw withUsage(new ApiError("The AI response could not be validated as a complete hub. Your request and previous script were preserved.", "model_output_invalid", response.status), data.usage, data.generationProfile);
+    }
     if (isRecord(data) && data.code === "REQUIREMENTS_NOT_MET") {
       const issues = parseReviewIssues(data.review);
       const usage = parseGenerationUsage(data.usage);
-      throw new ApiError(requirementsFailureMessage(issues, usage), "requirements_not_met", response.status, { issues, usage });
+      throw new ApiError(requirementsFailureMessage(issues, usage), "requirements_not_met", response.status, { issues, usage, ...(isRecord(data.generationProfile) ? { generationProfile: data.generationProfile } : {}) });
     }
     if (!response.ok || (isRecord(data) && data.error)) {
       const errorText = isRecord(data) && typeof data.error === "string" ? data.error : "";
       const reason = isRecord(data) && typeof data.reason === "string" ? data.reason : "";
       const usage = isRecord(data) ? data.usage : undefined;
-      if (reason === "RATE_LIMITED") throw withUsage(failure(operation, 429), usage);
-      if (reason === "AI_TIMEOUT" || /timeout|timed out/i.test(errorText)) throw withUsage(failure(operation, 504), usage);
-      if (/incomplete|truncat|no complete script/i.test(errorText)) throw withUsage(new ApiError("The model returned an incomplete response. Your previous script was preserved.", "incomplete_response", response.status), usage);
-      throw withUsage(failure(operation, response.status), usage);
+      const generationProfile = isRecord(data) ? data.generationProfile : undefined;
+      if (reason === "RATE_LIMITED") throw withUsage(failure(operation, 429), usage, generationProfile);
+      if (reason === "AI_TIMEOUT" || /timeout|timed out/i.test(errorText)) throw withUsage(failure(operation, 504), usage, generationProfile);
+      if (reason === "INCOMPLETE_RESPONSE" || /incomplete|truncat|no complete script/i.test(errorText)) throw withUsage(new ApiError("The model returned an incomplete response. Your previous script was preserved.", "incomplete_response", response.status), usage, generationProfile);
+      throw withUsage(failure(operation, response.status), usage, generationProfile);
     }
     return data;
   } catch (error) {
