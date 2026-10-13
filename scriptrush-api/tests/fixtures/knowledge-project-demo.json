@@ -1,0 +1,13 @@
+{
+  "disclaimer": "Authored offline demo fixture. This is not a model-quality result or an observed Roblox game test.",
+  "files": [
+    {
+      "path": "src/Cooldown.luau",
+      "content": "local Cooldown = {}\nCooldown.__index = Cooldown\nfunction Cooldown.new(duration, clock)\n    assert(type(duration) == 'number' and duration >= 0, 'Invalid duration')\n    return setmetatable({ duration = duration, clock = clock, deadline = 0 }, Cooldown)\nend\nfunction Cooldown:Ready() return self.clock() >= self.deadline end\nfunction Cooldown:Start() self.deadline = self.clock() + self.duration end\nfunction Cooldown:Remaining() return math.max(0, self.deadline - self.clock()) end\nreturn Cooldown\n"
+    },
+    {
+      "path": "src/main.client.luau",
+      "content": "local Players = game:GetService('Players')\nlocal Cooldown = require(script.Parent.Cooldown)\nlocal player = Players.LocalPlayer\nlocal gate = Cooldown.new(2, os.clock)\nlocal connections = {}\nlocal function onCharacter(character)\n    if gate:Ready() then\n        gate:Start()\n        print('Character ready')\n    end\nend\nconnections[1] = player.CharacterAdded:Connect(onCharacter)\nif player.Character then onCharacter(player.Character) end\nlocal function stop()\n    for _, connection in ipairs(connections) do connection:Disconnect() end\n    table.clear(connections)\nend\nreturn { Stop = stop }\n"
+    }
+  ]
+}

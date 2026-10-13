@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameSelector } from "../components/game-selector";
 import { ScriptEditor } from "../components/script-editor";
@@ -17,6 +18,10 @@ import { parseGenerationUsage } from "../lib/generation-diagnostics";
 import type { ResearchKnowledge } from "../lib/research-knowledge";
 import { getSelection, setSelection, getCurrentScript, setCurrentScript, getRuntimeProfile, setRuntimeProfile, addHistory, readHistory } from "../lib/storage";
 import type { GameSelection, Source, RuntimeProfile, HistoryEntry } from "../lib/types";
+import { knowledgeEnabled, KNOWLEDGE_STORAGE } from "../lib/knowledge-v2";
+import knowledgeStyles from "./knowledge-workflow.module.css";
+
+const KnowledgeWorkflow = dynamic(() => import("./knowledge-workflow").then(module => module.KnowledgeWorkflow), { loading: () => <p role="status">Loading Knowledge Engine…</p> });
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong. Your input was preserved.";
@@ -30,6 +35,13 @@ function profileMatches(profile: RuntimeProfile, selection: IdentifiedGame): boo
 }
 
 export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
+  const enabled = knowledgeEnabled(process.env.NEXT_PUBLIC_SCRIPTRUSH_KNOWLEDGE_V2);
+  const [optIn, setOptIn] = useState(false);
+  useEffect(() => { if (enabled) try { setOptIn(localStorage.getItem(KNOWLEDGE_STORAGE.optIn) === "true"); } catch { /* Legacy remains the default. */ } }, [enabled]);
+  return <>{enabled ? <section className={knowledgeStyles.toggle}><label><input type="checkbox" checked={optIn} onChange={event => { setOptIn(event.target.checked); try { localStorage.setItem(KNOWLEDGE_STORAGE.optIn, String(event.target.checked)); } catch { /* Keep this choice in memory. */ } }} /><span>Use Knowledge Engine v2 (optional)</span></label><p>Saved steps, source provenance and project files. Your existing scripts and History stay available.</p></section> : null}{enabled && optIn ? <KnowledgeWorkflow mode={mode} /> : <LegacyScriptWorkflow mode={mode} />}</>;
+}
+
+function LegacyScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
   const fixing = mode === "fix";
   const [game, setGame] = useState("");
   const [identified, setIdentified] = useState<IdentifiedGame>();

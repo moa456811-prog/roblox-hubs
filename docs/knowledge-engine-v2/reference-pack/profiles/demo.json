@@ -1,0 +1,21 @@
+{
+  "schema_version": "2.0",
+  "source_kind": "offline_fixture_not_verified",
+  "retrieved_at": "2026-10-13T03:41:40+00:00",
+  "game": {
+    "place_id": "123456",
+    "universe_id": 987654,
+    "game_name": "Fictional Quest Demo (fixture)",
+    "description": "Sample description; NOT evidence of mechanics.",
+    "root_place_id": "123456",
+    "creator_name": "fictional",
+    "game_page": "https://www.roblox.com/games/123456",
+    "game_updated_at": "2026-01-01T00:00:00Z"
+  },
+  "mechanics": [],
+  "limits": [
+    "Public game metadata cannot prove internal game mechanics.",
+    "Names of remotes, damage logic, quests, and server scripts are NOT discoverable from metadata.",
+    "Do not infer game support from the description alone."
+  ]
+}

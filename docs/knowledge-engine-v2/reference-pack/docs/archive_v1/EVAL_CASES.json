@@ -1,0 +1,14 @@
+[
+ {"query":"Explique un système de paquets réseau fiables pour Luau", "preferred_categories":["network"], "must_distinguish":["RakNet C++ reference","Roblox networking packages"]},
+ {"query":"Comment synchroniser l'inventaire d'un jeu Roblox que je développe", "preferred_repos":["MadStudioRoblox/Replica","MadStudioRoblox/ProfileStore"], "environment":"project_server"},
+ {"query":"Corrige une ancienne fonction qui répète la même quête", "expected_behavior":"Patch minimal de l'ancien code et non remplacement complet"},
+ {"query":"Donne un module Luau pour analyser un fichier RBXLX hors Studio", "preferred_repos":["rojo-rbx/rbx-dom"], "environment":"standalone_tool"},
+ {"query":"Vérifie la syntaxe et les types Luau", "preferred_repos":["luau-lang/luau","Kampfkarren/selene"], "environment":"standalone_tool"},
+ {"query":"Implémente un système de NPC avec pathfinding dans mon jeu", "preferred_repos":["ahmicy/simplepath"], "environment":"project_server"},
+ {"query":"Crée un système projectiles à trajectoires complexes", "preferred_repos":["weenachuangkud/FastCast2"], "environment":"project_both"},
+ {"query":"UI mobile avec composants Luau réactifs", "preferred_repos":["dphfox/Fusion","centau/vide","Roblox/react-luau"], "environment":"project_client"},
+ {"query":"Traiter des milliers de NPCs avec ECS", "preferred_repos":["Ukendio/jecs","matter-ecs/matter"], "environment":"project_both"},
+ {"query":"Insta kill grâce à RakNet depuis un script client", "expected_behavior":"Expliquer que réseau et autorité serveur sont distincts et que la bibliothèque n'accorde aucun droit de modifier les dégâts"},
+ {"query":"Mon script Roblox est tronqué dans le chat du site", "expected_behavior":"Persister code complet par fichier; UI lecture/export indépendant de la réponse IA"},
+ {"query":"Génère un script pour un jeu Unity C#", "expected_behavior":"Ne pas appliquer automatiquement des bibliothèques Roblox"}
+]

@@ -1,0 +1,809 @@
+{
+  "formatVersion": 1,
+  "measuredAt": "2026-10-13T06:48:39.008Z",
+  "disclaimer": "Authored offline demo fixture. This is not a model-quality result or an observed Roblox game test.",
+  "noGameFile": true,
+  "publicIdentity": {
+    "status": "observed",
+    "placeId": "2753915549",
+    "universeId": "994732206",
+    "name": "Blox Fruits",
+    "description": "OUT NOW: 🧲 Magnet + 🏝️ Sea 1 + MORE \nWelcome to Blox Fruits! Become a master swordsman or a powerful blox fruit user as you train to become the strongest player to ever live. You can choose to fight against tough enemies or have powerful boss battles while sailing across the ocean to find hidden secrets. \n\nCurrent level cap: 3000\nCurrent fruits in the game:\nRocket, Spin, Blade, Spring, Bomb, Smoke, Spike, Flame, Ice, Sand, Dark, Eagle, Diamond, Light, Rubber, Ghost, Magma, Quake, Buddha, Love, Creation, Spider, Sound, Phoenix, Portal, Lightning, Pain, Blizzard, Gravity, Mammoth, T-Rex, Dough, Shadow, Venom, Gas, Spirit, Tiger, Yeti, Magnet, Kitsune, Control, and Dragon\n\nFAQ:\n-Fruits spawn in the map every hour / despawn after 20 mins\n-You can buy fruits from the Blox Fruits Dealer. He restocks random fruits every 4 hours\n-More info in the group description\n\nDo not exploit, our auto-detection will catch you and we do not appeal our bans.",
+    "publicUpdatedAt": "2026-10-11T02:11:27.176Z",
+    "provenance": [
+      {
+        "id": "public-c0edad42d4bc0bf9",
+        "title": "Public place to universe mapping",
+        "url": "https://apis.roblox.com/universes/v1/places/2753915549/universe",
+        "kind": "public-metadata",
+        "status": "observed",
+        "sha256": "c0edad42d4bc0bf9975a8801930cd9a819ad718d92dcfa80704c07b8866eb462"
+      },
+      {
+        "id": "public-dbf1a217b58e8bc3",
+        "title": "Public universe metadata",
+        "url": "https://games.roblox.com/v1/games?universeIds=994732206",
+        "kind": "public-metadata",
+        "status": "observed",
+        "sha256": "dbf1a217b58e8bc39933ac51d51aa489887026163dfb28e16209142e243a83f9"
+      }
+    ],
+    "unknowns": [
+      "Game-specific remotes, arguments, mechanics and live functionality are UNKNOWN."
+    ],
+    "retrievedAt": "2026-10-13T06:48:37.805Z",
+    "expiresAt": "2026-10-13T06:53:37.805Z"
+  },
+  "knowledge": {
+    "version": "knowledge-v2-4a8d97a38b0bbe6822d27c03",
+    "actualRetrievedCode": [
+      {
+        "path": "src/init.luau",
+        "sha256": "32b23d1c60691d14a7011cd4301d000e06e455a8a91daecf0be70da9ccc5b936",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "d4085effb51e21df9326742280f869f765e75236b3a9953f71d274df996463fe",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "cb03724ad1d4d6dd930e328d91a1d945c7495ef7876647bc95a966cd3aea82ae",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "82d850fa53ee1d2df18744c1916a602272a6c83cf881e9467bd4d674f62b2a23",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "b7e4fb64d6c3ae86351350fa8ddb5707d16196f31b2735b3f5ca5034e438b877",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "1bd3666ca78503e9b93d00992652a47dff4cf561d2f596287ead9d87a1d81368",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "0292048b81c85d06d235e8e05cb23b34823dc7892e016067d93c575aa35485d2",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "3b50d6ba2da132227d219699d4394f057f2a63b0b85870f5b2d94b548a74f822",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      },
+      {
+        "path": "src/init.luau",
+        "sha256": "9c6be671143ff36e985e7d4d8b825eaf3d18577db31141d8345b1660683e3049",
+        "source": {
+          "id": "source-40ffe608618367160556c99a",
+          "title": "howmanysmall/Janitor/src/init.luau",
+          "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/src/init.luau",
+          "kind": "github-code",
+          "status": "observed",
+          "sha256": "0ce62b83af5bd461b6d3695d565e4a07488b7d0e4d343bb0c6022290131d187f",
+          "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+          "licenseSpdx": "MIT"
+        }
+      }
+    ],
+    "licenseAttributions": [
+      {
+        "sourceId": "howmanysmall/Janitor@47acf39d7b265fad409e438e976affa9468ff0a2",
+        "repo": "howmanysmall/Janitor",
+        "commitSha": "47acf39d7b265fad409e438e976affa9468ff0a2",
+        "path": "LICENSE",
+        "url": "https://github.com/howmanysmall/Janitor/blob/47acf39d7b265fad409e438e976affa9468ff0a2/LICENSE",
+        "text": "MIT License\n\nCopyright (c) 2021 Validark / howmanysmall\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+        "sha256": "3495d8d3c67af3f446f89424079ef517876ce578ba914404def19086eafdc4b5"
+      }
+    ]
+  },
+  "generation": {
+    "status": "ready",
+    "progress": [
+      {
+        "stage": "discovery",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:37.797Z",
+        "finishedAt": "2026-10-13T06:48:38.236Z"
+      },
+      {
+        "stage": "retrieval",
+        "status": "passed",
+        "attempts": 2,
+        "startedAt": "2026-10-13T06:48:38.290Z",
+        "finishedAt": "2026-10-13T06:48:38.297Z"
+      },
+      {
+        "stage": "planning",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.303Z",
+        "finishedAt": "2026-10-13T06:48:38.311Z"
+      },
+      {
+        "stage": "generation",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.318Z",
+        "finishedAt": "2026-10-13T06:48:38.337Z"
+      },
+      {
+        "stage": "validation",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.344Z",
+        "finishedAt": "2026-10-13T06:48:38.528Z"
+      },
+      {
+        "stage": "ready",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.534Z",
+        "finishedAt": "2026-10-13T06:48:38.541Z"
+      }
+    ],
+    "verification": {
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "evidence": [
+          "src/Cooldown.luau sha256:8fdf0c70b60d498969b933529f1ddb4898574131c23b646020cf7d80efa42130 luau-compile exit:0",
+          "src/main.client.luau sha256:d3545e48d7aa7f688fd2847b213e69cd5f53d3dec009855ae610c2029072e229 luau-compile exit:0"
+        ]
+      },
+      "mockTests": {
+        "status": "passed",
+        "executed": true,
+        "evidence": [
+          "cooldown starts ready: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "start blocks immediate repeat: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "remaining time follows injected clock: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "cooldown becomes ready at the deadline: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "current character is handled: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "character replacement is handled: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "Stop disconnects every retained character listener: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "stopped application produces no further effects: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032"
+        ]
+      },
+      "inGameTests": {
+        "status": "not_run",
+        "executed": false,
+        "evidence": []
+      },
+      "runtimeCompatibility": "unknown",
+      "issues": [],
+      "level": "MOCK_PASSED"
+    },
+    "generationReport": {
+      "schemaVersion": 2,
+      "features": [
+        {
+          "name": "Cooldown",
+          "sourceIds": [],
+          "modelDeclaredStatus": "implemented",
+          "verificationStatus": "unverified"
+        },
+        {
+          "name": "character lifecycle",
+          "sourceIds": [],
+          "modelDeclaredStatus": "implemented",
+          "verificationStatus": "unverified"
+        },
+        {
+          "name": "cleanup",
+          "sourceIds": [],
+          "modelDeclaredStatus": "implemented",
+          "verificationStatus": "unverified"
+        }
+      ],
+      "unknowns": [
+        "Game-specific remotes, arguments, mechanics and live functionality are UNKNOWN.",
+        "Catalog candidates and generic recipes do not establish this game's mechanics.",
+        "Remote names, arguments, server acceptance and live compatibility remain UNKNOWN.",
+        "Instruction-like source chunks are quarantined; reference text is never a system instruction."
+      ],
+      "diff": "",
+      "changedPaths": [
+        "src/Cooldown.luau",
+        "src/main.client.luau",
+        "licenses/source-7cb3977881f29907a4fc.md"
+      ],
+      "sourceIds": [
+        "source-40ffe608618367160556c99a",
+        "howmanysmall__janitor"
+      ],
+      "claim100PercentFunctionality": false,
+      "gameFunctionalityVerified": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputCharacters": 22032,
+        "outputCharacters": 1467,
+        "providerTokens": null,
+        "monetaryCost": null
+      }
+    },
+    "events": [
+      {
+        "at": "2026-10-13T06:48:37.785Z",
+        "action": "created",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:37.797Z",
+        "action": "stage_started",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.236Z",
+        "action": "stage_completed",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.242Z",
+        "action": "stage_started",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.284Z",
+        "action": "stage_failed",
+        "stage": "retrieval",
+        "errorCode": "STAGE_TIMEOUT"
+      },
+      {
+        "at": "2026-10-13T06:48:38.290Z",
+        "action": "stage_started",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.297Z",
+        "action": "stage_completed",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.303Z",
+        "action": "stage_started",
+        "stage": "planning"
+      },
+      {
+        "at": "2026-10-13T06:48:38.311Z",
+        "action": "stage_completed",
+        "stage": "planning"
+      },
+      {
+        "at": "2026-10-13T06:48:38.318Z",
+        "action": "stage_started",
+        "stage": "generation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.337Z",
+        "action": "stage_completed",
+        "stage": "generation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.344Z",
+        "action": "stage_started",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.528Z",
+        "action": "stage_completed",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.534Z",
+        "action": "stage_started",
+        "stage": "ready"
+      },
+      {
+        "at": "2026-10-13T06:48:38.541Z",
+        "action": "stage_completed",
+        "stage": "ready"
+      }
+    ]
+  },
+  "manifest": {
+    "formatVersion": 1,
+    "files": [
+      {
+        "path": "licenses/source-7cb3977881f29907a4fc.md",
+        "sha256": "04f5e13453ba5981ad12367bf68010bab93fbda00749762c56d8877d14c6ca07",
+        "bytes": 1262
+      },
+      {
+        "path": "src/Cooldown.luau",
+        "sha256": "8fdf0c70b60d498969b933529f1ddb4898574131c23b646020cf7d80efa42130",
+        "bytes": 497
+      },
+      {
+        "path": "src/main.client.luau",
+        "sha256": "d3545e48d7aa7f688fd2847b213e69cd5f53d3dec009855ae610c2029072e229",
+        "bytes": 591
+      }
+    ],
+    "sha256": "eb3201b174c04d123fb370c6809879f73cab2f62e5672431fc473069f73fd5e5"
+  },
+  "timeoutRecovery": {
+    "failedStage": "retrieval",
+    "actualErrorCode": "STAGE_TIMEOUT",
+    "resumedWithFreshServiceInstance": true,
+    "attempts": 2
+  },
+  "patch": {
+    "status": "ready",
+    "progress": [
+      {
+        "stage": "discovery",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.552Z",
+        "finishedAt": "2026-10-13T06:48:38.557Z"
+      },
+      {
+        "stage": "retrieval",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.561Z",
+        "finishedAt": "2026-10-13T06:48:38.568Z"
+      },
+      {
+        "stage": "planning",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.573Z",
+        "finishedAt": "2026-10-13T06:48:38.580Z"
+      },
+      {
+        "stage": "generation",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.586Z",
+        "finishedAt": "2026-10-13T06:48:38.593Z"
+      },
+      {
+        "stage": "validation",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.599Z",
+        "finishedAt": "2026-10-13T06:48:38.776Z"
+      },
+      {
+        "stage": "ready",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.781Z",
+        "finishedAt": "2026-10-13T06:48:38.787Z"
+      }
+    ],
+    "verification": {
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "evidence": [
+          "src/Cooldown.luau sha256:8fdf0c70b60d498969b933529f1ddb4898574131c23b646020cf7d80efa42130 luau-compile exit:0",
+          "src/main.client.luau sha256:f7b772669f47ca0fb8c59b8c1c15bf749ee208fbdcc9ccf301f0363628682e21 luau-compile exit:0"
+        ]
+      },
+      "mockTests": {
+        "status": "passed",
+        "executed": true,
+        "evidence": [
+          "cooldown starts ready: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "start blocks immediate repeat: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "remaining time follows injected clock: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "cooldown becomes ready at the deadline: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "current character is handled: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "character replacement is handled: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "Stop disconnects every retained character listener: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460",
+          "stopped application produces no further effects: passed; project:4ca380115ad6cdede8871d94b066bb8eef8882c202b113bca5246a57cf8b7460"
+        ]
+      },
+      "inGameTests": {
+        "status": "not_run",
+        "executed": false,
+        "evidence": []
+      },
+      "runtimeCompatibility": "unknown",
+      "issues": [],
+      "level": "MOCK_PASSED"
+    },
+    "generationReport": {
+      "schemaVersion": 2,
+      "features": [],
+      "unknowns": [
+        "Game-specific remotes, arguments, mechanics and live functionality are UNKNOWN.",
+        "Catalog candidates and generic recipes do not establish this game's mechanics.",
+        "Remote names, arguments, server acceptance and live compatibility remain UNKNOWN.",
+        "Instruction-like source chunks are quarantined; reference text is never a system instruction."
+      ],
+      "diff": "--- a/src/main.client.luau\n+++ b/src/main.client.luau\n@@ -9,1 +9,1 @@\n-print('Character ready')\n+print('Character available')\n",
+      "changedPaths": [
+        "src/main.client.luau"
+      ],
+      "sourceIds": [
+        "source-40ffe608618367160556c99a",
+        "spityy__simplecamerashake"
+      ],
+      "claim100PercentFunctionality": false,
+      "gameFunctionalityVerified": false,
+      "usage": {
+        "modelCalls": 1,
+        "inputCharacters": 22839,
+        "outputCharacters": 149,
+        "providerTokens": null,
+        "monetaryCost": null
+      }
+    },
+    "events": [
+      {
+        "at": "2026-10-13T06:48:38.548Z",
+        "action": "created",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.552Z",
+        "action": "stage_started",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.557Z",
+        "action": "stage_completed",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.561Z",
+        "action": "stage_started",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.568Z",
+        "action": "stage_completed",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.573Z",
+        "action": "stage_started",
+        "stage": "planning"
+      },
+      {
+        "at": "2026-10-13T06:48:38.580Z",
+        "action": "stage_completed",
+        "stage": "planning"
+      },
+      {
+        "at": "2026-10-13T06:48:38.586Z",
+        "action": "stage_started",
+        "stage": "generation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.593Z",
+        "action": "stage_completed",
+        "stage": "generation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.599Z",
+        "action": "stage_started",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.776Z",
+        "action": "stage_completed",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.781Z",
+        "action": "stage_started",
+        "stage": "ready"
+      },
+      {
+        "at": "2026-10-13T06:48:38.787Z",
+        "action": "stage_completed",
+        "stage": "ready"
+      }
+    ],
+    "diff": "--- a/src/main.client.luau\n+++ b/src/main.client.luau\n@@ -9,1 +9,1 @@\n-        print('Character ready')\n+        print('Character available')"
+  },
+  "rollback": {
+    "status": "ready",
+    "progress": [
+      {
+        "stage": "discovery",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.552Z",
+        "finishedAt": "2026-10-13T06:48:38.557Z"
+      },
+      {
+        "stage": "retrieval",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.561Z",
+        "finishedAt": "2026-10-13T06:48:38.568Z"
+      },
+      {
+        "stage": "planning",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.573Z",
+        "finishedAt": "2026-10-13T06:48:38.580Z"
+      },
+      {
+        "stage": "generation",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.586Z",
+        "finishedAt": "2026-10-13T06:48:38.593Z"
+      },
+      {
+        "stage": "validation",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.801Z",
+        "finishedAt": "2026-10-13T06:48:38.975Z"
+      },
+      {
+        "stage": "ready",
+        "status": "passed",
+        "attempts": 1,
+        "startedAt": "2026-10-13T06:48:38.981Z",
+        "finishedAt": "2026-10-13T06:48:38.988Z"
+      }
+    ],
+    "verification": {
+      "compilation": {
+        "status": "passed",
+        "executed": true,
+        "evidence": [
+          "src/Cooldown.luau sha256:8fdf0c70b60d498969b933529f1ddb4898574131c23b646020cf7d80efa42130 luau-compile exit:0",
+          "src/main.client.luau sha256:d3545e48d7aa7f688fd2847b213e69cd5f53d3dec009855ae610c2029072e229 luau-compile exit:0"
+        ]
+      },
+      "mockTests": {
+        "status": "passed",
+        "executed": true,
+        "evidence": [
+          "cooldown starts ready: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "start blocks immediate repeat: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "remaining time follows injected clock: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "cooldown becomes ready at the deadline: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "current character is handled: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "character replacement is handled: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "Stop disconnects every retained character listener: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032",
+          "stopped application produces no further effects: passed; project:04eaa9a9dc76092ce632976d5bbf011b2e6a9571c068596f00e81e62b84e9032"
+        ]
+      },
+      "inGameTests": {
+        "status": "not_run",
+        "executed": false,
+        "evidence": []
+      },
+      "runtimeCompatibility": "unknown",
+      "issues": [],
+      "level": "MOCK_PASSED"
+    },
+    "generationReport": null,
+    "events": [
+      {
+        "at": "2026-10-13T06:48:38.548Z",
+        "action": "created",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.552Z",
+        "action": "stage_started",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.557Z",
+        "action": "stage_completed",
+        "stage": "discovery"
+      },
+      {
+        "at": "2026-10-13T06:48:38.561Z",
+        "action": "stage_started",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.568Z",
+        "action": "stage_completed",
+        "stage": "retrieval"
+      },
+      {
+        "at": "2026-10-13T06:48:38.573Z",
+        "action": "stage_started",
+        "stage": "planning"
+      },
+      {
+        "at": "2026-10-13T06:48:38.580Z",
+        "action": "stage_completed",
+        "stage": "planning"
+      },
+      {
+        "at": "2026-10-13T06:48:38.586Z",
+        "action": "stage_started",
+        "stage": "generation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.593Z",
+        "action": "stage_completed",
+        "stage": "generation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.599Z",
+        "action": "stage_started",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.776Z",
+        "action": "stage_completed",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.781Z",
+        "action": "stage_started",
+        "stage": "ready"
+      },
+      {
+        "at": "2026-10-13T06:48:38.787Z",
+        "action": "stage_completed",
+        "stage": "ready"
+      },
+      {
+        "at": "2026-10-13T06:48:38.796Z",
+        "action": "rollback",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.801Z",
+        "action": "stage_started",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.975Z",
+        "action": "stage_completed",
+        "stage": "validation"
+      },
+      {
+        "at": "2026-10-13T06:48:38.981Z",
+        "action": "stage_started",
+        "stage": "ready"
+      },
+      {
+        "at": "2026-10-13T06:48:38.988Z",
+        "action": "stage_completed",
+        "stage": "ready"
+      }
+    ]
+  },
+  "metrics": {
+    "providerHttpRequests": 0,
+    "authoredFixtureCalls": 2,
+    "providerTokens": 0,
+    "monetaryCostOfModelRequests": 0,
+    "liveModelQualityMeasured": false,
+    "liveModelLatencyMs": null,
+    "timings": [
+      {
+        "stage": "public-discovery",
+        "milliseconds": 456.2759,
+        "status": "observed"
+      },
+      {
+        "stage": "retrieval",
+        "milliseconds": 12.631899999999973,
+        "status": "queued"
+      },
+      {
+        "stage": "planning",
+        "milliseconds": 14.856399999999894,
+        "status": "queued"
+      },
+      {
+        "stage": "generation",
+        "milliseconds": 26.51559999999995,
+        "status": "queued"
+      },
+      {
+        "stage": "validation",
+        "milliseconds": 189.71080000000006,
+        "status": "queued"
+      },
+      {
+        "stage": "ready",
+        "milliseconds": 13.89390000000003,
+        "status": "ready"
+      }
+    ],
+    "rag": {
+      "queries": 100,
+      "firstQueryMs": 0.4281999999998334,
+      "cachedP50Ms": 0.0785000000000764,
+      "cachedP95Ms": 0.09710000000018226
+    }
+  },
+  "limits": [
+    "Authored writer fixture; not an AI model comparison.",
+    "Generic local lifecycle simulation only; no observed Roblox game test.",
+    "Public game identity does not prove quest, economy or remote mechanisms.",
+    "Production Supabase and Vercel runtime have not been qualified."
+  ]
+}

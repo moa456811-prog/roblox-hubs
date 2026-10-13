@@ -1,0 +1,14 @@
+[
+  {"request":"NPC pathfinding waypoint", "role":"game_project_server", "expected_repos":["ahmicy/simplepath","DanCodesRBX/agentpath"]},
+  {"request":"Optimiser serialization network packets", "role":"game_project_full", "expected_repos":["ffrostfall/ByteNet","1Axen/Blink"]},
+  {"request":"UI mobile reactive components", "role":"game_project_client", "expected_repos":["dphfox/Fusion","centau/vide"]},
+  {"request":"Sauvegarder profils inventaire datastore", "role":"game_project_server", "expected_repos":["MadStudioRoblox/ProfileStore","MadStudioRoblox/ProfileService"]},
+  {"request":"rbxl parser binary", "role":"game_project_full", "expected_repos":["rojo-rbx/rbx-dom"]},
+  {"request":"Luau unit test testing", "role":"game_project_full", "expected_repos":["Roblox/testez","l3dotdev/EzSpec","jsdotlua/jest-lua"]},
+  {"request":"Code formatting Luau", "role":"game_project_full", "expected_repos":["JohnnyMorganz/StyLua"]},
+  {"request":"Signal events Luau", "role":"game_project_full", "expected_repos":["Data-Oriented-House/LemonSignal","stravant/goodsignal"]},
+  {"request":"React UI", "role":"game_project_client", "expected_repos":["Roblox/react-luau"]},
+  {"request":"Roblox studio build source sync", "role":"game_project_full", "expected_repos":["rojo-rbx/rojo"]},
+  {"request":"Roblox physics character prediction networking", "role":"game_project_full", "expected_repos":["easy-games/chickynoid"]},
+  {"request":"Roblox admin commands framework", "role":"game_project_server", "expected_repos":["evaera/Cmdr","paradoxuum/centurion"]}
+]

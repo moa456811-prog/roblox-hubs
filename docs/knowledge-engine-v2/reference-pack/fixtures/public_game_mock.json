@@ -1,0 +1,4 @@
+{
+  "universe": {"universeId": 987654},
+  "games": {"data": [{"id": 987654,"rootPlaceId": 123456,"name": "Fictional Quest Demo (fixture)","description": "Sample description; NOT evidence of mechanics.", "creator": {"name": "fictional"},"updated": "2026-01-01T00:00:00Z"}]}
+}

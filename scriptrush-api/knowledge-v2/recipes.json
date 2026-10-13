@@ -1,0 +1,806 @@
+{
+  "schemaVersion": 2,
+  "version": "pack-2.0.0",
+  "recipes": [
+    {
+      "id": "quest_state_machine",
+      "title": "Quête : machine à états",
+      "topic": "quests",
+      "environment": "project_client",
+      "expected_observable_success": "accepted quest flag / observed objective progress",
+      "common_failure_modes": "duplicate requests; missing target; reconnect; death",
+      "do_not_assume": "Never assume the quest remote name or acceptance result",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "778f7c8e8d40fa0991ed79ebd10821f8cc8e3e49f59627ade98849ea47476fb5",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "quest_progress_delta",
+      "title": "Quête : preuve de progression",
+      "topic": "quests",
+      "environment": "project_client",
+      "expected_observable_success": "objective count increases after a valid action",
+      "common_failure_modes": "quest UI desync; quest cancel; server rollback",
+      "do_not_assume": "UI text alone may be stale",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "28660b522f2b0df236b0b07abe379e0961e0aeef055fe99e42c72ef090ac8712",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "boss_spawn_detection",
+      "title": "Boss : apparition et disparition",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "boss instance appears with confirmed identity",
+      "common_failure_modes": "absent boss; duplicate names; streamed-out NPC",
+      "do_not_assume": "Do not assume all NPCs are replicated",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "faeb9ed852775147216a2ad43ba79e0b7e0bc6e871dc8df44da45737ad467ab0",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "boss_respawn_timer",
+      "title": "Boss : timer de réapparition",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "observed death and later respawn, measured delay",
+      "common_failure_modes": "timer drift; server restart; missing spawn",
+      "do_not_assume": "Do not invent exact respawn delay",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "42dafe0303004002e950f568ae977f12e929649466d21568cc9c2e47d0fe10fa",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "boss_loot_confirmation",
+      "title": "Boss : attendre le butin",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "inventory delta / reward UI / stable loot state",
+      "common_failure_modes": "early boss switching; delayed replication",
+      "do_not_assume": "Do not declare loot picked without observable state",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "e04c693a2f4bca58dfa65efdf7cc3bc41bfa97366ccacb66ecf154475823858a",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "boss_target_selection",
+      "title": "Boss : sélection des cibles",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "chosen target is alive and eligible",
+      "common_failure_modes": "unspawned targets; stale references",
+      "do_not_assume": "Client does not dictate server NPC behavior",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "e85fd3762c4d1219d298f822a34abd2ba59f39be57638a35e1a16417b95aab4a",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "combat_hit_confirmation",
+      "title": "Combat : reconnaître un coup",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "validated health decrease or explicit hit signal",
+      "common_failure_modes": "animation-only hit; wrong range",
+      "do_not_assume": "Do not infer damage from animation",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "f36d0373792baa22f656153a9231aa678dbef630b7cef7da57d37e90b82cf701",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "combat_cooldown",
+      "title": "Combat : respecter les délais",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "ability available and accepted, bounded call frequency",
+      "common_failure_modes": "spamming; missed actions; latency",
+      "do_not_assume": "Cannot defeat server-side cooldowns",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "89b5ea07174acec450aa9b0bc11875c385f6b19d8a439fc1b6af265d837bcd27",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "projectile_hit_validation",
+      "title": "Projectiles : collisions",
+      "topic": "boss",
+      "environment": "game_project_full",
+      "expected_observable_success": "projectile ray hit confirmed against valid target",
+      "common_failure_modes": "tunneling; latency; colliding with owner",
+      "do_not_assume": "Server owns authoritative damage",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "dd31b8110a91df511aece5dd99b6cbf7e48983f50f0429bb9d4dd09bedfb436e",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "npc_navigation",
+      "title": "NPC : navigation",
+      "topic": "movement",
+      "environment": "game_project_server",
+      "expected_observable_success": "NPC reaches destination under tested obstacles",
+      "common_failure_modes": "stuck path; streamed map; unreachable waypoints",
+      "do_not_assume": "Requires server-side NPC control",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "ba808c7e5e44b0f4e551a887cb4abab1c02978afd9a45c7089753c545069405d",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "physics_ownership",
+      "title": "Physique : propriétaire réseau",
+      "topic": "movement",
+      "environment": "game_project_full",
+      "expected_observable_success": "server/client ownership observed in authorized game",
+      "common_failure_modes": "rubber band; replication divergence",
+      "do_not_assume": "Ownership is not equivalent to damage authority",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "3062908883c9288e9c6d3bd8fc2738b5a411bd73aa37c901977021e94d3a72c3",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "teleport_safety",
+      "title": "Déplacements : points sûrs",
+      "topic": "movement",
+      "environment": "project_client",
+      "expected_observable_success": "destination reached without collision/unstable reset",
+      "common_failure_modes": "inside wall; teleport too often",
+      "do_not_assume": "Only use permitted position changes in target game",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "10b509d4018a7e9c450216e1ba86366518bb7c2870679cc845c9d50bc279d36c",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "npc_freeze_authority",
+      "title": "NPC : immobilisation réelle",
+      "topic": "movement",
+      "environment": "game_project_server",
+      "expected_observable_success": "server confirms movement disabled over test interval",
+      "common_failure_modes": "local-only frozen visuals",
+      "do_not_assume": "Client cannot freeze server-owned NPC at will",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "44a3ba98905b7adc134e75c995e5117686df0469906881f1dc99d4b836fcfcff",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "player_respawn_recovery",
+      "title": "Personnage : récupération après mort",
+      "topic": "movement",
+      "environment": "project_client",
+      "expected_observable_success": "controller rebinds and resumes after respawn",
+      "common_failure_modes": "stale humanoid reference; detached events",
+      "do_not_assume": "Never reuse destroyed character refs",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "435c0422926d53caa982ee52c6e02135c750b3848b7a5d04e36870e738966d8b",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "loot_collection",
+      "title": "Loot : collecte confirmée",
+      "topic": "data",
+      "environment": "project_client",
+      "expected_observable_success": "inventory item count increases / reward event",
+      "common_failure_modes": "dropped item not collected; capacity limits",
+      "do_not_assume": "Pickup request alone does not prove inventory update",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "714a3f251361b215b67f52d954a88816c7d9d01ff09a75e20d6ed7b4f414fadc",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "inventory_state",
+      "title": "Inventaire : réconciliation",
+      "topic": "data",
+      "environment": "game_project_full",
+      "expected_observable_success": "server and client inventories converge",
+      "common_failure_modes": "stale replica; out-of-order updates",
+      "do_not_assume": "Client inventory is not authoritative",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "7c13fe53e6abcca0296d39e7d0210c2a93ee99101056cf1bd6f21eb52a13e343",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "auto_sell",
+      "title": "Vente : suivi de transaction",
+      "topic": "data",
+      "environment": "project_client",
+      "expected_observable_success": "currency increase and item decrease verified",
+      "common_failure_modes": "sell unavailable; protected items",
+      "do_not_assume": "Internal sell API exists only if the game exposes it",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "202a927227f893a403b8aaae30716216a39d5d81fcca68c5d7c50c841e53fed4",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "datastore_profile",
+      "title": "Sauvegarde : profil durable",
+      "topic": "data",
+      "environment": "game_project_server",
+      "expected_observable_success": "save/load round-trip passes test",
+      "common_failure_modes": "budget errors; race between sessions",
+      "do_not_assume": "DataStore cannot be accessed from arbitrary client",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "995a5d1e2d8f8e25adc2e61b61141d9deb38d6b1e9922dd044962b878f17f199",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "transaction_idempotence",
+      "title": "Transactions : anti-doublons",
+      "topic": "data",
+      "environment": "game_project_server",
+      "expected_observable_success": "retries preserve exactly-once observable effect",
+      "common_failure_modes": "network retries; duplicate clicks",
+      "do_not_assume": "Requires server-side idempotency",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "18b5f8ee69856d7e4d7e3beddec77dc3edac395bed85017553e88ebeca77b179",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "fish_bite_detection",
+      "title": "Pêche : événement de morsure",
+      "topic": "quests",
+      "environment": "project_client",
+      "expected_observable_success": "cast/bite/reel/reward distinct observed states",
+      "common_failure_modes": "no bite forever; wrong rod; water movement",
+      "do_not_assume": "Do not assume fishing minigame mechanics",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "07ca431ef92fce45154faa36d5c6636268c16ea3be7f94423a958eaf4d821a71",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "dungeon_wave_progress",
+      "title": "Donjon : progression des vagues",
+      "topic": "quests",
+      "environment": "project_client",
+      "expected_observable_success": "wave counter and boss state advance",
+      "common_failure_modes": "wave stuck; boss delayed",
+      "do_not_assume": "Never fabricate dungeon signals",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "ad8d3564a7fb6130429b299d61d8679db00d0400887481da28392927cdd9e8a1",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "dungeon_loot_filter",
+      "title": "Donjon : filtres de récompense",
+      "topic": "data",
+      "environment": "project_client",
+      "expected_observable_success": "selected reward matches declared filter",
+      "common_failure_modes": "chooses wrong chest; ambiguous labels",
+      "do_not_assume": "Require observed reward metadata",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "ac50249697d28eaf40817116f315c23635896cdb5fdf8e1577e693bd97fceaac",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "remote_schema",
+      "title": "Réseau : schémas de données",
+      "topic": "network",
+      "environment": "game_project_full",
+      "expected_observable_success": "typed payload round-trips and validation passes",
+      "common_failure_modes": "bad enum; serialization mismatch",
+      "do_not_assume": "Do not copy client-supplied authority as trusted",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "e77c6e386ef28456aa8e4acb28a558f42a0ea71fed19bf3ebbf5bf374ec0567a",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "network_reliability",
+      "title": "Réseau : tolérance aux pertes",
+      "topic": "network",
+      "environment": "game_project_full",
+      "expected_observable_success": "retry limits, ordering and duplicate handling pass",
+      "common_failure_modes": "out of order packets; duplicate actions",
+      "do_not_assume": "RakNet concepts are not Roblox APIs",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "10d803e68c16ad8e95119ebc2d54f0ca66efb0fab4dc1893944706ee8675dda3",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "rate_limit",
+      "title": "Réseau : limite des appels",
+      "topic": "network",
+      "environment": "project_both",
+      "expected_observable_success": "requests remain bounded with response preserved",
+      "common_failure_modes": "remote spam; excess queue",
+      "do_not_assume": "A client cannot bypass server acceptance",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9524fc13cc90850aadb41d6627e9be98c9a89ef022c64e19fea1af0a9b73a70a",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "ui_virtualization",
+      "title": "UI : grande liste de résultats",
+      "topic": "ui",
+      "environment": "project_client",
+      "expected_observable_success": "scroll shows all results while responsive",
+      "common_failure_modes": "truncated code; memory pressure",
+      "do_not_assume": "Persist full files outside chat transcript",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "8e40056fcd8426996cb0dc5513eb57a4891ca6a918d46ebb73d65224d37b8b11",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "ui_mobile",
+      "title": "UI : petits écrans",
+      "topic": "ui",
+      "environment": "project_client",
+      "expected_observable_success": "all controls accessible on small viewport",
+      "common_failure_modes": "off-screen toggles; unreadable text",
+      "do_not_assume": "Do not assume device resolution",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "655d5751dc7adbb2ac6df839af1422a271f92f033a416204f340146940b3df37",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "event_cleanup",
+      "title": "Événements : nettoyage",
+      "topic": "debug",
+      "environment": "project_both",
+      "expected_observable_success": "event listeners disconnected on reload",
+      "common_failure_modes": "duplicate binds; stale callbacks",
+      "do_not_assume": "Repeated injection can stack effects",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "400b7a1fcf74c37091cf80d9cf433e8394b0da4487ca288e48233e8505b07dbb",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "async_timeout",
+      "title": "Asynchrone : délais et annulation",
+      "topic": "debug",
+      "environment": "project_both",
+      "expected_observable_success": "operations timeout safely and report status",
+      "common_failure_modes": "hung yield; cancelled request still acts",
+      "do_not_assume": "Use bounded retries with backoff",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "4c9237b0eea7b06a87bf628d9453fb6ab48427964de242b9da6a635f85c97ba5",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "save_script_versions",
+      "title": "Code : historique des versions",
+      "topic": "debug",
+      "environment": "standalone_tool",
+      "expected_observable_success": "diff-based patch can be reversed",
+      "common_failure_modes": "lost working features; overwrite MAIN",
+      "do_not_assume": "Never replace stable script without approval",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "b74cc861ca979757b1c8412ccd90f7f04374a29e3f01f449ff17e724faab48e8",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "syntax_validation",
+      "title": "Luau : compilation",
+      "topic": "testing",
+      "environment": "standalone_tool",
+      "expected_observable_success": "luau-compile exits 0 and test bundle passes",
+      "common_failure_modes": "undefined variables; invalid strings",
+      "do_not_assume": "Compilation is not proof of runtime correctness",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "cc39f5b413792af7de02ef42594e8eaa0b10c0d59190325975c2f0d138f610dc",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "game_metadata_discovery",
+      "title": "Identification : place et univers",
+      "topic": "debug",
+      "environment": "standalone_tool",
+      "expected_observable_success": "public metadata returns correct place/universe IDs",
+      "common_failure_modes": "renamed game; missing private data",
+      "do_not_assume": "A game page does not disclose server-side scripts",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "c66f09ed4201a03e130237c1673cde0f8b7cd87cc9c518943e3283e1e7586c7f",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "provenance_attribution",
+      "title": "Sources : licences et provenance",
+      "topic": "debug",
+      "environment": "standalone_tool",
+      "expected_observable_success": "every code chunk retains source license and commit",
+      "common_failure_modes": "unlicensed example; hallucinated source",
+      "do_not_assume": "Public repository does not mean unrestricted reuse",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "e9d1e18ffc6b979d255d86361f651cdc19ac2c3bf0c1e12b161408cc4e126fd2",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "generation_resumability",
+      "title": "Génération : reprise de tâches",
+      "topic": "debug",
+      "environment": "standalone_tool",
+      "expected_observable_success": "partial artifacts survive client disconnect",
+      "common_failure_modes": "timeout; large output truncation",
+      "do_not_assume": "Persist code files outside assistant message",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "30c27f797ad29995779596858169ac3233c358e2753234c0ff86d5439ade3178",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "private_feedback",
+      "title": "Retour : apprendre des erreurs",
+      "topic": "testing",
+      "environment": "standalone_tool",
+      "expected_observable_success": "test outcome linked to source version and game version",
+      "common_failure_modes": "leaking user code; incorrect success claims",
+      "do_not_assume": "Never share private scripts without explicit permission",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9a8d289d38c444f460847995d3671b4ab809a1c3daa908f7cb94d6f32175ef6f",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    },
+    {
+      "id": "verification_levels",
+      "title": "Vérification : preuves graduées",
+      "topic": "testing",
+      "environment": "standalone_tool",
+      "expected_observable_success": "labels static, mock, observed-in-game correctly",
+      "common_failure_modes": "unverified script labeled tested",
+      "do_not_assume": "Never promise 100% across arbitrary games",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "0f478266c2a08c74f8a28bce2b57d84134325d4aef77a9fb4e6ca5517b3eed28",
+      "evidenceStatus": "UNKNOWN",
+      "gameSpecific": false,
+      "provenance": {
+        "kind": "user-authored-recipe-metadata",
+        "rawFileSha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0"
+      }
+    }
+  ]
+}

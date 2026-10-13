@@ -1,0 +1,2107 @@
+{
+  "schemaVersion": 2,
+  "version": "pack-2.0.0",
+  "sources": [
+    {
+      "id": "facebookarchive__raknet",
+      "name": "RakNet",
+      "repo": "facebookarchive/RakNet",
+      "url": "https://github.com/facebookarchive/RakNet",
+      "category": "network",
+      "purpose": "Cross-platform C++ networking engine; protocol concepts, reliability, ordered messages",
+      "environment": "reference_only",
+      "priority": 3,
+      "warning": "C++ and archived: not a Luau ModuleScript",
+      "kind": "reference",
+      "status": "candidate_needs_import",
+      "roles": [
+        "reference"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "607b485e99baf975f0d95bd14859f25b56fd67853911dd0029dad747ca65decd",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "ffrostfall__bytenet",
+      "name": "ByteNet",
+      "repo": "ffrostfall/ByteNet",
+      "url": "https://github.com/ffrostfall/ByteNet",
+      "category": "network",
+      "purpose": "Buffer serialization, typed packet transport and networking for Roblox",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "6b510c7d52ac086ec3a9566b9242fd9f6190e9d4ba306fa825304f294a6e42cf",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "ffrostfall__bridgenet2",
+      "name": "BridgeNet2",
+      "repo": "ffrostfall/BridgeNet2",
+      "url": "https://github.com/ffrostfall/BridgeNet2",
+      "category": "network",
+      "purpose": "Older optimized client/server networking patterns",
+      "environment": "project_both",
+      "priority": 3,
+      "warning": "Maintainer recommends ByteNet for new projects",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9e7700f3395f041a976b02a14f4b38240f1e63fc7aa9f83bb11054a97dab4aa4",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "1axen__blink",
+      "name": "Blink",
+      "repo": "1Axen/Blink",
+      "url": "https://github.com/1Axen/Blink",
+      "category": "network",
+      "purpose": "IDL-defined packets and generated binary networking",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "4dc52f4727686bad8348ee87c9315e17c76d49f2262562b83effbecf0a3f3deb",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "red-blox__zap",
+      "name": "Zap",
+      "repo": "red-blox/zap",
+      "url": "https://github.com/red-blox/zap",
+      "category": "network",
+      "purpose": "Schema-driven compact binary networking",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "Project has a rewrite branch; pin versions",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9d83515fb1de78311ab8fe3e1080e212f670bb8e3d189dbe853d389af0968bfb",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "red-blox__red",
+      "name": "Red",
+      "repo": "red-blox/Red",
+      "url": "https://github.com/red-blox/Red",
+      "category": "network",
+      "purpose": "Lightweight compressed event networking",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "95b989c9b00866790779ab6228c4c335b075a8f47eacb64cfa01607d93338174",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox-aurora__rbx-net",
+      "name": "RbxNet",
+      "repo": "roblox-aurora/rbx-net",
+      "url": "https://github.com/roblox-aurora/rbx-net",
+      "category": "network",
+      "purpose": "Structured remotes, middlewares, typing and rate limiting",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "e22b19f472006fc600cdc5d1f8b3722dc235d474186d5bdbfb05eb20610f1cc7",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "madstudioroblox__replica",
+      "name": "Replica",
+      "repo": "MadStudioRoblox/Replica",
+      "url": "https://github.com/MadStudioRoblox/Replica",
+      "category": "network",
+      "purpose": "Replication of server-owned state to clients",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "47e2ae9ec5bc412cb91c970473f87dc01f36d3ba727c107840fec57de7d2ea28",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "madstudioroblox__replicaservice",
+      "name": "ReplicaService",
+      "repo": "MadStudioRoblox/ReplicaService",
+      "url": "https://github.com/MadStudioRoblox/ReplicaService",
+      "category": "network",
+      "purpose": "Older state replication patterns",
+      "environment": "project_both",
+      "priority": 3,
+      "warning": "Historical architecture; compare with Replica",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "6e1134dca97355f164f33f0d38ad3644922dac085e943e70445e782ea25886d5",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "madstudioroblox__sera",
+      "name": "Sera",
+      "repo": "MadStudioRoblox/Sera",
+      "url": "https://github.com/MadStudioRoblox/Sera",
+      "category": "network",
+      "purpose": "Schematized low-level serialization",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "2a1f2e0c2cba57cb35c3d991473bf4361a1b72b738fc07c0f1d2e51d2707e14e",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "quenty__nevermoreengine",
+      "name": "Nevermore Engine",
+      "repo": "Quenty/NevermoreEngine",
+      "url": "https://github.com/Quenty/NevermoreEngine",
+      "category": "architecture",
+      "purpose": "Large Roblox module ecosystem: Maid, Rx, Binder, springs and more",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "5470d594f6a8fe584f1d175c1df07d463c76f1bd78773ed9a0f470249220856d",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "sleitnick__knit",
+      "name": "Knit",
+      "repo": "Sleitnick/Knit",
+      "url": "https://github.com/Sleitnick/Knit",
+      "category": "architecture",
+      "purpose": "Services/controllers, structured client/server application architecture",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "38f3413be72ade30fe0c63db34f93d672b49499b36e52ed50fafedf02ec1f8e9",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "sleitnick__rbxutil",
+      "name": "RbxUtil",
+      "repo": "Sleitnick/RbxUtil",
+      "url": "https://github.com/Sleitnick/RbxUtil",
+      "category": "architecture",
+      "purpose": "Reusable utility packages including Trove, Signal, Timer and Streamable",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "76afd5dc0219cceb7d3dcb50ded20becb1ff192592c4b03b271329e6dd479fee",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "matter-ecs__matter",
+      "name": "Matter",
+      "repo": "matter-ecs/matter",
+      "url": "https://github.com/matter-ecs/matter",
+      "category": "architecture",
+      "purpose": "Entity component system patterns for scalable game logic",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "c571f4d02945545afa7d80e742531f87eb321d9301c0b5c65ffef5e4b1f001ab",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "ukendio__jecs",
+      "name": "jecs",
+      "repo": "Ukendio/jecs",
+      "url": "https://github.com/Ukendio/jecs",
+      "category": "architecture",
+      "purpose": "High-performance ECS with entities and typed component queries",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "223bb23283e893ce9a8e8df5e8d7e45c8e5643e062a2884138946e54a739b07f",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "evaera__roblox-lua-promise",
+      "name": "Promise",
+      "repo": "evaera/roblox-lua-promise",
+      "url": "https://github.com/evaera/roblox-lua-promise",
+      "category": "architecture",
+      "purpose": "Asynchronous operations, cancellation, error paths and timeouts",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "46d617fef69df0737043991ef32837ad9b9c73ed9565fa2e23d00615669733c8",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "howmanysmall__janitor",
+      "name": "Janitor",
+      "repo": "howmanysmall/Janitor",
+      "url": "https://github.com/howmanysmall/Janitor",
+      "category": "architecture",
+      "purpose": "Cleanup of event connections and resources",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "916e6015ca6593d51241f8debd04bd60b42a79f1882ffb80e5fb93f83ce685ab",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "littensy__charm",
+      "name": "Charm",
+      "repo": "littensy/charm",
+      "url": "https://github.com/littensy/charm",
+      "category": "architecture",
+      "purpose": "Signals, computed values and fine-grained reactive state",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "c64936e99c81c6a30550aade131270facb000f2623dded7e6cdbef77b651dc8c",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "littensy__reflex",
+      "name": "Reflex",
+      "repo": "littensy/reflex",
+      "url": "https://github.com/littensy/reflex",
+      "category": "architecture",
+      "purpose": "Application state store for Roblox",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "83c78660eacb9cf262d0461da81db703c65d1c9f55f6ab5e0d1ebdd422c296de",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox__rodux",
+      "name": "Rodux",
+      "repo": "Roblox/Rodux",
+      "url": "https://github.com/Roblox/Rodux",
+      "category": "architecture",
+      "purpose": "Redux-inspired state management for Luau",
+      "environment": "project_both",
+      "priority": 3,
+      "warning": "Legacy design option; consider Charm/Reflex",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "337300443b99e506a34b4496c73fa5ecac23dfac81e82c515a784ee55e1bebcd",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "weenachuangkud__fastcast2",
+      "name": "FastCast2",
+      "repo": "weenachuangkud/FastCast2",
+      "url": "https://github.com/weenachuangkud/FastCast2",
+      "category": "gameplay",
+      "purpose": "Modern projectile simulation, raycasts, bulk movement and parallel options",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "6a2bae9fb2e564b8508809cb1186d3caef59b9454c166416f398073d31b73762",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "swordphin__raycasthitboxrbxl",
+      "name": "Raycast Hitbox",
+      "repo": "Swordphin/raycastHitboxRbxl",
+      "url": "https://github.com/Swordphin/raycastHitboxRbxl",
+      "category": "gameplay",
+      "purpose": "Raycast-based melee hit detection and collision rules",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "3123902b1ccf0cf0749c17623babe3a75277dd7e577912f3576609cbbf35c11d",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "1foreverhd__zoneplus",
+      "name": "ZonePlus",
+      "repo": "1ForeverHD/ZonePlus",
+      "url": "https://github.com/1ForeverHD/ZonePlus",
+      "category": "gameplay",
+      "purpose": "Zone entry/exit and player/part spatial detection",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "1a454de538beb57ace6035b9f4ede4363acb8733f36a16e313b3e4286bc4f3d5",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "ahmicy__simplepath",
+      "name": "SimplePath",
+      "repo": "ahmicy/simplepath",
+      "url": "https://github.com/ahmicy/simplepath",
+      "category": "gameplay",
+      "purpose": "Pathfinding for humanoid and non-humanoid NPCs",
+      "environment": "project_server",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "5766b5870330d4f026f678f3bccba7b30f7524ac1e46471f2346a2ebe539c22f",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "easy-games__chickynoid",
+      "name": "Chickynoid",
+      "repo": "easy-games/chickynoid",
+      "url": "https://github.com/easy-games/chickynoid",
+      "category": "gameplay",
+      "purpose": "Server-authoritative movement with prediction, reconciliation and lag compensation",
+      "environment": "project_both",
+      "priority": 1,
+      "warning": "Deep engine replacement; not drop-in for a third-party game",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "4c7f0802c66d5312342de10c68b5e738572d2658343dd81f0a682c72280d175b",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "littensy__fishing-minigame",
+      "name": "Fishing minigame example",
+      "repo": "littensy/fishing-minigame",
+      "url": "https://github.com/littensy/fishing-minigame",
+      "category": "gameplay",
+      "purpose": "An open-source example of a fishing minigame with state management",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "example",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "6f4c55b7f7eec2bd9aa5b1e214b2f0b102b8b90a4873d520f7d1aa0f7dab148d",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "littensy__charm-example",
+      "name": "Charm game example",
+      "repo": "littensy/charm-example",
+      "url": "https://github.com/littensy/charm-example",
+      "category": "gameplay",
+      "purpose": "End-to-end sample of client/server reactive state and UI",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "example",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "2dc1d27e2ca6f89f8af6d717cf9aec0253d9bb3e7212f63913d25b4cdc250450",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "dphfox__fusion",
+      "name": "Fusion",
+      "repo": "dphfox/Fusion",
+      "url": "https://github.com/dphfox/Fusion",
+      "category": "ui",
+      "purpose": "Reactive Luau UI architecture",
+      "environment": "project_client",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "43cafdf5c96520f09fbd5a6cf242b5fce3b4038129e074274084a2302c231b12",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox__react-luau",
+      "name": "React-Luau",
+      "repo": "Roblox/react-luau",
+      "url": "https://github.com/Roblox/react-luau",
+      "category": "ui",
+      "purpose": "Component based UI patterns",
+      "environment": "project_client",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "ca2186305a1d54b0e95a8082814d4f437b01d94f5c6970725cc7591afca44f5f",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "centau__vide",
+      "name": "Vide",
+      "repo": "centau/vide",
+      "url": "https://github.com/centau/vide",
+      "category": "ui",
+      "purpose": "Minimal reactive UI components",
+      "environment": "project_client",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "38e840680dfc16e3d01739c4f481fcbd9f299f887509a8b05f054a271a36cc10",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "sirmallard__iris",
+      "name": "Iris",
+      "repo": "SirMallard/Iris",
+      "url": "https://github.com/SirMallard/Iris",
+      "category": "ui",
+      "purpose": "Immediate-mode debug UI and developer tools",
+      "environment": "project_client",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "3aeabc30d891a93b99d91fbba40f12089dd00f3d8be363067aa5ad008edee978",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "reselim__flipper",
+      "name": "Flipper",
+      "repo": "Reselim/Flipper",
+      "url": "https://github.com/Reselim/Flipper",
+      "category": "ui",
+      "purpose": "Motion animations, motors and goals",
+      "environment": "project_client",
+      "priority": 2,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9e26a9b675eeb5ddf95ee0c315e75dd0fb1419ccef7045713b1d08d5d344363f",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "matter-ecs__plasma",
+      "name": "Plasma",
+      "repo": "matter-ecs/plasma",
+      "url": "https://github.com/matter-ecs/plasma",
+      "category": "ui",
+      "purpose": "Immediate-mode widgets and interactive debug displays",
+      "environment": "project_client",
+      "priority": 3,
+      "warning": "README cautions not fully production ready",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "c6b3dcb304dfebe2a060019da1a03171e6289fb0f8a94349198c249c282724d7",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "madstudioroblox__profilestore",
+      "name": "ProfileStore",
+      "repo": "MadStudioRoblox/ProfileStore",
+      "url": "https://github.com/MadStudioRoblox/ProfileStore",
+      "category": "data",
+      "purpose": "Persistent player data and cross-server session locking",
+      "environment": "project_server",
+      "priority": 1,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "64616324207b116d2beabe4ee96d5bcf500eb906aa4efbe9b98a657f69aea506",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "madstudioroblox__profileservice",
+      "name": "ProfileService",
+      "repo": "MadStudioRoblox/ProfileService",
+      "url": "https://github.com/MadStudioRoblox/ProfileService",
+      "category": "data",
+      "purpose": "Historical data-store abstraction patterns",
+      "environment": "project_server",
+      "priority": 3,
+      "warning": "Deprecated upstream; use ProfileStore for new projects",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "0e6c36600b971de920d239686d288601fb6e873f0a4ca9359d17224015116872",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "evaera__cmdr",
+      "name": "Cmdr",
+      "repo": "evaera/Cmdr",
+      "url": "https://github.com/evaera/Cmdr",
+      "category": "data",
+      "purpose": "Typed developer command console and admin tools",
+      "environment": "project_both",
+      "priority": 2,
+      "warning": "",
+      "kind": "library",
+      "status": "candidate_needs_import",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "baf87743e8c3dc6713a29c8c057100bf86ac4220fffe4e07bfd5bda4d04d4bd6",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "jsdotlua__jest-lua",
+      "name": "Jest-Lua",
+      "repo": "jsdotlua/jest-lua",
+      "url": "https://github.com/jsdotlua/jest-lua",
+      "category": "data",
+      "purpose": "Test-driven Luau examples, assertions and mocks",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "af492117dd8b0f2e948a454036187081466cd8a9b6fd89ffbfa31c58d786b51d",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox__jest-roblox",
+      "name": "Jest-Roblox",
+      "repo": "Roblox/jest-roblox",
+      "url": "https://github.com/Roblox/jest-roblox",
+      "category": "data",
+      "purpose": "Read-only mirror of Luau testing toolkit",
+      "environment": "standalone_tool",
+      "priority": 3,
+      "warning": "Read-only mirror; prefer maintained canonical upstream",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "beec6a1be8ce88c4a0d9460c8b4b81fe67cf21a3f31b658d8192f4e43dcc3131",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "luau-lang__luau",
+      "name": "Luau",
+      "repo": "luau-lang/luau",
+      "url": "https://github.com/luau-lang/luau",
+      "category": "tooling",
+      "purpose": "Compiler, analyzer, type-checker and official grammar/AST",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "f4c947ba0421274833285a8d4d3a781ed8c05f3db44d86d4c4373531e0239a45",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rojo-rbx__rbx-dom",
+      "name": "rbx-dom",
+      "repo": "rojo-rbx/rbx-dom",
+      "url": "https://github.com/rojo-rbx/rbx-dom",
+      "category": "tooling",
+      "purpose": "Read/write Roblox binary and XML place/model files",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "ca08a1f852c0d7b65a2e24b7229b6449534ebc572cc1936b612705ebe980b7c2",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rojo-rbx__rojo",
+      "name": "Rojo",
+      "repo": "rojo-rbx/rojo",
+      "url": "https://github.com/rojo-rbx/rojo",
+      "category": "tooling",
+      "purpose": "Roblox project source-to-place build and sync",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "086d74b7bc9d041817079c038381fd7ec85e055d7c44ae648a91cd18bc3510e2",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "upliftgames__wally",
+      "name": "Wally",
+      "repo": "UpliftGames/wally",
+      "url": "https://github.com/UpliftGames/wally",
+      "category": "tooling",
+      "purpose": "Package registry tooling and package manifests",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "809b83e78514d28b4d0c221fa51df90a3dee7d2e4a02740d576ccdb92e410f6f",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rojo-rbx__rokit",
+      "name": "Rokit",
+      "repo": "rojo-rbx/rokit",
+      "url": "https://github.com/rojo-rbx/rokit",
+      "category": "tooling",
+      "purpose": "Pinned toolchain and reproducible binaries",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "176aa808d7abf0bf712a878f6fdbf729865a752c0a09995c4cf7041d56eb64a1",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "lune-org__lune",
+      "name": "Lune",
+      "repo": "lune-org/lune",
+      "url": "https://github.com/lune-org/lune",
+      "category": "tooling",
+      "purpose": "Standalone Luau runtime for automation",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "3516e90cb6865d955dcf1675b178f0e6a337e7142370c48766fb19bbc3cf1fe4",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "kampfkarren__selene",
+      "name": "Selene",
+      "repo": "Kampfkarren/selene",
+      "url": "https://github.com/Kampfkarren/selene",
+      "category": "tooling",
+      "purpose": "Lua/Luau linter and diagnostics",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "8d56680c13025039a49bad459872c1f4350adf25b9d1cbd92f6f41b12cdbcefc",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "johnnymorganz__stylua",
+      "name": "StyLua",
+      "repo": "JohnnyMorganz/StyLua",
+      "url": "https://github.com/JohnnyMorganz/StyLua",
+      "category": "tooling",
+      "purpose": "Consistent formatting for Lua/Luau",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "d5d577b4cc818c55312f62123c7130b2e35ba8d35870d2a6db1c05724f01a7ba",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "seaofvoices__darklua",
+      "name": "darklua",
+      "repo": "seaofvoices/darklua",
+      "url": "https://github.com/seaofvoices/darklua",
+      "category": "tooling",
+      "purpose": "Source transforms and Lua/Luau rewriters",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "f7593c89b515208cba6047c79d4b388cf5337040de68e699a07873941d33fb7e",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox__testez",
+      "name": "TestEZ",
+      "repo": "Roblox/testez",
+      "url": "https://github.com/Roblox/testez",
+      "category": "tooling",
+      "purpose": "Unit tests and assertions",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "5db03ce87818dfc08f5b1f8839f42de2dfb9bd324c0cfc1b94c4ebd06b7dfe42",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox-ts__roblox-ts",
+      "name": "roblox-ts",
+      "repo": "roblox-ts/roblox-ts",
+      "url": "https://github.com/roblox-ts/roblox-ts",
+      "category": "tooling",
+      "purpose": "TypeScript-to-Luau compilation and project tooling",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "3c431b24319e165971d74be41b521e1ffb7f3a7c068843d8a222e88105cb0715",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox-ts__types",
+      "name": "Roblox TS types",
+      "repo": "roblox-ts/types",
+      "url": "https://github.com/roblox-ts/types",
+      "category": "tooling",
+      "purpose": "Roblox API type definitions in TypeScript",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "21d7fd92b02f04fd15c91a4a72eec887b4b9e85eb09c11ad19454e5eb116b824",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "johnnymorganz__luau-lsp",
+      "name": "Luau LSP",
+      "repo": "JohnnyMorganz/luau-lsp",
+      "url": "https://github.com/JohnnyMorganz/luau-lsp",
+      "category": "tooling",
+      "purpose": "Language-server semantics and code navigation",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "ce6a372748ed0705782d22c4552b5daf44b361dad59b5814f6ecdb1e8cb95608",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "tree-sitter-grammars__tree-sitter-luau",
+      "name": "tree-sitter-luau",
+      "repo": "tree-sitter-grammars/tree-sitter-luau",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-luau",
+      "category": "tooling",
+      "purpose": "Tree-sitter grammar for Luau source",
+      "environment": "standalone_tool",
+      "priority": 1,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "81484c859cabd50fd3db83b9bc67d3a1ec27137e25319dee40661fd707933bae",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "polychromatist__tree-sitter-luau",
+      "name": "Luau tree-sitter alternative",
+      "repo": "polychromatist/tree-sitter-luau",
+      "url": "https://github.com/polychromatist/tree-sitter-luau",
+      "category": "tooling",
+      "purpose": "Another tree-sitter Luau grammar",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "dc4f1f63a20867e56cb193bb434a0a6bf93bb86727fc70c5e612bd82ffe928fe",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox-ts__luau-ast",
+      "name": "Luau AST",
+      "repo": "roblox-ts/luau-ast",
+      "url": "https://github.com/roblox-ts/luau-ast",
+      "category": "tooling",
+      "purpose": "AST manipulation for Luau generation tools",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "415b4446f63caf6483649230f87155099401bc447ea9389cddd88ef9cffd1794",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "vantoanvh__luauparser",
+      "name": "LuauParser",
+      "repo": "vantoanvh/LuauParser",
+      "url": "https://github.com/vantoanvh/LuauParser",
+      "category": "tooling",
+      "purpose": "Native Luau AST/CST with error recovery",
+      "environment": "standalone_tool",
+      "priority": 2,
+      "warning": "",
+      "kind": "tool",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "bbf6cfd55baa1270c4ec2643e83b2287f72fd8d4a676eec889733b6e90134900",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "upbolt__hydroxide",
+      "name": "Hydroxide",
+      "repo": "Upbolt/Hydroxide",
+      "url": "https://github.com/Upbolt/Hydroxide",
+      "category": "analysis",
+      "purpose": "Runtime Lua introspection and network trace reference",
+      "environment": "executor_analysis",
+      "priority": 2,
+      "warning": "Executor-specific APIs; do not auto-run",
+      "kind": "analysis",
+      "status": "candidate_needs_import",
+      "roles": [
+        "executor_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "16eb79b8c17ae1188426b65702880ad8837ea55fdacf11d7ad9900c6dc44da3e",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "dogmastr__opendex",
+      "name": "OpenDex",
+      "repo": "dogmastr/OpenDex",
+      "url": "https://github.com/dogmastr/OpenDex",
+      "category": "analysis",
+      "purpose": "Script viewer, remote map, code search and local MCP relay",
+      "environment": "executor_analysis",
+      "priority": 2,
+      "warning": "Requires compatible executor; MCP run tool can change game state",
+      "kind": "analysis",
+      "status": "candidate_needs_import",
+      "roles": [
+        "executor_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "f804a87632a7048c6d1b4fa5471e0441143512d53667f17097f205ba8b159947",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "azysgithub__dexplusplus",
+      "name": "Dex++",
+      "repo": "AZYsGithub/DexPlusPlus",
+      "url": "https://github.com/AZYsGithub/DexPlusPlus",
+      "category": "analysis",
+      "purpose": "Explorer and script diagnostics patterns",
+      "environment": "executor_analysis",
+      "priority": 2,
+      "warning": "Executor-specific; do not auto-run",
+      "kind": "analysis",
+      "status": "candidate_needs_import",
+      "roles": [
+        "executor_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "d26b7536d92d2516474bbd5a8df03b2bb7a5aa65d5b1736cd0b072be34253d68",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "atrexus__unluau",
+      "name": "Unluau",
+      "repo": "atrexus/unluau",
+      "url": "https://github.com/atrexus/unluau",
+      "category": "analysis",
+      "purpose": "Luau bytecode-to-source reverse engineering reference",
+      "environment": "standalone_tool",
+      "priority": 3,
+      "warning": "Decompilation not authoritative, may produce invalid results",
+      "kind": "analysis",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "c4279378b4f33fb7ba4df60d353b2e96aea087741480aaf6e2d7b48e24c779aa",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "xgladius__luaudec",
+      "name": "luauDec",
+      "repo": "xgladius/luauDec",
+      "url": "https://github.com/xgladius/luauDec",
+      "category": "analysis",
+      "purpose": "Alternative Luau bytecode decompiler reference",
+      "environment": "standalone_tool",
+      "priority": 3,
+      "warning": "Decompilation not authoritative",
+      "kind": "analysis",
+      "status": "candidate_needs_import",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "66e3507f39abf59613a8d307654277fccf14ed9266bb5948d958b2c3ce4a09b9",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rbxts-flamework__core",
+      "name": "Flamework",
+      "repo": "rbxts-flamework/core",
+      "url": "https://github.com/rbxts-flamework/core",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "TypeScript decorator based Roblox application framework; not native Luau",
+      "priority": 2,
+      "warning": "Requires roblox-ts/TypeScript build pipeline",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9d165011a3a6d9c59d6b708e79f301f6e735cbfe9d3c8778e657a8c83b96a7fa",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rbxts-flamework__networking",
+      "name": "Flamework Networking",
+      "repo": "rbxts-flamework/networking",
+      "url": "https://github.com/rbxts-flamework/networking",
+      "category": "network",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Flamework typed networking module in roblox-ts",
+      "priority": 2,
+      "warning": "Depends on Flamework + roblox-ts, not a standalone Luau module",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "08fc7603185ca4bea1d00438f5f5d631fcab8271be8cb8fd4e685e8072452631",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rbxts-flamework__components",
+      "name": "Flamework Components",
+      "repo": "rbxts-flamework/components",
+      "url": "https://github.com/rbxts-flamework/components",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Dependency-injected components for Flamework",
+      "priority": 3,
+      "warning": "Depends on Flamework + roblox-ts",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "d41426846f483acb1638bbcf53b712178a2bbc47f912179d60cba75a8ba76669",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "seaofvoices__luau-signal",
+      "name": "Luau Signal",
+      "repo": "seaofvoices/luau-signal",
+      "url": "https://github.com/seaofvoices/luau-signal",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Typed signal and event abstractions in Luau",
+      "priority": 2,
+      "warning": "License not confirmed: do not ingest code before verification",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "UNKNOWN",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "96252b3199b442a37c34f036c900a64e2972a2157075945320ec4c3ab394edeb",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "data-oriented-house__lemonsignal",
+      "name": "LemonSignal",
+      "repo": "Data-Oriented-House/LemonSignal",
+      "url": "https://github.com/Data-Oriented-House/LemonSignal",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Efficient pure Luau signal implementation",
+      "priority": 1,
+      "warning": "Microbenchmarks depend on test setup",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "0be0ee97a974648399ef8bd6b493412ec4aa81b7b6383cfb8c257c6e55ee9253",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "rblxutils__fastsignal",
+      "name": "FastSignal",
+      "repo": "RBLXUtils/FastSignal",
+      "url": "https://github.com/RBLXUtils/FastSignal",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Signal implementation with RBXScriptSignal-like API",
+      "priority": 2,
+      "warning": "Confirm exact API/version before using",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "757c806bc278c235e688acfeb61edeb7663745109b1a5d77a2aff99d864917a8",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "paradoxuum__centurion",
+      "name": "Centurion",
+      "repo": "paradoxuum/centurion",
+      "url": "https://github.com/paradoxuum/centurion",
+      "category": "data",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Command framework for roblox-ts games",
+      "priority": 3,
+      "warning": "TypeScript only; server-validated command permissions required",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "d6f0bb6726792dddf2797176c9bf57829c7aefd3f7a5542ff04963787af23310",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "l3dotdev__ezspec",
+      "name": "EzSpec",
+      "repo": "l3dotdev/EzSpec",
+      "url": "https://github.com/l3dotdev/EzSpec",
+      "category": "tooling",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Lightweight test framework for Roblox and Luau",
+      "priority": 1,
+      "warning": "Use for project test suites and mocks; not an external game verifier",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9554b95349b6da1da797686070ec1fe23c23dfdb39affd3601b7749d3d69a789",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "dancodesrbx__agentpath",
+      "name": "AgentPath",
+      "repo": "DanCodesRBX/agentpath",
+      "url": "https://github.com/DanCodesRBX/agentpath",
+      "category": "gameplay",
+      "environment": "project_server",
+      "kind": "library",
+      "purpose": "Roblox NPC navigation pathfinding module",
+      "priority": 2,
+      "warning": "NPC control requires ownership of server-side game code",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "5efa70d2bab0add87af5e82ea565a4e3378899685ecdc44d529a00b37dbb2032",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "spityy__simplecamerashake",
+      "name": "SimpleCameraShake",
+      "repo": "spityy/SimpleCameraShake",
+      "url": "https://github.com/spityy/SimpleCameraShake",
+      "category": "ui",
+      "environment": "project_client",
+      "kind": "library",
+      "purpose": "Simple camera shake module",
+      "priority": 3,
+      "warning": "No verified permissive license: metadata only",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "UNKNOWN",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "9393b8c0039096893289e3cb0ca15f3dafb52f818133028467bfd63a37c3a58d",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "hinikaa__luau-spring",
+      "name": "Luau Spring",
+      "repo": "Hinikaa/luau-spring",
+      "url": "https://github.com/Hinikaa/luau-spring",
+      "category": "ui",
+      "environment": "project_client",
+      "kind": "library",
+      "purpose": "Critically damped spring for smooth UI and motion",
+      "priority": 2,
+      "warning": "For visual smoothing; not a physics authority override",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "f6c0b530cbc6d832ad3d5366263001dd0789a6611e03806571f9b21c2ba397da",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "overworded__luau-signal",
+      "name": "Luau-Signal",
+      "repo": "overworded/Luau-Signal",
+      "url": "https://github.com/overworded/Luau-Signal",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Alternative custom event/signal module",
+      "priority": 3,
+      "warning": "No verified permissive license: metadata only",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "UNKNOWN",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "411f7defdb4a7cd0fb0ef046e93e2e40bccbe8db6ab3bd2e0f7dab74879720d3",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "UNKNOWN",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "sinlerdev__magma",
+      "name": "Magma",
+      "repo": "sinlerdev/Magma",
+      "url": "https://github.com/sinlerdev/Magma",
+      "category": "ui",
+      "environment": "project_client",
+      "kind": "library",
+      "purpose": "Reactive Luau state management library",
+      "priority": 2,
+      "warning": "Check API maturity/version",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "c636a0eef0e85299eda61471f2b10ce8ce16969002da0ac0fddf7a9f429bafc0",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "pesde-pkg__pesde",
+      "name": "Pesde",
+      "repo": "pesde-pkg/pesde",
+      "url": "https://github.com/pesde-pkg/pesde",
+      "category": "tooling",
+      "environment": "standalone_tool",
+      "kind": "tool",
+      "purpose": "Package manager for Luau runtimes including Roblox",
+      "priority": 1,
+      "warning": "Requires package/repository compatibility checks",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "tool"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "79e1ac72214ef594992d33e8a657623c2ae1063eb63da4efa85a891b075b0a97",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "stravant__goodsignal",
+      "name": "GoodSignal",
+      "repo": "stravant/goodsignal",
+      "url": "https://github.com/stravant/goodsignal",
+      "category": "architecture",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Pure Luau signal with RBXScriptSignal compatible semantics",
+      "priority": 1,
+      "warning": "Follow original license and pinned version",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "8c3b54653d49f988ad31047304888827aee2d3dfc8ca666f4dc765ad59974133",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "littensy__remo",
+      "name": "Remo",
+      "repo": "littensy/remo",
+      "url": "https://github.com/littensy/remo",
+      "category": "network",
+      "environment": "project_both",
+      "kind": "library",
+      "purpose": "Typed remote event/function library for Roblox",
+      "priority": 1,
+      "warning": "Requires server/client setup and explicit schemas",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client",
+        "project_server"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "7f9d7199f3b95babef5c788e9e9665094f17e92ab240fefd55917949f9fdd42a",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "roblox__roact",
+      "name": "Roact",
+      "repo": "Roblox/roact",
+      "url": "https://github.com/Roblox/roact",
+      "category": "ui",
+      "environment": "project_client",
+      "kind": "library",
+      "purpose": "Historical React-style UI library for Roblox",
+      "priority": 3,
+      "warning": "Archived; reference only, modern options preferred",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "Apache-2.0",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "2ae6a9cf906ef3e6acf32fcb306e55de2f424189ba93ed87759e9509fea0d919",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "Apache-2.0",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    },
+    {
+      "id": "adammillsy__inputter",
+      "name": "Inputter",
+      "repo": "AdamMillsy/Inputter",
+      "url": "https://github.com/AdamMillsy/Inputter",
+      "category": "gameplay",
+      "environment": "project_client",
+      "kind": "library",
+      "purpose": "Cross-platform Roblox input abstraction",
+      "priority": 2,
+      "warning": "Controls client input only, not server-side authority",
+      "status": "candidate_needs_import",
+      "metadata_verification": "GitHub repository metadata checked 2026-10-13",
+      "license_hint": "MIT",
+      "roles": [
+        "project_client"
+      ],
+      "version": "pack-2.0.0",
+      "contentHash": "79cb2e9ca2f60b881a6cec9956e0fe45edd87928d02e5f10163b432112060223",
+      "licenseState": "UNKNOWN",
+      "licenseCandidate": "MIT",
+      "codeStatus": "blocked-unverified-license",
+      "commitSha": null,
+      "provenance": {
+        "kind": "user-pack-catalog",
+        "rawFileSha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9"
+      }
+    }
+  ]
+}
