@@ -22,6 +22,7 @@ function compactStage(system: string) {
 }
 
 async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderConfig, system: string, user: string, maxTokens: number, timeoutMs: number, callerSignal: AbortSignal) {
+  let rejectedStatus: number | undefined;
   try {
     return await withProviderAbort(timeoutMs, callerSignal, async signal => {
       // Both routes support JSON mode. Novita rejects parts of the full Zod
@@ -51,6 +52,9 @@ async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderC
         throw error;
       }
       if (!response.ok) {
+        // Once a terminal status is known, a stalled diagnostic/error body
+        // must not turn it into a timeout that sends a fallback request.
+        if (response.status < 500 && response.status !== 402 && response.status !== 429) rejectedStatus = response.status;
         if (response.status === 429) {
           const data = await response.json().catch(() => null) as { error?: { message?: string; metadata?: { raw?: string } } } | null;
           const description = `${data?.error?.message || ""} ${data?.error?.metadata?.raw || ""}`;
@@ -84,6 +88,7 @@ async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderC
   } catch (error) {
     // A per-provider timeout leaves the remaining stage deadline to its successor.
     throwIfCallerAborted(callerSignal);
+    if (rejectedStatus !== undefined) throw new Error(`AI_ERROR_${rejectedStatus}`);
     if (error instanceof Error && error.message === "AI_TIMEOUT") throw new ProviderUnavailableError("timeout", { cause: error });
     throw error;
   }

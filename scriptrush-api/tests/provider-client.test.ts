@@ -93,6 +93,22 @@ test("malformed JSON and empty model output are rejected without a hidden additi
   }
 });
 
+test("a stalled format-error body cannot turn its known HTTP status into a fallback timeout", async context => {
+  context.mock.method(console, "warn", () => {});
+  for (const status of [400, 422]) {
+    const transport = mockTransport(request => new Response(new ReadableStream({
+      start(controller) {
+        request.init.signal?.addEventListener("abort", () => controller.error(new DOMException("Stopped", "AbortError")), { once: true });
+      },
+    }), { status, headers: { "content-type": "application/json" } }));
+    const run = createProviderRunner({ providers: () => routes, fetch: transport.fetcher });
+    const error = await rejected(run(PLANNER_SYSTEM, "complete prompt", 8000, { timeoutMs: 2200 }));
+    assert.equal((error as Error).message, `AI_ERROR_${status}`);
+    assert.equal(providerAttemptCount(error), 1);
+    assert.equal(transport.requests.length, 1);
+  }
+});
+
 test("incomplete output remains marked incomplete and never triggers automatic provider replacement", async () => {
   for (const response of [complete("partial output", "partial-model", "length"), Response.json({ choices: [{ message: { content: "partial without completion metadata" } }] })]) {
     const transport = mockTransport(() => response);
