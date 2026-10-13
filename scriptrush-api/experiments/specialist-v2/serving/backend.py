@@ -2,6 +2,7 @@
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -14,6 +15,16 @@ MAX_INPUT_TOKENS = 16384
 MAX_NEW_TOKENS = 4096
 MAX_SECONDS = 240
 DEPENDENCIES = {"transformers": "4.51.3", "peft": "0.15.2", "accelerate": "1.6.0", "bitsandbytes": "0.45.5"}
+# The recovered branch is deliberately limited to the exact production run used
+# by inference/runner.py. A new source/version/step needs a separately audited
+# loader change and qualification, not an environment or manifest override.
+RECOVERED_SOURCE = "sciptrush/scriptrush-v2-production-8af8851d"
+RECOVERED_TRAINING_MANIFEST = "1ff9b06300ada84a1be8576278b053ecd3f9d508bc6c5add8eb8e214e9a9a3ca"
+RECOVERED_SOURCE_SCRIPT = "39f4236f26f373c4d10aabeee1feb860ea6cb167f385c8de209ffd0c996a2bd9"
+RECOVERED_PRODUCTION_MANIFEST = "b20636e92834148cc20c76e8c4afcfbc6f5df7ea5c62ae9ba3183823a7ba0e83"
+RECOVERED_STEP = 32
+RECOVERED_BEST_METRIC = 0.03299146145582199
+MAX_RECOVERY_BYTES = 200 * 1024 * 1024
 
 
 class ServiceError(Exception):
@@ -35,16 +46,85 @@ def sha(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
-def verify_artifacts(manifest_path, adapter_directory, summary_path):
+def read_recovery_json(path, maximum, code):
+    """Bounded metadata only; hashes are always computed over original bytes."""
+    try:
+        with Path(path).open("rb") as handle:
+            raw = handle.read(maximum + 1)
+        if not raw or len(raw) > maximum:
+            raise ValueError("metadata bounds")
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError("metadata root")
+        return raw, value
+    except (OSError, ValueError, RecursionError):
+        raise ServiceError(code, 500) from None
+
+
+def finite_metric(value):
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def verify_recovered_artifacts(manifest, adapter, receipt_path):
+    """Validate recovered evidence without synthesizing a completed summary."""
+    if manifest["sourceNotebook"] != RECOVERED_SOURCE or type(manifest["sourceVersion"]) is not int or manifest["sourceVersion"] != 1 or manifest["checkpoint"] != "checkpoint-32" or manifest["trainingManifestSha256"] != RECOVERED_TRAINING_MANIFEST:
+        raise ServiceError("UNEXPECTED_RECOVERED_CHECKPOINT_SOURCE", 500)
+    if not sha(manifest["trainerStateSha256"]) or not sha(manifest["recoveryReceiptSha256"]):
+        raise ServiceError("INVALID_RECOVERY_HASHES", 500)
+    raw, receipt = read_recovery_json(receipt_path, 32768, "INVALID_RECOVERY_RECEIPT")
+    if hashlib.sha256(raw).hexdigest() != manifest["recoveryReceiptSha256"]:
+        raise ServiceError("RECOVERY_RECEIPT_HASH_MISMATCH", 500)
+    keys = {"artifactKind", "sourceNotebook", "sourceVersion", "checkpoint", "sourceRelativePath", "sourceReceiptSha256", "sourceTrainingManifestSha256", "sourceScriptSha256", "complete", "trainingSummaryFabricated", "files", "cancelRequested", "globalStep", "bestGlobalStep", "selectedCheckpoint", "bestValidationMetric", "totalBytes"}
+    if set(receipt) != keys or receipt["artifactKind"] != "recovered-checkpoint" or receipt["complete"] is not True or receipt["trainingSummaryFabricated"] is not False:
+        raise ServiceError("EXPLICIT_RECOVERY_RECEIPT_REQUIRED", 500)
+    if receipt["sourceNotebook"] != RECOVERED_SOURCE or type(receipt["sourceVersion"]) is not int or receipt["sourceVersion"] != 1 or receipt["checkpoint"] != "checkpoint-32" or receipt["selectedCheckpoint"] != "checkpoint-32" or type(receipt["globalStep"]) is not int or receipt["globalStep"] != RECOVERED_STEP or type(receipt["bestGlobalStep"]) is not int or receipt["bestGlobalStep"] != RECOVERED_STEP or type(receipt["cancelRequested"]) is not bool or receipt["sourceRelativePath"] != "scriptrush-specialist-v2/training/checkpoint-32/":
+        raise ServiceError("RECOVERY_SOURCE_OR_STEP_MISMATCH", 500)
+    metric = receipt["bestValidationMetric"]
+    if receipt["sourceTrainingManifestSha256"] != RECOVERED_TRAINING_MANIFEST or receipt["sourceScriptSha256"] != RECOVERED_SOURCE_SCRIPT or not finite_metric(metric) or not math.isclose(metric, RECOVERED_BEST_METRIC, rel_tol=0, abs_tol=1e-8):
+        raise ServiceError("RECOVERY_LINEAGE_OR_METRIC_MISMATCH", 500)
+    sources = manifest["sourceFiles"]
+    if not isinstance(sources, dict) or set(sources) != {"productionManifestSha256", "sourceScriptSha256", "sourceSubmissionReceiptSha256"} or sources["productionManifestSha256"] != RECOVERED_PRODUCTION_MANIFEST or sources["sourceScriptSha256"] != RECOVERED_SOURCE_SCRIPT or not sha(receipt["sourceReceiptSha256"]) or sources["sourceSubmissionReceiptSha256"] != receipt["sourceReceiptSha256"]:
+        raise ServiceError("RECOVERY_SOURCE_FILES_MISMATCH", 500)
+    files = receipt["files"]
+    if not isinstance(files, dict) or not {"trainer_state.json", "adapter_config.json", "adapter_model.safetensors"} <= set(files) or not set(files) <= {"trainer_state.json", "adapter_config.json", "adapter_model.safetensors", "README.md"}:
+        raise ServiceError("RECOVERY_FILE_SET_MISMATCH", 500)
+    for record in files.values():
+        if not isinstance(record, dict) or set(record) != {"sha256", "bytes"} or not sha(record["sha256"]) or type(record["bytes"]) is not int or not 1 <= record["bytes"] <= MAX_RECOVERY_BYTES:
+            raise ServiceError("INVALID_RECOVERY_FILE_HASH_OR_SIZE", 500)
+    if type(receipt["totalBytes"]) is not int or receipt["totalBytes"] != sum(record["bytes"] for record in files.values()) or receipt["totalBytes"] > MAX_RECOVERY_BYTES or files["trainer_state.json"]["sha256"] != manifest["trainerStateSha256"] or {name: record["sha256"] for name, record in files.items() if name != "trainer_state.json"} != manifest["adapterSha256"]:
+        raise ServiceError("RECOVERY_FILE_HASH_MAP_MISMATCH", 500)
+    try:
+        for name, record in files.items():
+            path = (adapter / name).resolve(strict=True)
+            if path.parent != adapter or not path.is_file() or path.stat().st_size != record["bytes"] or file_hash(path) != record["sha256"]:
+                raise ServiceError("RECOVERY_FILE_BYTES_MISMATCH", 500)
+    except OSError:
+        raise ServiceError("RECOVERY_FILE_BYTES_MISMATCH", 500) from None
+    _, state = read_recovery_json(adapter / "trainer_state.json", 2 * 1024 * 1024, "INVALID_RECOVERED_TRAINER_STATE")
+    history = state.get("log_history")
+    evaluations = [entry for entry in history if isinstance(entry, dict) and type(entry.get("step")) is int and entry["step"] == RECOVERED_STEP and "eval_loss" in entry] if isinstance(history, list) else []
+    checkpoint = state.get("best_model_checkpoint")
+    if type(state.get("global_step")) is not int or state["global_step"] != RECOVERED_STEP or type(state.get("best_global_step")) is not int or state["best_global_step"] != RECOVERED_STEP or not finite_metric(state.get("best_metric")) or state["best_metric"] != metric or len(evaluations) != 1 or not finite_metric(evaluations[0]["eval_loss"]) or not math.isclose(evaluations[0]["eval_loss"], metric, rel_tol=0, abs_tol=1e-8) or not isinstance(checkpoint, str) or not checkpoint.replace("\\", "/").endswith("/checkpoint-32"):
+        raise ServiceError("RECOVERED_TRAINER_STATE_MISMATCH", 500)
+    _, config = read_recovery_json(adapter / "adapter_config.json", 2 * 1024 * 1024, "INVALID_RECOVERED_ADAPTER_CONFIG")
+    if config.get("base_model_name_or_path") != MODEL or config.get("peft_type") != "LORA" or config.get("revision") != REVISION:
+        raise ServiceError("UNEXPECTED_RECOVERED_ADAPTER_TYPE", 500)
+
+
+def verify_artifacts(manifest_path, adapter_directory, summary_path=None, *, recovery_receipt_path=None):
     """Explicit deployment manifest supplies hashes; no implicit artifact override."""
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-    expected = {"formatVersion", "model", "revision", "servedModel", "trainingManifestSha256", "trainingSummarySha256", "adapterSha256", "allowedSystemSha256"}
-    if not isinstance(manifest, dict) or set(manifest) != expected or type(manifest["formatVersion"]) is not int or manifest["formatVersion"] != 1:
+    completed_fields = {"formatVersion", "model", "revision", "servedModel", "trainingManifestSha256", "trainingSummarySha256", "adapterSha256", "allowedSystemSha256"}
+    recovered_fields = (completed_fields - {"trainingSummarySha256"}) | {"artifactKind", "sourceNotebook", "sourceVersion", "checkpoint", "trainerStateSha256", "recoveryReceiptSha256", "sourceFiles"}
+    recovered = isinstance(manifest, dict) and manifest.get("artifactKind") == "recovered-checkpoint"
+    if not isinstance(manifest, dict) or set(manifest) != (recovered_fields if recovered else completed_fields) or type(manifest["formatVersion"]) is not int or manifest["formatVersion"] != (2 if recovered else 1):
         raise ServiceError("INVALID_DEPLOYMENT_MANIFEST", 500)
     if manifest["model"] != MODEL or manifest["revision"] != REVISION or manifest["servedModel"] != SERVED_MODEL:
         raise ServiceError("UNEXPECTED_PINNED_MODEL", 500)
-    if not sha(manifest["trainingManifestSha256"]) or not sha(manifest["trainingSummarySha256"]):
+    if not sha(manifest["trainingManifestSha256"]) or (not recovered and not sha(manifest["trainingSummarySha256"])):
         raise ServiceError("INVALID_TRAINING_HASHES", 500)
+    if (recovered and (summary_path is not None or recovery_receipt_path is None)) or (not recovered and (summary_path is None or recovery_receipt_path is not None)):
+        raise ServiceError("ARTIFACT_PROVENANCE_ARGUMENT_MISMATCH", 500)
     systems = manifest["allowedSystemSha256"]
     if not isinstance(systems, list) or not 1 <= len(systems) <= 8 or not all(sha(value) for value in systems) or len(systems) != len(set(systems)):
         raise ServiceError("INVALID_ALLOWED_COMPOSER_SYSTEMS", 500)
@@ -58,12 +138,15 @@ def verify_artifacts(manifest_path, adapter_directory, summary_path):
         path = (adapter / name).resolve(strict=True)
         if path.parent != adapter or not path.is_file() or file_hash(path) != expected_hash:
             raise ServiceError("ADAPTER_HASH_MISMATCH", 500)
-    summary_file = Path(summary_path).resolve(strict=True)
-    if file_hash(summary_file) != manifest["trainingSummarySha256"]:
-        raise ServiceError("TRAINING_SUMMARY_HASH_MISMATCH", 500)
-    summary = json.loads(summary_file.read_text(encoding="utf-8"))
-    if summary.get("model") != MODEL or summary.get("revision") != REVISION or summary.get("datasetManifestSha256") != manifest["trainingManifestSha256"] or summary.get("adapterSha256") != hashes:
-        raise ServiceError("TRAINING_LINEAGE_MISMATCH", 500)
+    if recovered:
+        verify_recovered_artifacts(manifest, adapter, recovery_receipt_path)
+    else:
+        summary_file = Path(summary_path).resolve(strict=True)
+        if file_hash(summary_file) != manifest["trainingSummarySha256"]:
+            raise ServiceError("TRAINING_SUMMARY_HASH_MISMATCH", 500)
+        summary = json.loads(summary_file.read_text(encoding="utf-8"))
+        if summary.get("model") != MODEL or summary.get("revision") != REVISION or summary.get("datasetManifestSha256") != manifest["trainingManifestSha256"] or summary.get("adapterSha256") != hashes:
+            raise ServiceError("TRAINING_LINEAGE_MISMATCH", 500)
     config = json.loads((adapter / "adapter_config.json").read_text(encoding="utf-8"))
     if config.get("base_model_name_or_path") != MODEL or config.get("peft_type") != "LORA":
         raise ServiceError("UNEXPECTED_ADAPTER_TYPE", 500)
@@ -71,9 +154,9 @@ def verify_artifacts(manifest_path, adapter_directory, summary_path):
 
 
 class GpuBackend:
-    def __init__(self, manifest_path, adapter_directory, summary_path):
+    def __init__(self, manifest_path, adapter_directory, summary_path=None, *, recovery_receipt_path=None):
         self.ready = False
-        self.manifest, adapter = verify_artifacts(manifest_path, adapter_directory, summary_path)
+        self.manifest, adapter = verify_artifacts(manifest_path, adapter_directory, summary_path, recovery_receipt_path=recovery_receipt_path)
         for package, expected in DEPENDENCIES.items():
             try:
                 installed = importlib.metadata.version(package)

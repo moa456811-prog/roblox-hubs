@@ -4,7 +4,7 @@ Private, reproducible model experiment. Nothing in this directory changes the
 production provider chain, deploys an endpoint or activates the candidate model.
 The current production generator remains the baseline to beat.
 
-Measured status at **2026-10-13 04:14 UTC** is recorded in [RESULTS.md](RESULTS.md).
+Measured status at **2026-10-13 04:38 UTC** is recorded in [RESULTS.md](RESULTS.md).
 The utility development comparison accepts 4/4 specialist hubs versus 0/4 base
 hubs; the base still passes 23/39 individual feature instances. The original
 production continuation ended in ERROR on a rank-1 NCCL ALLGATHER timeout after
@@ -15,13 +15,18 @@ The first production DEV inference attempt failed before model loading because
 the errored source could not be mounted, producing zero quality outputs. The
 replacement dataset `sciptrush/scriptrush-v2-checkpoint-1188a68d` is now confirmed
 READY/private, with the expected owner and version 1. Its four remote files are
-listed directly under `checkpoint-32/`; mounted byte hashes still require worker
-verification. An empty SDK create status was resolved through read-only proof,
+listed directly under `checkpoint-32/`; the completed inference worker verified
+their mounted bytes. An empty SDK create status was resolved through read-only proof,
 without creating a duplicate dataset. After a preserved HTTP-400 rejection of a
 55-character notebook name, the shorter `sciptrush/scriptrush-v2-prod-dev-bba41b91`
-was accepted as version 1/kernel 138431883 at 04:13:57 UTC and has reached adapter
-verification. This retries inference without retraining; no production quality
-qualification, usable hosted GPU endpoint or model activation is established.
+was accepted as version 1/kernel 138431883 and completed eight raw outputs.
+The production DEV specialist accepts **2/4** complete hubs: all four contain
+the admitted actions and English UI, but one invents a tab from a scope note and
+one changes a requested RGB channel by one. Base outputs all exhaust their
+240-second budget without EOS. The specialist takes 152–169 seconds, exceeding
+the site's 120-second writer budget. No final or APInex quality comparison has
+been run. A further continuation is being prepared on the same training data;
+no final qualification, usable hosted GPU endpoint or activation is established.
 
 ## Model and fitting
 

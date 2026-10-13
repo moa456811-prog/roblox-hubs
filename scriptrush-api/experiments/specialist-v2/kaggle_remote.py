@@ -2,11 +2,13 @@
 import contextlib
 import argparse
 import getpass
+import hashlib
 import io
 import json
 import logging
 import os
 from pathlib import Path
+import re
 import sys
 import warnings
 
@@ -22,6 +24,7 @@ STAGES = {"utility": ("kaggle-run", "kaggle-output", "kaggle-runtime.log"),
           "pipeline-smoke": ("pipeline-smoke-run", "pipeline-smoke-kaggle-output", "pipeline-smoke-kaggle-runtime.log"),
           "inference": ("inference-run", "inference-kaggle-output", "inference-kaggle-runtime.log")}
 logging.disable(logging.CRITICAL)
+INFERENCE_OUTPUT_PATTERN = r"^(?!.*(?:^|[/\\])checkpoint-dataset-extracted(?:[/\\]|$)).*$"
 
 
 def emit(value):
@@ -45,6 +48,104 @@ def sanitized_failure(error):
     return {"ok": False, "errorType": type(error).__name__,
             "status": getattr(response, "status_code", None),
             "categories": [word for word in ("credential", "token", "unauthorized", "forbidden", "permission", "verify", "verification", "phone", "quota", "gpu", "internet", "timeout") if word in description]}
+
+
+def bounded_kernel_identity(value, owner, returned=False):
+    if not isinstance(value, str) or not isinstance(owner, str):
+        raise ValueError("INVALID_BOUNDED_KERNEL_IDENTITY")
+    if returned and value.startswith("/code/"):
+        value = value.removeprefix("/code/")
+    match = re.fullmatch(r"([a-z0-9][a-z0-9_-]{0,49})/([a-z0-9][a-z0-9-]{4,48}[a-z0-9])", value)
+    if match is None or match.group(1) != owner:
+        raise ValueError("KERNEL_IDENTITY_OWNER_OR_BOUND_MISMATCH")
+    return value
+
+
+def prepared_kernel(run, owner):
+    raw = (run / "kernel-metadata.json").read_bytes()
+    metadata = json.loads(raw)
+    if metadata.get("is_private") is not True:
+        raise ValueError("PRIVATE_KERNEL_REQUIRED")
+    identifier = bounded_kernel_identity(metadata.get("id"), owner)
+    return identifier, hashlib.sha256(raw).hexdigest(), raw
+
+
+def identity_sidecar(run):
+    # Keep remote bookkeeping outside the immutable prepared upload directory.
+    return WORK / (run.name + "-accepted-identity.json")
+
+
+def resolve_kernel_identity(run, owner):
+    prepared, metadata_hash, _ = prepared_kernel(run, owner)
+    path = identity_sidecar(run)
+    if not path.exists():
+        return prepared
+    value = json.loads(path.read_bytes())
+    if (set(value) != {"formatVersion", "preparedId", "acceptedId", "preparedMetadataSha256"}
+            or value.get("formatVersion") != 1 or value.get("preparedId") != prepared
+            or value.get("preparedMetadataSha256") != metadata_hash):
+        raise ValueError("ACCEPTED_KERNEL_IDENTITY_DOES_NOT_MATCH_PREPARATION")
+    return bounded_kernel_identity(value.get("acceptedId"), owner)
+
+
+def push_kernel(api, run, owner, stage):
+    prepared, metadata_hash, raw = prepared_kernel(run, owner)
+    # Refuse a stale sidecar before any mutation is sent to Kaggle.
+    resolve_kernel_identity(run, owner)
+    result = api.kernels_push(str(run), timeout="900" if stage == "pipeline-smoke" else "10800",
+                              acc="NvidiaTeslaT4").to_dict()
+    if (run / "kernel-metadata.json").read_bytes() != raw:
+        raise ValueError("PREPARED_KERNEL_METADATA_CHANGED_DURING_PUSH")
+    if not isinstance(result, dict):
+        raise ValueError("INVALID_KERNEL_PUSH_RESPONSE")
+    fields = {key.replace("_", "").lower(): value for key, value in result.items()}
+    if fields.get("error") or fields.get("errormessage") or any(
+            value for key, value in fields.items() if key.startswith("invalid") and key.endswith("sources")):
+        raise ValueError("KERNEL_PUSH_REJECTED")
+    accepted = bounded_kernel_identity(result.get("ref"), owner, returned=True)
+    value = {"formatVersion": 1, "preparedId": prepared, "acceptedId": accepted,
+             "preparedMetadataSha256": metadata_hash}
+    path = identity_sidecar(run)
+    temporary = path.with_name(path.name + ".tmp")
+    try:
+        temporary.write_bytes((json.dumps(value, indent=2) + "\n").encode("utf-8"))
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    return result
+
+
+def experiment_action(api, owner, stage, action):
+    run_name, output_name, log_name = STAGES[stage]
+    run = WORK / run_name
+    if action == "push":
+        return push_kernel(api, run, owner, stage)
+    if action not in ("status", "output", "logs"):
+        raise ValueError("Unknown experiment action")
+    identifier = resolve_kernel_identity(run, owner)
+    if action == "status":
+        return api.kernels_status(identifier).to_dict()
+    if action == "logs":
+        logs = api.kernels_logs(identifier)
+        (WORK / log_name).write_text(logs, encoding="utf-8", newline="\n")
+        # Only this experiment's fixed progress/loss JSON is forwarded.
+        progress = []
+        for entry in logs.splitlines():
+            try:
+                value = json.loads(entry)
+            except ValueError:
+                continue
+            if isinstance(value, dict) and ("phase" in value or "loss" in value):
+                progress.append(value)
+        return {"logCharacters": len(logs), "progress": progress[-5:]}
+    output = WORK / output_name
+    output.mkdir(exist_ok=True)
+    options = {"force": True, "quiet": True}
+    if stage.endswith("inference"):
+        options["file_pattern"] = INFERENCE_OUTPUT_PATTERN
+    api.kernels_output(identifier, str(output), **options)
+    return {"downloaded": True, "files": [str(path.relative_to(output)) for path in output.rglob("*") if path.is_file()]}
 
 
 def main(stage="utility"):
@@ -72,44 +173,7 @@ def main(stage="utility"):
                 if action == "exit":
                     break
                 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    if action == "push":
-                        metadata_path = run / "kernel-metadata.json"
-                        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-                        if metadata.get("is_private") is not True:
-                            raise ValueError("Private kernel required")
-                        metadata["id"] = f"{owner}/{metadata['id'].split('/')[-1]}"
-                        metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-                        result = api.kernels_push(str(run), timeout="900" if stage == "pipeline-smoke" else "10800", acc="NvidiaTeslaT4").to_dict()
-                        # Kaggle may derive a new slug from the title. Use the
-                        # returned identity for subsequent status/output calls.
-                        if isinstance(result.get("ref"), str) and result["ref"].startswith("/code/"):
-                            metadata["id"] = result["ref"].removeprefix("/code/")
-                            metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-                    elif action in ("status", "output", "logs"):
-                        metadata = json.loads((run / "kernel-metadata.json").read_text(encoding="utf-8"))
-                        if action == "status":
-                            result = api.kernels_status(metadata["id"]).to_dict()
-                        elif action == "logs":
-                            logs = api.kernels_logs(metadata["id"])
-                            (WORK / log_name).write_text(logs, encoding="utf-8")
-                            # Only this experiment's fixed progress/loss JSON is
-                            # forwarded. Full logs stay in the ignored evidence.
-                            progress = []
-                            for entry in logs.splitlines():
-                                try:
-                                    value = json.loads(entry)
-                                except ValueError:
-                                    continue
-                                if isinstance(value, dict) and ("phase" in value or "loss" in value):
-                                    progress.append(value)
-                            result = {"logCharacters": len(logs), "progress": progress[-5:]}
-                        else:
-                            output = WORK / output_name
-                            output.mkdir(exist_ok=True)
-                            api.kernels_output(metadata["id"], str(output), force=True, quiet=True)
-                            result = {"downloaded": True, "files": [str(path.relative_to(output)) for path in output.rglob("*") if path.is_file()]}
-                    else:
-                        raise ValueError("Unknown experiment action")
+                    result = experiment_action(api, owner, stage, action)
                 emit({"ok": True, "action": action, "result": result})
             except Exception as error:
                 emit(sanitized_failure(error))

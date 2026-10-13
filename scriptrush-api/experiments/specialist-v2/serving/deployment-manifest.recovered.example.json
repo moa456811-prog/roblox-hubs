@@ -1,0 +1,26 @@
+{
+  "formatVersion": 2,
+  "artifactKind": "recovered-checkpoint",
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+  "servedModel": "scriptrush-specialist-v2",
+  "sourceNotebook": "sciptrush/scriptrush-v2-production-8af8851d",
+  "sourceVersion": 1,
+  "checkpoint": "checkpoint-32",
+  "trainingManifestSha256": "1ff9b06300ada84a1be8576278b053ecd3f9d508bc6c5add8eb8e214e9a9a3ca",
+  "recoveryReceiptSha256": "REPLACE_WITH_EXACT_QUALIFIED_RECOVERY_RECEIPT_FILE_SHA256",
+  "trainerStateSha256": "REPLACE_WITH_EXACT_QUALIFIED_TRAINER_STATE_FILE_SHA256",
+  "adapterSha256": {
+    "adapter_config.json": "REPLACE_WITH_EXACT_QUALIFIED_ADAPTER_CONFIG_FILE_SHA256",
+    "adapter_model.safetensors": "REPLACE_WITH_EXACT_QUALIFIED_ADAPTER_WEIGHTS_FILE_SHA256",
+    "README.md": "REPLACE_WITH_EXACT_QUALIFIED_README_FILE_SHA256_IF_PRESENT_IN_RECEIPT"
+  },
+  "sourceFiles": {
+    "productionManifestSha256": "b20636e92834148cc20c76e8c4afcfbc6f5df7ea5c62ae9ba3183823a7ba0e83",
+    "sourceScriptSha256": "39f4236f26f373c4d10aabeee1feb860ea6cb167f385c8de209ffd0c996a2bd9",
+    "sourceSubmissionReceiptSha256": "REPLACE_WITH_EXACT_ORIGINAL_PRODUCTION_SUBMISSION_RECEIPT_SHA256"
+  },
+  "allowedSystemSha256": [
+    "REPLACE_WITH_EXACT_QUALIFIED_COMPOSER_SYSTEM_UTF8_SHA256"
+  ]
+}

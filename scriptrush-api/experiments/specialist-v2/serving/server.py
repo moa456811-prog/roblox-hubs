@@ -200,13 +200,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--deployment-manifest", required=True)
     parser.add_argument("--adapter-dir", required=True)
-    parser.add_argument("--training-summary", required=True)
+    provenance = parser.add_mutually_exclusive_group(required=True)
+    provenance.add_argument("--training-summary")
+    provenance.add_argument("--recovery-receipt")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     key = read_server_key()
     try:
-        backend = GpuBackend(args.deployment_manifest, args.adapter_dir, args.training_summary)
+        backend = GpuBackend(args.deployment_manifest, args.adapter_dir, args.training_summary, recovery_receipt_path=args.recovery_receipt)
         application = Application(backend, key, backend.manifest["allowedSystemSha256"])
     finally:
         key = ""

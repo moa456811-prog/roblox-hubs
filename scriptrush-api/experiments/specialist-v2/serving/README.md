@@ -12,6 +12,10 @@ The base is pinned to `Qwen/Qwen2.5-Coder-7B-Instruct` revision `c03e6d358207e41
 
 Create a private deployment manifest from `deployment-manifest.example.json` only after qualification. Place the completed adapter and the exact `training-summary.json` from the qualified run outside source control. Populate all hashes from their exact bytes. `trainingManifestSha256` must match the summary's `datasetManifestSha256`; `adapterSha256` must exactly match its complete adapter hash mapping. The loader verifies every listed local file, the raw summary hash, the pinned base/revision and the LoRA base configuration. An explicit manifest is the only way to select new adapter hashes; no automatic newest-adapter or environment override exists. The example has deliberately invalid placeholders and cannot start a server.
 
+The original completed-training path keeps its format-1 manifest and `--training-summary` argument. For the production checkpoint recovered after the training job ended in ERROR, use the distinct format-2 `deployment-manifest.recovered.example.json` and `--recovery-receipt` instead. The loader accepts only `sciptrush/scriptrush-v2-production-8af8851d`, version 1, checkpoint 32 and the pinned original source-script/training/production-manifest hashes. The private deployment manifest pins the raw recovery receipt hash, raw trainer-state hash, original submission-receipt hash and the complete adapter hash map. Those pins come from the qualified artifacts and their receipts, never an HTTP request or an automatically selected newest directory. Both examples contain invalid placeholders and are deliberately unusable before qualification.
+
+Place the unmodified recovered `trainer_state.json`, `adapter_config.json`, `adapter_model.safetensors` and, if listed by its receipt, `README.md` together in the explicit adapter directory. Keep the original `recovery-receipt.json` separately; no completed `training-summary.json` is needed or synthesized. The receipt must have its exact admitted fields, `complete: true` (recovery of the listed files), and `trainingSummaryFabricated: false`. The loader verifies every receipt file's raw byte size/SHA and the total bound of 200 MiB. The adapter map exactly excludes `trainer_state.json` and includes every other receipt file. It also checks global/best step 32, the selected checkpoint, validation metric `0.03299146145582199`, exactly one consistent step-32 evaluation, and the pinned Qwen revision in the LoRA configuration. The receipt may be at most 32 KiB; trainer/config metadata at most 2 MiB each. File hashes establish artifact identity, not tensor finiteness or quality; independent finite-weight and final functional checks still apply. No final prompts, expected answers, training examples or Kaggle transport credentials are needed by this loader.
+
 `allowedSystemSha256` contains 1–8 distinct hashes of exact qualified composer system strings, encoded as UTF-8. Pin the production composer system used in its benchmark. Any different system, including planner/reviewer/general-chat instructions, is rejected. Update this list only when the corresponding new composer prompt has been qualified. Neither the manifest nor the server contains an answer, final test fixture or provider credential.
 
 ## Future private launch
@@ -24,6 +28,17 @@ python experiments/specialist-v2/serving/server.py \
   --adapter-dir /private/qualified/adapter \
   --training-summary /private/qualified/training-summary.json
 ```
+
+The recovered-checkpoint alternative, only after its independent qualification and an authorized usable GPU host exist, is:
+
+```sh
+python experiments/specialist-v2/serving/server.py \
+  --deployment-manifest /private/qualified/recovered-deployment.json \
+  --adapter-dir /private/qualified/checkpoint-32 \
+  --recovery-receipt /private/qualified/recovery-receipt.json
+```
+
+The two provenance arguments are mutually exclusive. A recovered manifest rejects a completed summary, and a completed manifest rejects a recovery receipt. This support changes artifact loading only; it does not qualify the checkpoint, reconcile the site's current request parameters or deadlines, create hosting, start a server or activate routing.
 
 The default bind is `127.0.0.1:8000`. A future deployment should use a private network/TLS proxy with its request, response and Authorization logging disabled. The built-in server has no access, request-body, header or exception-text logs. Unknown endpoints, malformed input and model failures return fixed error names. Health includes no file paths, hashes, secrets or prompt content. No CORS, public UI, signup or deployment is included.
 
@@ -56,4 +71,4 @@ python -m unittest discover -s experiments/specialist-v2/serving -p 'test_*.py'
 python -m py_compile experiments/specialist-v2/serving/backend.py experiments/specialist-v2/serving/server.py
 ```
 
-Tests use fake keys, temporary artifact files and a mocked backend. They check authentication, composer restrictions, bounds, JSON/EOS response handling, one active generation, fixed errors, suppressed logs, and adapter/summary/model lineage. Importing the modules does not import Torch or load weights. Passing these tests proves only the offline endpoint contract; it does not prove GPU fit, throughput or model quality.
+Tests use fake keys, temporary artifact files and a mocked backend. They check authentication, composer restrictions, bounds, JSON/EOS response handling, one active generation, fixed errors, suppressed logs, completed adapter/summary/model lineage, and recovered receipt/state/source/file lineage. Recovered tests recompute hashes around deliberately invalid metadata to ensure source/version/step/metric/config checks provide independent validation. They also verify that a single whitespace change in a pinned receipt, weights or state is rejected. Importing the modules does not import Torch or load weights. Passing these tests proves only the offline endpoint contract; it does not prove GPU fit, throughput or model quality.
