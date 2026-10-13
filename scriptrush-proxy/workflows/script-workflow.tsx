@@ -8,11 +8,13 @@ import { GenerationProgress } from "../components/generation-progress";
 import { EmptyState } from "../components/empty-state";
 import { ErrorState } from "../components/error-state";
 import { GenerationCoverage } from "../components/generation-coverage";
+import { ResearchEvidence } from "../components/research-evidence";
 import { researchGame, generateScript, generationNotice } from "../lib/api";
 import { createProfileSource } from "../lib/validation";
 import { SCRIPT_PRESETS, appendPreset } from "../lib/presets";
 import { parseGenerationCoverage, type GenerationCoverage as CoverageReport } from "../lib/coverage";
 import { parseGenerationUsage } from "../lib/generation-diagnostics";
+import type { ResearchKnowledge } from "../lib/research-knowledge";
 import { getSelection, setSelection, getCurrentScript, setCurrentScript, getRuntimeProfile, setRuntimeProfile, addHistory, readHistory } from "../lib/storage";
 import type { GameSelection, Source, RuntimeProfile, HistoryEntry } from "../lib/types";
 
@@ -36,6 +38,8 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
   const [previous, setPrevious] = useState("");
   const [result, setResult] = useState("");
   const [coverage, setCoverage] = useState<CoverageReport | null>(null);
+  const [identifiedResearch, setIdentifiedResearch] = useState<{ game: string; knowledge: ResearchKnowledge } | null>(null);
+  const [resultResearch, setResultResearch] = useState<ResearchKnowledge | null>(null);
   const [profile, setProfile] = useState<RuntimeProfile | null>(null);
   const [files, setFiles] = useState<Source[]>([]);
   const [busy, setBusy] = useState(false);
@@ -91,6 +95,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       const found = await researchGame(game.trim(), signal);
       const selection = { game: found.game || found.name, placeId: found.placeId, universeId: found.universeId };
       setIdentified(selection);
+      setIdentifiedResearch(found.researchKnowledge ? { game: selection.game, knowledge: found.researchKnowledge } : null);
       setGame(selection.game);
       persistSelection(selection);
       return selection;
@@ -144,8 +149,9 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       // generateScript validates the complete response before any saved data changes.
       const report = parseGenerationCoverage(output.metadata.coverage);
       setResult(output.script); setCoverage(report); setPrevious(old); setSaved(undefined); setCompare(false);
+      setResultResearch(output.researchKnowledge ?? null);
       const usage = parseGenerationUsage(output.metadata.usage);
-      const localBuild = output.metadata.model === "none" && typeof output.metadata.review === "object" && output.metadata.review !== null && "strategy" in output.metadata.review && output.metadata.review.strategy === "local-profile-hub";
+      const localBuild = output.metadata.model === "none" && typeof output.metadata.review === "object" && output.metadata.review !== null && "strategy" in output.metadata.review && (output.metadata.review.strategy === "local-profile-hub" || output.metadata.review.strategy === "source-backed-hub");
       const usageNotice = usage ? usage.modelCalls === 0 && localBuild ? " Built locally · 0 AI calls · no AI tokens used." : ` AI calls: ${usage.modelCalls}.` : "";
       try {
         saveResult(output.script, selection, old, Boolean(loaded));
@@ -182,7 +188,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
 
   function rollback() {
     try {
-      setCurrentScript(previous); setOriginal(previous); setResult(""); setCoverage(null); setSaved(undefined); setCompare(false);
+      setCurrentScript(previous); setOriginal(previous); setResult(""); setCoverage(null); setResultResearch(null); setSaved(undefined); setCompare(false);
       setNotice("Previous script restored. Both versions remain in History.");
     } catch (issue) { setError(message(issue)); }
   }
@@ -192,7 +198,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
     <div className="workspace-grid">
       <div className="workspace-main">
         <form className="panel" onSubmit={submit}>
-          <GameSelector value={game} onChange={(value) => { setGame(value); setIdentified(undefined); persistSelection({ game: value, placeId: "" }); }} onIdentify={() => void identifyOnly()} identified={identified} loading={researching || busy} />
+          <GameSelector value={game} onChange={(value) => { setGame(value); setIdentified(undefined); setIdentifiedResearch(null); persistSelection({ game: value, placeId: "" }); }} onIdentify={() => void identifyOnly()} identified={identified} loading={researching || busy} />
           <div className="divider" />
           <div className="field"><label htmlFor="script-request">{fixing ? "Error or requested change" : "What should the script do?"}</label><textarea id="script-request" rows={6} placeholder={fixing ? "Paste the error, line number, or describe what to improve…" : "Describe what the script should do…"} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} maxLength={30000} required /></div>
           {!fixing && <div className="presets" aria-label="Quick presets">{SCRIPT_PRESETS.map((preset) => <button className="chip" type="button" key={preset.id} onClick={() => setPrompt((current) => appendPreset(current, preset.id))} disabled={busy}>{preset.label}</button>)}<Link className="chip" href="/fix">Improve Existing Script ↗</Link></div>}
@@ -202,6 +208,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
           </details>
           <div className="actions"><button className="button primary" type="submit" disabled={!ready || busy || researching}>{busy ? "Working…" : fixing ? "Fix Current Script" : "Generate Script"}<span aria-hidden="true">↗</span></button><span className="hint">One complete script · No account required</span></div>
         </form>
+        {identifiedResearch ? <ResearchEvidence knowledge={identifiedResearch.knowledge} title={`Research for ${identifiedResearch.game}`} /> : null}
         {busy && <GenerationProgress stage={stage} startedAt={startedAt} onStop={() => controller.current?.abort()} />}
         {error && <ErrorState message={error} onDismiss={() => setError("")} />}
         {notice && <div className="success-notice" role="status">{notice}</div>}
@@ -209,6 +216,7 @@ export function ScriptWorkflow({ mode }: { mode: "build" | "fix" }) {
       <aside className="workspace-aside"><div className="panel"><span className="eyebrow">{fixing ? "CONTINUITY FIRST" : "BETTER CONTEXT, BETTER CODE"}</span><h2>{fixing ? "A patch, with a safety net." : "Build around the real game."}</h2><p className="muted">{fixing ? "Your full script, error, and matching game profile go together. Every successful correction creates a new version." : "ScriptRush uses public research and your optional runtime profile. Features depend on what the game actually supports."}</p><div className="divider" /><Link href={fixing ? "/history" : "/learn"} className="text-link">{fixing ? "Browse previous versions" : "Scan a game for better accuracy"} →</Link></div></aside>
     </div>
     <section className="result-section" aria-label="Script result">
+      {result && resultResearch ? <ResearchEvidence knowledge={resultResearch} /> : null}
       {result && coverage ? <GenerationCoverage coverage={coverage} /> : null}
       {result ? <><ScriptEditor script={result} title={fixing ? "Corrected script" : "Your complete script"} filename={fixing ? "scriptrush-fixed.lua" : "scriptrush-script.lua"}><div className="actions">{fixing ? <><button type="button" className="button secondary" onClick={() => setCompare(!compare)}>{compare ? "Hide Comparison" : "Compare with Previous"}</button><button type="button" className="button ghost" onClick={() => { try { setCurrentScript(result); setOriginal(result); setNotice("Corrected version set as current."); } catch (issue) { setError(message(issue)); } }}>Save as Current</button><button type="button" className="button ghost" onClick={rollback}>Rollback</button></> : <Link className="button secondary" href="/fix">Fix This Script →</Link>}<button type="button" className="button ghost" disabled={Boolean(saved)} onClick={() => { try { if (identified) { saveResult(result, identified, previous, Boolean(profile && profileMatches(profile, identified))); setNotice("Saved to History."); } } catch (issue) { setError(message(issue)); } }}>{saved ? "Saved to History ✓" : "Save to History"}</button><Link className="button ghost" href="/history">History ↗</Link></div></ScriptEditor>{compare && <div className="comparison-grid"><div className="panel"><h3>Local comparison</h3><p className="muted">Previous: {comparison.beforeLines} lines · {previous.length.toLocaleString()} characters</p><p className="muted">New: {comparison.afterLines} lines · {result.length.toLocaleString()} characters</p><p className="hint">{comparison.changed} changed line positions (approximate; not a semantic diff).</p></div><ScriptEditor script={previous} title="Previous version" filename="scriptrush-previous.lua" /></div>}</> : <EmptyState title={fixing ? "Your corrected version will appear here" : "Your script starts here"} description={fixing ? "The original script is preserved if a request fails or is stopped." : "Describe your idea above. The complete result will be ready to copy, download, or save."} />}
     </section>

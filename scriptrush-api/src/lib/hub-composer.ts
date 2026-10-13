@@ -1,4 +1,5 @@
 import type { HubComposition, HubItem } from "./hub-spec.ts";
+import { gameplayToggleKey } from "./game-actions.ts";
 
 /** Lua short strings have different control-character escapes than JSON. */
 export function luaString(value: string): string {
@@ -11,7 +12,7 @@ const indented = (text: string, spaces: number) => text.split("\n").map(line => 
 /** Compose real feature handlers around a fixed, verified ownership and layout implementation.
  * All visual values and requested controls come from the validated composition.
  */
-export function renderHubComposition(spec: HubComposition): string {
+export function renderHubComposition(spec: HubComposition, options: { gameplayFactory?: string } = {}): string {
   const w = spec.window;
   const controlLabels = [w.minimizeLabel, w.closeLabel].filter((label): label is string => Boolean(label));
   const headerButtonWidths = controlLabels.map(label => Math.max(68, Math.ceil(label.length * w.textSize * .55 + 20)));
@@ -194,6 +195,8 @@ paint(status, "TextColor3", "muted")
 local function notify(message)
     if not closed then status.Text = tostring(message) end
 end
+local gameplayControlSetters = {}
+${options.gameplayFactory ? `local gameplay = ${options.gameplayFactory}({ player = player, gui = gui, own = own, onCleanup = onCleanup, notify = notify, controlState = function(key, value) local setter = gameplayControlSetters[key]; if setter then setter(value) end end })` : "local gameplay = nil"}
 local function row(parent, name, height, order)
     local object = make("Frame", name, parent)
     object.Size = UDim2.new(1, -8, 0, 0)
@@ -343,6 +346,11 @@ own(${name}Button.Activated, function()
     ${name}Button.Text = ${name}Enabled and ${luaString(item.onLabel)} or ${luaString(item.offLabel)}
     ${name}Apply()
 end)`);
+    const gameplayKey = item.action === "custom" ? gameplayToggleKey(item.code) : undefined;
+    if (gameplayKey) lines.push(`gameplayControlSetters[${luaString(gameplayKey)}] = function(value)
+    ${name}Enabled = value == true
+    ${name}Button.Text = ${name}Enabled and ${luaString(item.onLabel)} or ${luaString(item.offLabel)}
+end`);
     if (item.initial) lines.push(`table.insert(initialCallbacks, ${name}Apply)`);
   } else {
     lines.push(`local ${name}Button = button(${luaString("c_" + item.id)}, ${luaString(item.label)}, ${name})
@@ -372,7 +380,7 @@ ${item.action === "walk-speed" ? "humanoid.WalkSpeed = value" : "humanoid.UseJum
 notify(${luaString(item.label + ": ")} .. tostring(value))`;
   return `local ctx = {
     player = player, services = setmetatable({ Players = Players, UserInputService = UserInputService, TeleportService = TeleportService }, { __index = function(_, service) return game:GetService(service) end }),
-    gui = gui, panel = panel, controls = controls, state = ${name}State,
+    gui = gui, panel = panel, controls = controls, state = ${name}State, gameplay = gameplay,
     own = own, onCleanup = onCleanup, notify = notify, control = ${name}Button,
     value = ${item.kind === "number" ? "value" : "nil"}, input = ${item.kind === "number" ? name + "Input" : "nil"}, enabled = ${item.kind === "toggle" ? name + "Enabled" : "nil"},
 }

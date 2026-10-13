@@ -346,6 +346,8 @@ kbd { padding: 1px 4px; color: #8a9fc0; border: 1px solid #334663; border-radius
 .generation-coverage .confidence-row > div { min-width: 0; overflow-wrap: anywhere; }
 .generation-coverage .confidence-badge { flex-shrink: 0; }
 .generation-coverage .hint { margin-top: 5px; }
+.research-evidence .panel-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.research-evidence > .hint { overflow-wrap: anywhere; }
 
 /* Local history */
 .history-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }

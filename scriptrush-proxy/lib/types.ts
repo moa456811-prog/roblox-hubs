@@ -1,3 +1,5 @@
+import type { ResearchKnowledge } from "./research-knowledge.ts";
+
 export interface GameSelection {
   game: string;
   placeId: string;
@@ -50,6 +52,7 @@ export interface GenerationResult {
   script: string;
   message: string;
   metadata: Record<string, unknown>;
+  researchKnowledge?: ResearchKnowledge;
 }
 
 export interface GenerationUsage {
@@ -62,6 +65,7 @@ export interface ResearchResult extends GameSelection {
   name: string;
   universeId?: string;
   profile: Record<string, unknown>;
+  researchKnowledge?: ResearchKnowledge;
 }
 
 export type RequestStatus = "idle" | "loading" | "success" | "error" | "cancelled";

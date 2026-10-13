@@ -2,6 +2,7 @@ import type { GenerationRequest, GenerationResult, GenerationUsage, ResearchResu
 import type { GenerationCoverage } from "./coverage.ts";
 import { isRecord, parseScriptResponse, ValidationError } from "./validation.ts";
 import { parseGenerationUsage, parseReviewIssues, requirementsFailureMessage } from "./generation-diagnostics.ts";
+import { parseResearchKnowledge } from "./research-knowledge.ts";
 
 export class ApiError extends Error {
   readonly code: string;
@@ -102,7 +103,8 @@ export async function researchGame(query: string, signal?: AbortSignal): Promise
   const placeId = typeof profile.placeId === "string" || typeof profile.placeId === "number" ? String(profile.placeId) : "";
   if (!/^[1-9]\d*$/.test(placeId)) throw new ApiError("No game was identified. Try its Roblox game link or Place ID.", "game_not_found");
   const universeId = typeof profile.universeId === "string" || typeof profile.universeId === "number" ? String(profile.universeId) : undefined;
-  return { game: name, name, placeId, ...(universeId ? { universeId } : {}), profile: candidate };
+  const researchKnowledge = parseResearchKnowledge(profile.researchKnowledge);
+  return { game: name, name, placeId, ...(universeId ? { universeId } : {}), profile: candidate, ...(researchKnowledge ? { researchKnowledge } : {}) };
 }
 
 export async function generateScript(body: GenerationRequest, signal?: AbortSignal): Promise<GenerationResult> {
@@ -122,7 +124,8 @@ export async function generateScript(body: GenerationRequest, signal?: AbortSign
   if (body.mode === "fix" && script.trim() === body.currentScript?.trim()) {
     throw new ApiError("No corrected changes were returned. Your current script was preserved.", "no_changes");
   }
-  return { script, message: data.message, metadata };
+  const researchKnowledge = parseResearchKnowledge(metadata.researchKnowledge);
+  return { script, message: data.message, metadata, ...(researchKnowledge ? { researchKnowledge } : {}) };
 }
 
 export async function fetchScanner(signal?: AbortSignal): Promise<string> {

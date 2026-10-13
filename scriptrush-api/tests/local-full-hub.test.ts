@@ -4,7 +4,7 @@ import { appendPreset } from "../../scriptrush-proxy/lib/presets.ts";
 import { buildLocalFullHub, isLocalFullHubPrompt, LOCAL_FULL_HUB_PRESET } from "../src/lib/local-full-hub.ts";
 import { generateCompleteScript, type GenerationContext } from "../src/lib/generation.ts";
 
-const context = (overrides: Partial<GenerationContext> = {}): GenerationContext => ({ prompt: appendPreset("", "full-hub"), patch: false, currentScript: "", diagnostic: "", game: { name: "Blox Fruits", placeId: "2753915549" }, sources: "", supportedFeatures: ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot"], ledger: "Public keyword scores suggest these features; no executable adapters.", ...overrides });
+const context = (overrides: Partial<GenerationContext> = {}): GenerationContext => ({ prompt: appendPreset("", "full-hub"), patch: false, currentScript: "", diagnostic: "", game: { name: "Example Game", placeId: "123" }, sources: "", supportedFeatures: ["Auto Farm", "Auto Boss", "Quest Farm", "Auto Loot"], ledger: "Public keyword scores suggest these features; no executable adapters.", ...overrides });
 
 test("the exact shipped Full Hub button matches the zero-AI path without swallowing custom requirements", () => {
   assert.equal(appendPreset("", "full-hub"), LOCAL_FULL_HUB_PRESET);

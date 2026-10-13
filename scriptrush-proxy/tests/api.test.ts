@@ -91,6 +91,27 @@ test("research URL is encoded and number IDs become strings", async () => {
   } finally { globalThis.fetch = restoreFetch; }
 });
 
+test("research and generation expose normalized optional knowledge without changing the full script contract", async () => {
+  const restoreFetch = globalThis.fetch;
+  const researchKnowledge = { summary: "Inspected game-specific quest code.", sources: [{ id: "quest-source", title: "Quest example", url: "https://github.com/example/game/blob/main/quests.lua", kind: "github" }], features: [{ id: "quest", label: "Quest Farm", basis: "source-backed", summary: "Source describes quest acceptance and reward flow.", sourceIds: ["quest-source"] }] };
+  globalThis.fetch = async (url) => String(url).startsWith("/api/research-game")
+    ? Response.json({ profile: { name: "Actual Game", placeId: 123, researchKnowledge: { ...researchKnowledge, code: "discard raw code" } } })
+    : Response.json({ ...response, researchKnowledge: { ...researchKnowledge, code: "discard raw code" } });
+  try {
+    assert.deepEqual((await researchGame("Actual Game")).researchKnowledge, researchKnowledge);
+    const generated = await generateScript(build);
+    assert.deepEqual(generated.researchKnowledge, researchKnowledge);
+    assert.equal(generated.script, "local ready = true\nprint(ready)");
+    globalThis.fetch = async (url) => String(url).startsWith("/api/research-game")
+      ? Response.json({ profile: { name: "Actual Game", placeId: 123, researchKnowledge: { ...researchKnowledge, sources: [] } } })
+      : Response.json({ ...response, researchKnowledge: { ...researchKnowledge, sources: [] } });
+    assert.equal((await researchGame("Actual Game")).researchKnowledge, undefined);
+    const withoutMalformedOptional = await generateScript(build);
+    assert.equal(withoutMalformedOptional.researchKnowledge, undefined);
+    assert.equal(withoutMalformedOptional.script, generated.script);
+  } finally { globalThis.fetch = restoreFetch; }
+});
+
 test("bad request fields fail before network access and keep caller input intact", async () => {
   const restoreFetch = globalThis.fetch;
   let calls = 0;

@@ -4,6 +4,7 @@ import { parseHubComposition, validateCompositionCoverage, type HubComposition }
 import { renderHubComposition } from "./hub-composer.ts";
 import { reviewScript } from "./script-output.ts";
 import { englishUiIssues } from "./ui-language.ts";
+import { gameAdapterFor, gameplayBindingIssues } from "./game-adapters/catalog.ts";
 
 // This is the shipped preset, not a fuzzy intent matcher. Any additional user
 // requirements, edited preset, diagnostic or script correction stays on the AI
@@ -58,13 +59,21 @@ export type LocalFullHub = { script: string; contract: GenerationContract; cover
 
 export function buildLocalFullHub(context: GenerationContext): LocalFullHub | null {
   if (context.patch || context.diagnostic.trim() || !isLocalFullHubPrompt(context.prompt) || !observationOnlySources(context.sources)) return null;
+  const pack = gameAdapterFor(context.game);
+  // Actual researched code must reach contextual generation when this game has
+  // no reviewed original action library. Never replace it with a disabled shell.
+  if (!pack && context.researchContext?.trim()) return null;
   const gameName = typeof context.game.name === "string" && context.game.name.trim() ? context.game.name.trim().slice(0, 240) : "Roblox Game";
   const identityText = (name: string) => `Game: ${name}`;
   const feature = (id: string, label: string, behavior: string): GenerationContract["features"][number] => ({ id, label, behavior, availability: "supported", evidence: "Audited standard Roblox client/UI implementation; no game-specific adapter required.", interaction: true });
   const contract: GenerationContract = {
     fullHub: true,
     features: [
-      ...unavailable.map(item => ({ id: item.id, label: item.label, behavior: `Keep ${item.label} visible but disabled until its game adapter is confirmed.`, availability: "needs-runtime" as const, evidence: item.reason, interaction: true })),
+      ...unavailable.map(item => {
+        const action = pack?.actions.find(action => action.id === item.id);
+        return action ? { id: item.id, label: item.label, behavior: action.behavior, availability: "supported" as const, evidence: `Original source-backed implementation; ${action.sourceIds.join(", ")}. Live-game compatibility is checked at runtime and is not certified.`, interaction: true }
+          : { id: item.id, label: item.label, behavior: `Keep ${item.label} visible but disabled until its game adapter is confirmed.`, availability: "needs-runtime" as const, evidence: item.reason, interaction: true };
+      }),
       feature("walk-speed", "Walk Speed", "Validate 8 to 32 and apply WalkSpeed to the current local Humanoid."),
       feature("jump-power", "Jump Power", "Validate 20 to 75, enable UseJumpPower and apply JumpPower to the current local Humanoid."),
       feature("rejoin", "Rejoin", "Rejoin the current place only when its button is clicked."),
@@ -74,6 +83,10 @@ export function buildLocalFullHub(context: GenerationContext): LocalFullHub | nu
     ui: { instructions: "Unbranded, untitled neutral charcoal/gray 680x460 rounded panel, English sidebar navigation and visible game/profile status. No creator credits or reference-skill identity. Every unavailable feature has its own explanation.", requiredText: ["Home", "Farm", "Boss", "Quests", "Loot", "Movement", "Session", "Settings", "Close", "Minimize", "Restore"] },
   };
   const disabledPage = (index: number, id: string, label: string) => ({ id, label, featureIds: [], items: [{ ...unavailable[index], kind: "disabled" as const, featureIds: [unavailable[index].id] }] });
+  const gamePage = (index: number, id: string, label: string) => {
+    const action = pack?.actions.find(action => action.id === unavailable[index].id);
+    return action ? { id, label, featureIds: [], items: [{ id: action.id, kind: "toggle" as const, featureIds: [action.id], label: action.label, description: action.description, onLabel: "On", offLabel: "Off", initial: false, action: "custom" as const, code: `ctx.gameplay.setEnabled("${action.key}", ctx.enabled)` }] } : disabledPage(index, id, label);
+  };
   const spec = parseHubComposition(JSON.stringify({
     window: {
       title: "", width: 680, height: 460, radius: 12, draggable: true, navigation: "left", font: "Gotham", textSize: 14,
@@ -84,9 +97,9 @@ export function buildLocalFullHub(context: GenerationContext): LocalFullHub | nu
     pages: [
       { id: "home", label: "Home", featureIds: [], items: [
         { id: "identity", kind: "text", featureIds: [], text: identityText(gameName) },
-        { id: "profile-status", kind: "text", featureIds: [], text: "Local controls are ready. Game automation is disabled until its adapter is verified. A list of NPCs or remotes alone does not prove the correct interaction." },
+        { id: "profile-status", kind: "text", featureIds: [], text: pack ? "Source-backed game actions are ready. Enable them individually. One controller handles movement, stop and respawn recovery; it pauses with a precise reason if dependencies or progress are missing. Live-game compatibility has not been certified." : "Local controls are ready. No reviewed game action library or usable researched implementation was found. A list of NPCs or remotes alone does not prove the correct interaction." },
       ] },
-      disabledPage(0, "farm", "Farm"), disabledPage(1, "boss", "Boss"), disabledPage(2, "quests", "Quests"), disabledPage(3, "loot", "Loot"),
+      gamePage(0, "farm", "Farm"), gamePage(1, "boss", "Boss"), gamePage(2, "quests", "Quests"), gamePage(3, "loot", "Loot"),
       { id: "movement", label: "Movement", featureIds: [], items: [
         { id: "walk-speed", kind: "number", featureIds: ["walk-speed"], label: "Walk Speed", description: "Apply to the current character. Valid range: 8 to 32.", applyLabel: "Apply", min: 8, max: 32, initial: 16, action: "walk-speed", code: "" },
         { id: "jump-power", kind: "number", featureIds: ["jump-power"], label: "Jump Power", description: "Enable jump power on the current character. Valid range: 20 to 75.", applyLabel: "Apply", min: 20, max: 75, initial: 50, action: "jump-power", code: "" },
@@ -95,12 +108,12 @@ export function buildLocalFullHub(context: GenerationContext): LocalFullHub | nu
       { id: "settings", label: "Settings", featureIds: [], items: [{ id: "theme", kind: "toggle", featureIds: ["theme"], label: "Theme", description: "Switch between Neutral and Cyan.", onLabel: "Cyan", offLabel: "Neutral", initial: false, action: "theme", code: "" }] },
     ],
   }));
-  const script = renderHubComposition(spec);
+  const script = renderHubComposition(spec, pack ? { gameplayFactory: pack.factory } : {});
   // Only this known proper-name slot is exempt from functional language checks.
   // The displayed game name remains exact, including French words and Unicode.
   const languageSpec = { ...spec, pages: spec.pages.map(page => ({ ...page, items: page.items.map(item => item.id === "identity" && item.kind === "text" ? { ...item, text: identityText("Roblox Game") } : item) })) };
-  const issues = [...validateCompositionCoverage(spec, contract), ...englishUiIssues(languageSpec), ...reviewScript(script, "", false)];
+  const issues = [...validateCompositionCoverage(spec, contract), ...gameplayBindingIssues(spec, contract, pack), ...englishUiIssues(languageSpec), ...reviewScript(script, "", false)];
   if (issues.length) throw new Error("LOCAL_HUB_VALIDATION_FAILED: " + issues.join("; "));
   const coverage: Coverage = { uiVerified: true, features: contract.features.map(item => ({ id: item.id, label: item.label, status: item.availability === "needs-runtime" ? "unavailable" : "implemented", ...(item.availability === "needs-runtime" ? { reason: item.evidence } : {}) })) };
-  return { script, spec, contract, coverage, profile: { game: { name: gameName, placeId: context.game.placeId ?? null, universeId: context.game.universeId ?? null }, gameAdapters: "unverified", unknowns: unavailable.map(item => ({ feature: item.id, reason: item.reason })) } };
+  return { script, spec, contract, coverage, profile: { game: { name: gameName, placeId: context.game.placeId ?? null, universeId: context.game.universeId ?? null }, gameAdapters: pack ? "source-backed" : "unverified", runtimeVerified: false, ...(pack ? { library: { id: pack.id, version: pack.version }, researchKnowledge: pack.knowledge } : {}), unknowns: pack ? [] : unavailable.map(item => ({ feature: item.id, reason: item.reason })) } };
 }

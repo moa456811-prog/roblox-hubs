@@ -473,7 +473,11 @@ export function requestedColorIssues(prompt: string, script: string): string[] {
   }).map(color => `requested UI color ${color.join(",")} is absent from executable code`);
 }
 
-export function assessContract(contract: GenerationContract, rawReview: string, script: string, prompt: string): { issues: string[]; evidenceIssues: string[]; reviewEvidenceInvalid: boolean; coverage: Coverage } {
+/** Created only by exact trusted renderer/library verification on the server.
+ * These are not accepted from a model or request body. */
+export type TrustedControlEffect = { featureId: string; control: string; behavior: string };
+
+export function assessContract(contract: GenerationContract, rawReview: string, script: string, prompt: string, trustedEffects: readonly TrustedControlEffect[] = []): { issues: string[]; evidenceIssues: string[]; reviewEvidenceInvalid: boolean; coverage: Coverage } {
   const review = reviewSchema.parse(parseModelJson(rawReview));
   const source = makeProof(script);
   const cleanupRequired = contract.fullHub || /\b(?:cleanup|disconnect|close|fermer|nettoyage)\b/i.test(`${prompt} ${contract.ui.instructions} ${contract.features.map(feature => feature.behavior).join(" ")}`);
@@ -509,7 +513,8 @@ export function assessContract(contract: GenerationContract, rawReview: string, 
       features.push({ id: feature.id, label: feature.label, status: "unavailable", reason: found.reason });
     } else {
       if (!hasEvidence(source, found.behaviorEvidence) || (feature.interaction && !hasEvidence(source, found.controlEvidence))) invalidEvidence(`${feature.label}: implementation/control evidence missing from code`);
-      if (feature.interaction && !wiredBehavior(source, found.behaviorEvidence, found.controlEvidence)) invalidEvidence(`${feature.label}: control-to-behavior effect could not be proved`);
+      const trustedBinding = trustedEffects.some(proof => proof.featureId === feature.id && proof.behavior === found.behaviorEvidence && proof.control === found.controlEvidence);
+      if (feature.interaction && !trustedBinding && !wiredBehavior(source, found.behaviorEvidence, found.controlEvidence)) invalidEvidence(`${feature.label}: control-to-behavior effect could not be proved`);
       features.push({ id: feature.id, label: feature.label, status: "implemented" });
     }
   }
