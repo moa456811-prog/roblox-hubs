@@ -106,5 +106,9 @@ export function mergeResearchKnowledge(primary: ResearchKnowledgeView | undefine
   const sourceIds = new Set(sources.map(item => item.id));
   const features = [...primary.features, ...additional.features.filter(item => !primary.features.some(existing => existing.id === item.id))]
     .slice(0, 32).map(item => ({ ...item, sourceIds: item.sourceIds.filter(id => sourceIds.has(id)) }));
-  return { summary: (primary.summary + " " + additional.summary).slice(0, 1000), sources, features, researchedAt: additional.researchedAt || primary.researchedAt };
+  // An unsuccessful automatic search does not negate the reviewed library.
+  // Preserve its useful summary instead of appending a contradictory global
+  // "no usable code found" message beside four source-backed implementations.
+  const hasAdditionalEvidence = additional.features.some(item => item.basis !== "unknown");
+  return { summary: (primary.summary + (hasAdditionalEvidence ? " " + additional.summary : "")).slice(0, 1000), sources, features, researchedAt: additional.researchedAt || primary.researchedAt };
 }
