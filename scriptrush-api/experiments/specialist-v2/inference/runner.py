@@ -10,6 +10,7 @@ import contextlib
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -18,6 +19,7 @@ import sys
 import time
 import traceback
 import zlib
+import zipfile
 
 MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"
 REVISION = "c03e6d358207e414f1eca0bb1891e29f1db0e242"
@@ -30,6 +32,15 @@ SEED = 39107
 OUT = Path("/kaggle/working/scriptrush-specialist-v2-inference")
 DEPENDENCIES = {"transformers": "4.51.3", "peft": "0.15.2", "accelerate": "1.6.0", "bitsandbytes": "0.45.5"}
 DEV_IDS = ("v2-dev-001", "v2-dev-005", "v2-dev-012", "v2-dev-013")
+PRODUCTION_SOURCE = "sciptrush/scriptrush-v2-production-8af8851d"
+PRODUCTION_MANIFEST = "1ff9b06300ada84a1be8576278b053ecd3f9d508bc6c5add8eb8e214e9a9a3ca"
+PRODUCTION_SCRIPT = "39f4236f26f373c4d10aabeee1feb860ea6cb167f385c8de209ffd0c996a2bd9"
+PRODUCTION_FIXTURE_MANIFEST = "b20636e92834148cc20c76e8c4afcfbc6f5df7ea5c62ae9ba3183823a7ba0e83"
+PRODUCTION_DEV_FILE = "ca2a6c9f8af330a199a2497ed964c19e62a1e5a4e4a8b73a152ab6572560e7c5"
+PRODUCTION_DEV_IDS = tuple(f"production-teach-dev-{index:03d}" for index in range(1,5))
+RECOVERED_BEST_METRIC = 0.03299146145582199
+RECOVERED_FINAL_UTILITY_SHA256 = "59e1d9a94339bb26c9c9f60947ec6a4be11272066c0cc98814d19fbbebc2a3f3"
+RECOVERED_FINAL_PRODUCTION_SHA256 = "4a10d44d63fbc01e3378d6bf1c61eb3ad394bc3aeb3d311ac1503349d9ceeba8"
 
 
 def compact(value):
@@ -66,15 +77,22 @@ def allowed_source_notebook(value):
 
 def validate_bundle(bundle):
     allowed = {"formatVersion", "sourceNotebook", "model", "revision", "adapterSha256", "adapterSummarySha256", "datasetManifestSha256", "sourceFiles", "cases", "limits"}
-    if not isinstance(bundle, dict) or set(bundle) not in (allowed, allowed | {"mode"}):
+    recovered_allowed = (allowed - {"adapterSummarySha256"}) | {"mode", "artifactKind", "sourceVersion", "trainerStateSha256", "recoveryReceiptSha256", "recoveryReceiptRaw"}
+    recovered = isinstance(bundle,dict) and bundle.get("artifactKind") == "recovered-checkpoint"
+    if not isinstance(bundle, dict) or set(bundle) not in ((recovered_allowed,recovered_allowed|{"checkpointDatasetTransport"}) if recovered else (allowed, allowed | {"mode"})):
         raise ValueError("UNEXPECTED_BUNDLE_FIELDS_OR_LABELS")
     mode = bundle.get("mode", "final")
-    if mode not in ("final", "development-retry"):
+    if mode not in ("final", "development-retry", "production-development-retry", "final-recovered-checkpoint") or recovered != (mode in ("production-development-retry","final-recovered-checkpoint")):
         raise ValueError("UNEXPECTED_INFERENCE_MODE")
     if bundle["formatVersion"] != 1 or not allowed_source_notebook(bundle["sourceNotebook"]) or bundle["model"] != MODEL or bundle["revision"] != REVISION:
         raise ValueError("UNEXPECTED_SOURCE_MODEL_OR_NOTEBOOK")
-    if any(not isinstance(bundle[name], str) or not re.fullmatch(r"[0-9a-f]{64}", bundle[name]) for name in ("datasetManifestSha256", "adapterSummarySha256")):
+    hash_names = ("datasetManifestSha256", "trainerStateSha256", "recoveryReceiptSha256") if recovered else ("datasetManifestSha256", "adapterSummarySha256")
+    if any(not isinstance(bundle[name], str) or not re.fullmatch(r"[0-9a-f]{64}", bundle[name]) for name in hash_names):
         raise ValueError("INVALID_PINNED_TRAINING_OR_SUMMARY_HASH")
+    if recovered:
+        validate_recovery_bundle(bundle)
+        if "checkpointDatasetTransport" in bundle:
+            validate_checkpoint_dataset_transport(bundle["checkpointDatasetTransport"],bundle)
     if bundle["limits"] != {"maxInputTokens": MAX_INPUT_TOKENS, "maxNewTokens": MAX_NEW_TOKENS, "maxSeconds": MAX_SECONDS}:
         raise ValueError("INFERENCE_BUDGET_CHANGED")
     hashes = bundle["adapterSha256"]
@@ -87,7 +105,7 @@ def validate_bundle(bundle):
     if not isinstance(cases, list) or not cases or len(cases) > 20:
         raise ValueError("INVALID_CASE_BUDGET")
     ids = set()
-    groups = {"dev": 0} if mode == "development-retry" else {"test": 0, "production": 0}
+    groups = {"dev": 0} if mode in ("development-retry","production-development-retry") else {"test": 0, "production": 0}
     for row in cases:
         if not isinstance(row, dict) or set(row) != {"id", "group", "messages", "promptSha256", "preparedInputTokens"}:
             raise ValueError("CASE_LABEL_OR_UNEXPECTED_FIELD")
@@ -106,9 +124,194 @@ def validate_bundle(bundle):
     if mode == "development-retry":
         if tuple(row["id"] for row in cases) != DEV_IDS or groups != {"dev": 4} or bundle["sourceNotebook"] != SOURCE_NOTEBOOK or bundle["datasetManifestSha256"] != V2_TRAINING_MANIFEST_SHA256:
             raise ValueError("ONLY_FOUR_ORIGINAL_UTILITY_DEVELOPMENT_CASES_ALLOWED")
+    elif mode == "production-development-retry":
+        if tuple(row["id"] for row in cases) != PRODUCTION_DEV_IDS or groups != {"dev":4}:
+            raise ValueError("ONLY_FOUR_FROZEN_PRODUCTION_DEVELOPMENT_CASES_ALLOWED")
+    elif mode == "final-recovered-checkpoint":
+        if groups!={"test":12,"production":8}:
+            raise ValueError("EXACTLY_TWELVE_UTILITY_AND_EIGHT_PRODUCTION_FINAL_CASES_REQUIRED")
     elif groups["test"] != 12 or groups["production"] > 8:
         raise ValueError("TWELVE_FINAL_TESTS_AND_AT_MOST_EIGHT_PRODUCTION_CASES_REQUIRED")
     return bundle
+
+
+def validate_recovery_bundle(bundle):
+    if bundle["sourceNotebook"] != PRODUCTION_SOURCE or type(bundle["sourceVersion"]) is not int or bundle["sourceVersion"] != 1 or bundle["datasetManifestSha256"] != PRODUCTION_MANIFEST:
+        raise ValueError("UNEXPECTED_RECOVERED_CHECKPOINT_SOURCE")
+    raw = bundle["recoveryReceiptRaw"]
+    if not isinstance(raw,str) or len(raw)>32768 or digest(raw) != bundle["recoveryReceiptSha256"]:
+        raise ValueError("RECOVERY_RECEIPT_HASH_MISMATCH")
+    receipt = json.loads(raw)
+    keys = {"artifactKind","sourceNotebook","sourceVersion","checkpoint","sourceRelativePath","sourceReceiptSha256","sourceTrainingManifestSha256","sourceScriptSha256","complete","trainingSummaryFabricated","files","cancelRequested","globalStep","bestGlobalStep","selectedCheckpoint","bestValidationMetric","totalBytes"}
+    if not isinstance(receipt,dict) or set(receipt)!=keys or receipt["complete"] is not True or receipt["trainingSummaryFabricated"] is not False or receipt["artifactKind"]!="recovered-checkpoint":
+        raise ValueError("COMPLETE_EXPLICIT_RECOVERY_RECEIPT_REQUIRED")
+    if receipt["sourceNotebook"]!=PRODUCTION_SOURCE or type(receipt["sourceVersion"]) is not int or receipt["sourceVersion"]!=1 or receipt["checkpoint"]!="checkpoint-32" or receipt["selectedCheckpoint"]!="checkpoint-32" or type(receipt["globalStep"]) is not int or receipt["globalStep"]!=32 or type(receipt["bestGlobalStep"]) is not int or receipt["bestGlobalStep"]!=32 or type(receipt["cancelRequested"]) is not bool or receipt["sourceRelativePath"]!="scriptrush-specialist-v2/training/checkpoint-32/":
+        raise ValueError("RECOVERY_RECEIPT_SOURCE_OR_STEP_MISMATCH")
+    if receipt["sourceTrainingManifestSha256"]!=PRODUCTION_MANIFEST or receipt["sourceScriptSha256"]!=PRODUCTION_SCRIPT or not isinstance(receipt["bestValidationMetric"],(int,float)) or not math.isclose(receipt["bestValidationMetric"],RECOVERED_BEST_METRIC,rel_tol=0,abs_tol=1e-8):
+        raise ValueError("RECOVERY_RECEIPT_LINEAGE_OR_METRIC_MISMATCH")
+    sources = bundle["sourceFiles"]
+    final=bundle.get("mode")=="final-recovered-checkpoint"
+    source_keys={"productionManifestSha256","sourceScriptSha256","sourceSubmissionReceiptSha256"} | ({"testInputsSha256","productionInputsSha256"} if final else {"productionDevSha256"})
+    if not isinstance(sources,dict) or set(sources)!=source_keys or sources["productionManifestSha256"]!=PRODUCTION_FIXTURE_MANIFEST or sources["sourceScriptSha256"]!=PRODUCTION_SCRIPT or sources["sourceSubmissionReceiptSha256"]!=receipt["sourceReceiptSha256"] or not isinstance(receipt["sourceReceiptSha256"],str) or not re.fullmatch(r"[0-9a-f]{64}",receipt["sourceReceiptSha256"]):
+        raise ValueError("RECOVERY_SOURCE_FILES_MISMATCH")
+    if final and (sources["testInputsSha256"]!=RECOVERED_FINAL_UTILITY_SHA256 or sources["productionInputsSha256"]!=RECOVERED_FINAL_PRODUCTION_SHA256) or not final and sources["productionDevSha256"]!=PRODUCTION_DEV_FILE:
+        raise ValueError("RECOVERY_INPUT_FILE_HASH_MISMATCH")
+    files = receipt["files"]
+    if not isinstance(files,dict) or not {"trainer_state.json","adapter_config.json","adapter_model.safetensors"}<=set(files) or not set(files)<={"trainer_state.json","adapter_config.json","adapter_model.safetensors","README.md"}:
+        raise ValueError("RECOVERY_FILE_SET_MISMATCH")
+    for name,record in files.items():
+        if not isinstance(record,dict) or set(record)!={"sha256","bytes"} or not isinstance(record["sha256"],str) or not re.fullmatch(r"[0-9a-f]{64}",record["sha256"]) or type(record["bytes"]) is not int or not 1<=record["bytes"]<=200*1024*1024:
+            raise ValueError("INVALID_RECOVERY_FILE_HASH_OR_SIZE")
+    if type(receipt["totalBytes"]) is not int or receipt["totalBytes"]!=sum(record["bytes"] for record in files.values()) or receipt["totalBytes"]>200*1024*1024 or files["trainer_state.json"]["sha256"]!=bundle["trainerStateSha256"] or {name:record["sha256"] for name,record in files.items() if name!="trainer_state.json"}!=bundle["adapterSha256"]:
+        raise ValueError("RECOVERY_FILE_HASH_MAP_MISMATCH")
+    return receipt
+
+
+def find_recovered_checkpoint(root,bundle):
+    receipt = validate_recovery_bundle(bundle)
+    matches=[]
+    for config_path in Path(root).glob("**/training/checkpoint-32/adapter_config.json"):
+        directory=config_path.parent
+        if not all((directory/name).is_file() and (directory/name).stat().st_size==record["bytes"] and file_digest(directory/name)==record["sha256"] for name,record in receipt["files"].items()):
+            continue
+        state=json.loads((directory/"trainer_state.json").read_bytes())
+        config=json.loads(config_path.read_bytes())
+        evaluations=[entry for entry in state.get("log_history",[]) if isinstance(entry,dict) and entry.get("step")==32 and "eval_loss" in entry]
+        if state.get("global_step")!=32 or state.get("best_global_step")!=32 or state.get("best_metric")!=receipt["bestValidationMetric"] or len(evaluations)!=1 or not math.isclose(evaluations[0]["eval_loss"],receipt["bestValidationMetric"],rel_tol=0,abs_tol=1e-8) or not str(state.get("best_model_checkpoint","")).replace("\\","/").endswith("/checkpoint-32"):
+            continue
+        if config.get("base_model_name_or_path")!=MODEL or config.get("peft_type")!="LORA" or config.get("revision")!=REVISION:
+            continue
+        matches.append(directory)
+    if len(matches)!=1:
+        raise RuntimeError("EXACTLY_ONE_PINNED_RECOVERED_CHECKPOINT_REQUIRED")
+    return matches[0]
+
+
+def validate_checkpoint_dataset_transport(transport,bundle):
+    if not isinstance(transport,dict) or set(transport)!={"receiptRaw","receiptSha256"}:
+        raise ValueError("EXPLICIT_CHECKPOINT_DATASET_RECEIPT_REQUIRED")
+    raw=transport["receiptRaw"]
+    if not isinstance(raw,str) or len(raw)>32768 or digest(raw)!=transport["receiptSha256"]:
+        raise ValueError("CHECKPOINT_DATASET_RECEIPT_HASH_MISMATCH")
+    receipt=json.loads(raw)
+    keys={"artifactKind","private","uploadConfirmed","status","datasetRef","datasetVersion","sourceNotebook","sourceVersion","recoveryReceiptSha256","trainerStateSha256","files","datasetMetadataSha256","uploadResponseSha256"}
+    if not isinstance(receipt,dict) or set(receipt)!=keys or receipt["artifactKind"]!="private-checkpoint-transport" or receipt["private"] is not True or receipt["uploadConfirmed"] is not True or receipt["status"]!="READY":
+        raise ValueError("VERIFIED_PRIVATE_READY_CHECKPOINT_DATASET_REQUIRED")
+    if not isinstance(receipt["datasetRef"],str) or not re.fullmatch(r"sciptrush/scriptrush-v2-checkpoint-[0-9a-f]{8}",receipt["datasetRef"]) or type(receipt["datasetVersion"]) is not int or receipt["datasetVersion"]!=1:
+        raise ValueError("UNEXPECTED_CHECKPOINT_DATASET_ID_OR_VERSION")
+    if receipt["sourceNotebook"]!=PRODUCTION_SOURCE or type(receipt["sourceVersion"]) is not int or receipt["sourceVersion"]!=1 or receipt["recoveryReceiptSha256"]!=bundle["recoveryReceiptSha256"] or receipt["trainerStateSha256"]!=bundle["trainerStateSha256"]:
+        raise ValueError("CHECKPOINT_DATASET_SOURCE_LINEAGE_MISMATCH")
+    for name in ("datasetMetadataSha256","uploadResponseSha256"):
+        if not isinstance(receipt[name],str) or not re.fullmatch(r"[0-9a-f]{64}",receipt[name]):
+            raise ValueError("CHECKPOINT_DATASET_UPLOAD_PROOF_REQUIRED")
+    recovered=validate_recovery_bundle(bundle)
+    expected={"training/checkpoint-32/"+name:record for name,record in recovered["files"].items()}
+    if receipt["files"]!=expected:
+        raise ValueError("CHECKPOINT_DATASET_FILE_HASHES_MISMATCH")
+    return receipt
+
+
+def extract_checkpoint_dataset(root,bundle):
+    """Admit a dataset training.zip only if every byte matches recovered files."""
+    receipt=validate_checkpoint_dataset_transport(bundle["checkpointDatasetTransport"],bundle)
+    expected=receipt["files"]
+    target=OUT/"checkpoint-dataset-extracted"
+    # Some dataset mounts unpack training.zip and omit the outer training
+    # directory. Normalize only an exact, hash-verified checkpoint suffix.
+    bare=[]
+    for config in Path(root).rglob("checkpoint-32/adapter_config.json"):
+        directory=config.parent
+        if directory.parent.name=="training":continue
+        if all((directory/Path(relative).name).is_file() and (directory/Path(relative).name).stat().st_size==record["bytes"] and file_digest(directory/Path(relative).name)==record["sha256"] for relative,record in expected.items()):
+            bare.append(directory)
+    if len(bare)>1:
+        raise RuntimeError("AMBIGUOUS_HASH_PINNED_CHECKPOINT_DATASET")
+    if bare:
+        for relative,record in expected.items():
+            destination=target/relative
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            if destination.exists():
+                if file_digest(destination)!=record["sha256"]:raise RuntimeError("EXISTING_EXTRACTED_CHECKPOINT_CHANGED")
+                continue
+            with (bare[0]/Path(relative).name).open("rb") as source,destination.open("xb") as output:
+                for chunk in iter(lambda:source.read(1024*1024),b""):output.write(chunk)
+        return target
+    verified=[]
+    archives=list(Path(root).rglob("training.zip"))
+    if len(archives)>8:
+        raise RuntimeError("CHECKPOINT_DATASET_ARCHIVE_COUNT_EXCEEDED")
+    for archive in archives:
+        if archive.stat().st_size>200*1024*1024:continue
+        try:
+            with zipfile.ZipFile(archive) as zipped:
+                entries={}
+                for info in zipped.infolist():
+                    name=info.filename.replace("\\","/")
+                    if ((info.external_attr>>16)&0o170000)==0o120000:
+                        raise ValueError("CHECKPOINT_ARCHIVE_SYMLINK_FORBIDDEN")
+                    if info.is_dir():
+                        if name.rstrip("/") not in ("training","training/checkpoint-32","checkpoint-32"):
+                            raise ValueError("UNEXPECTED_CHECKPOINT_ARCHIVE_DIRECTORY")
+                        continue
+                    relative=name if name.startswith("training/") else "training/"+name
+                    if relative not in expected or relative in entries or info.file_size!=expected[relative]["bytes"] or info.flag_bits&1:
+                        raise ValueError("UNEXPECTED_CHECKPOINT_ARCHIVE_ENTRY")
+                    entries[relative]=info
+                if set(entries)!=set(expected):
+                    continue
+                valid=True
+                for relative,info in entries.items():
+                    hasher=hashlib.sha256();size=0
+                    with zipped.open(info) as handle:
+                        for chunk in iter(lambda:handle.read(1024*1024),b""):
+                            size+=len(chunk)
+                            if size>expected[relative]["bytes"]:
+                                raise ValueError("CHECKPOINT_ARCHIVE_SIZE_EXCEEDED")
+                            hasher.update(chunk)
+                    if size!=expected[relative]["bytes"] or hasher.hexdigest()!=expected[relative]["sha256"]:
+                        valid=False;break
+                if valid:verified.append(archive)
+        except (OSError,ValueError,zipfile.BadZipFile):
+            continue
+    if len(verified)!=1:
+        raise RuntimeError("ONE_EXACT_HASH_PINNED_CHECKPOINT_DATASET_ARCHIVE_REQUIRED")
+    with zipfile.ZipFile(verified[0]) as zipped:
+        for info in zipped.infolist():
+            if info.is_dir():continue
+            name=info.filename.replace("\\","/")
+            relative=name if name.startswith("training/") else "training/"+name
+            if relative not in expected or info.file_size!=expected[relative]["bytes"]:
+                raise RuntimeError("CHECKPOINT_ARCHIVE_CHANGED_AFTER_VERIFICATION")
+            destination=target/relative
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            if destination.exists():
+                if file_digest(destination)!=expected[relative]["sha256"]:
+                    raise RuntimeError("EXISTING_EXTRACTED_CHECKPOINT_CHANGED")
+                continue
+            # No extractall/path traversal; only the exact four admitted paths.
+            with zipped.open(info) as source,destination.open("xb") as output:
+                size=0
+                for chunk in iter(lambda:source.read(1024*1024),b""):
+                    size+=len(chunk)
+                    if size>expected[relative]["bytes"]:raise RuntimeError("CHECKPOINT_ARCHIVE_SIZE_EXCEEDED")
+                    output.write(chunk)
+            if file_digest(destination)!=expected[relative]["sha256"]:
+                raise RuntimeError("CHECKPOINT_ARCHIVE_CHANGED_AFTER_VERIFICATION")
+    return target
+
+
+def resolve_adapter(root,bundle):
+    if bundle.get("artifactKind")=="recovered-checkpoint":
+        if "checkpointDatasetTransport" in bundle:
+            validate_checkpoint_dataset_transport(bundle["checkpointDatasetTransport"],bundle)
+            try:return find_recovered_checkpoint(root,bundle)
+            except RuntimeError:pass
+            extracted=OUT/"checkpoint-dataset-extracted"
+            try:return find_recovered_checkpoint(extracted,bundle)
+            except RuntimeError:pass
+            return find_recovered_checkpoint(extract_checkpoint_dataset(root,bundle),bundle)
+        return find_recovered_checkpoint(root,bundle)
+    return find_adapter(root,bundle["adapterSha256"],bundle["adapterSummarySha256"],bundle["datasetManifestSha256"])
 
 
 def assignment(cases, worker, count):
@@ -174,7 +377,7 @@ def smoke_generation(model, tokenizer, torch, worker, count, mode):
     del inputs
     torch.cuda.empty_cache()
     (OUT / f"smoke-worker-{worker}.json").write_text(compact({"worker": worker, "passed": True, "autocast": "cuda-float16"}), encoding="utf-8")
-    if mode == "development-retry":
+    if mode in ("development-retry","production-development-retry","final-recovered-checkpoint"):
         # Both independent GPUs must clear their small diagnostic before either
         # spends time on a full developer case. No DDP/collective is constructed.
         deadline = time.monotonic() + 900
@@ -235,7 +438,7 @@ def worker_main(worker, count):
     from peft import PeftModel, prepare_model_for_kbit_training
     torch.cuda.set_device(worker)
     set_seed(SEED + worker)
-    adapter = find_adapter("/kaggle/input", bundle["adapterSha256"], bundle["adapterSummarySha256"], bundle["datasetManifestSha256"])
+    adapter = resolve_adapter("/kaggle/input",bundle)
     progress("load_model", worker, gpu=torch.cuda.get_device_name(worker), model=MODEL, revision=REVISION)
     tokenizer = AutoTokenizer.from_pretrained(MODEL, revision=REVISION, trust_remote_code=False)
     tokenizer.pad_token = tokenizer.eos_token
@@ -275,7 +478,10 @@ def worker_main(worker, count):
                 record = {"id": row["id"], "group": row["group"], "variant": variant, "origin": "model-inference", "model": MODEL,
                           "revision": REVISION, "quantization": "NF4-double-FP16", "worker": worker, "variantPosition": position,
                           "promptSha256": row["promptSha256"], "inputTokens": inputs.shape[1], "sourceNotebook": bundle["sourceNotebook"],
-                          "adapterManifestSha256": digest(compact(bundle["adapterSha256"])), "maxNewTokens": MAX_NEW_TOKENS, "maxTimeSeconds": MAX_SECONDS}
+                          "adapterManifestSha256": digest(compact(bundle["adapterSha256"])), "artifactKind":bundle.get("artifactKind","completed-training-adapter"),
+                          **({"sourceVersion":bundle["sourceVersion"],"trainerStateSha256":bundle["trainerStateSha256"],"recoveryReceiptSha256":bundle["recoveryReceiptSha256"]} if bundle.get("artifactKind")=="recovered-checkpoint" else {}),
+                          **({"checkpointDatasetReceiptSha256":bundle["checkpointDatasetTransport"]["receiptSha256"]} if "checkpointDatasetTransport" in bundle else {}),
+                          "maxNewTokens": MAX_NEW_TOKENS, "maxTimeSeconds": MAX_SECONDS}
                 torch.cuda.synchronize(worker)
                 before = time.perf_counter()
                 try:
@@ -311,6 +517,10 @@ def main():
     bundle = loaded_bundle()
     if bundle.get("mode") == "development-retry":
         OUT = Path("/kaggle/working/scriptrush-specialist-v2-dev-inference")
+    elif bundle.get("mode") == "production-development-retry":
+        OUT = Path("/kaggle/working/scriptrush-v2-production-dev-inference")
+    elif bundle.get("mode") == "final-recovered-checkpoint":
+        OUT = Path("/kaggle/working/scriptrush-v2-final-recovered-inference")
     if len(sys.argv) == 4 and sys.argv[1] == "--worker":
         worker_main(int(sys.argv[2]), int(sys.argv[3]))
         return
@@ -323,7 +533,7 @@ def main():
     if count < 1:
         raise RuntimeError("GPU_NOT_AVAILABLE")
     progress("verify_adapter", acceleratorCount=count)
-    find_adapter("/kaggle/input", bundle["adapterSha256"], bundle["adapterSummarySha256"], bundle["datasetManifestSha256"])
+    resolve_adapter("/kaggle/input",bundle)
     processes = [subprocess.Popen([sys.executable, __file__, "--worker", str(worker), str(count)]) for worker in range(count)]
     codes = [process.wait() for process in processes]
     records = []
@@ -337,7 +547,8 @@ def main():
     expected = {(row["id"], variant) for row in bundle["cases"] for variant in ("base", "specialist")}
     observed = {(row["id"], row["variant"]) for row in records}
     summary = {"model": MODEL, "revision": REVISION, "sourceNotebook": bundle["sourceNotebook"],
-               "adapterSha256": bundle["adapterSha256"], "adapterSummarySha256": bundle["adapterSummarySha256"],
+               "adapterSha256": bundle["adapterSha256"],
+               **({"artifactKind":"recovered-checkpoint","sourceVersion":bundle["sourceVersion"],"trainerStateSha256":bundle["trainerStateSha256"],"recoveryReceiptSha256":bundle["recoveryReceiptSha256"]} if bundle.get("artifactKind")=="recovered-checkpoint" else {"adapterSummarySha256":bundle["adapterSummarySha256"]}),
                "datasetManifestSha256": bundle["datasetManifestSha256"], "sourceFiles": bundle["sourceFiles"],
                "acceleratorCount": count, "parallelism": "Independent inference processes, one NF4 model per T4; no DDP",
                "cases": len(bundle["cases"]), "expectedOutputs": len(expected), "observedOutputs": len(records),
@@ -345,6 +556,7 @@ def main():
                "workerExitCodes": codes, "limits": bundle["limits"], "seed": SEED, "packages": DEPENDENCIES,
                "totalSeconds": round(time.perf_counter() - started, 3),
                "mode": bundle.get("mode", "final"),
+               **({"checkpointDatasetTransport":bundle["checkpointDatasetTransport"]} if "checkpointDatasetTransport" in bundle else {}),
                "scope": "Offline inference only; no training, labels, response repair, API keys or public Kaggle serving. max_time is checked between generation steps, not during an in-flight CUDA kernel."}
     (OUT / "inference-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     if any(codes) or observed != expected or len(records) != len(expected):

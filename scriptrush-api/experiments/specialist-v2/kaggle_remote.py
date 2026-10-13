@@ -16,6 +16,10 @@ RUN = WORK / "kaggle-run"
 STAGES = {"utility": ("kaggle-run", "kaggle-output", "kaggle-runtime.log"),
           "production": ("production-kaggle-run", "production-kaggle-output", "production-kaggle-runtime.log"),
           "dev-inference": ("dev-inference-run", "dev-inference-kaggle-output", "dev-inference-kaggle-runtime.log"),
+          "production-dev-inference": ("production-dev-inference-run", "production-dev-inference-kaggle-output", "production-dev-inference-kaggle-runtime.log"),
+          "production-dev-dataset-inference": ("production-dev-dataset-inference-run", "production-dev-dataset-inference-kaggle-output", "production-dev-dataset-inference-kaggle-runtime.log"),
+          "final-recovered-inference": ("final-recovered-inference-run", "final-recovered-inference-kaggle-output", "final-recovered-inference-kaggle-runtime.log"),
+          "pipeline-smoke": ("pipeline-smoke-run", "pipeline-smoke-kaggle-output", "pipeline-smoke-kaggle-runtime.log"),
           "inference": ("inference-run", "inference-kaggle-output", "inference-kaggle-runtime.log")}
 logging.disable(logging.CRITICAL)
 
@@ -75,7 +79,7 @@ def main(stage="utility"):
                             raise ValueError("Private kernel required")
                         metadata["id"] = f"{owner}/{metadata['id'].split('/')[-1]}"
                         metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-                        result = api.kernels_push(str(run), timeout="10800", acc="NvidiaTeslaT4").to_dict()
+                        result = api.kernels_push(str(run), timeout="900" if stage == "pipeline-smoke" else "10800", acc="NvidiaTeslaT4").to_dict()
                         # Kaggle may derive a new slug from the title. Use the
                         # returned identity for subsequent status/output calls.
                         if isinstance(result.get("ref"), str) and result["ref"].startswith("/code/"):

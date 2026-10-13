@@ -4,7 +4,7 @@ Private, reproducible model experiment. Nothing in this directory changes the
 production provider chain, deploys an endpoint or activates the candidate model.
 The current production generator remains the baseline to beat.
 
-Measured status at **2026-10-13 04:03 UTC** is recorded in [RESULTS.md](RESULTS.md).
+Measured status at **2026-10-13 04:14 UTC** is recorded in [RESULTS.md](RESULTS.md).
 The utility development comparison accepts 4/4 specialist hubs versus 0/4 base
 hubs; the base still passes 23/39 individual feature instances. The original
 production continuation ended in ERROR on a rank-1 NCCL ALLGATHER timeout after
@@ -12,9 +12,15 @@ step 32. Its exact checkpoint was recovered with verified raw hashes and 392
 finite tensors (40,370,176 parameters), without inventing a completed training
 summary. The corrected pipeline separately completed its diagnostic on two T4s.
 The first production DEV inference attempt failed before model loading because
-the errored source could not be mounted, producing zero quality outputs. A
-private dataset transfer of the recovered weights is being prepared, not yet
-uploaded, so inference can be retried without retraining. No production quality
+the errored source could not be mounted, producing zero quality outputs. The
+replacement dataset `sciptrush/scriptrush-v2-checkpoint-1188a68d` is now confirmed
+READY/private, with the expected owner and version 1. Its four remote files are
+listed directly under `checkpoint-32/`; mounted byte hashes still require worker
+verification. An empty SDK create status was resolved through read-only proof,
+without creating a duplicate dataset. After a preserved HTTP-400 rejection of a
+55-character notebook name, the shorter `sciptrush/scriptrush-v2-prod-dev-bba41b91`
+was accepted as version 1/kernel 138431883 at 04:13:57 UTC and has reached adapter
+verification. This retries inference without retraining; no production quality
 qualification, usable hosted GPU endpoint or model activation is established.
 
 ## Model and fitting
@@ -122,8 +128,9 @@ node --experimental-strip-types --test experiments/specialist-v2/production/api-
 These validate the experiment tools and reference fixtures. Only the separate
 measured generation report can say whether the trained model succeeds.
 The latest root rerun at 04:02 UTC passed 68 Node tests and TypeScript checking;
-the API helper passes 17 offline tests. The latest reported inference-helper set
-passes 42 tests, while additional transport-hardening checks remain in progress.
+the API helper passes 17 offline tests. The root inference-helper rerun at 04:16
+UTC passed 53 tests, and the checkpoint-dataset helper has six root-verified
+passing tests. Metadata length admission is included in the inference suite.
 These counts concern tooling and can overlap; they are not model acceptance rates.
 
 Credentials enter non-echoing TTY prompts, stay in process memory and are never
