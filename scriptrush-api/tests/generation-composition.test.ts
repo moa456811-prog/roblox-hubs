@@ -133,6 +133,17 @@ test("missing game evidence never blocks a full hub made only of standard client
   assert.equal(outcome.reason, ""); assert.equal(outcome.coverage?.features.length, 2);
 });
 
+test("a noninteractive UI text named Auto Farm is not mistaken for game automation", async () => {
+  const textPlan = { features: [{ id: "auto-farm", label: "Auto Farm", behavior: "Display the requested informational text only", availability: "supported", evidence: "Standard UI text", interaction: false }], ui: { instructions: "Text-only UI", requiredText: ["Auto Farm"] } };
+  const calls: string[] = [];
+  const outcome = await generateCompleteScript({ ...input, gameEvidence: missingEvidence, supportedFeatures: [] }, async system => {
+    calls.push(system);
+    return { content: system === PLANNER_SYSTEM ? JSON.stringify(textPlan) : '{"window":', model: "fixture", incomplete: false };
+  }, Date.now() + 285000);
+  assert.deepEqual(calls, [PLANNER_SYSTEM, HUB_COMPOSER_SYSTEM]);
+  assert.equal(outcome.reason, "MODEL_OUTPUT_INVALID", "only the deliberately invalid writer output is rejected; the text plan passes preflight");
+});
+
 test("malformed planner JSON or shape gets one full-context correction before composition and review", async () => {
   for (const malformed of ["not JSON", JSON.stringify({ features: plan.features, ui: { instructions: "wrong shape", requiredText: "Close" } })]) {
     let plans = 0;

@@ -19,7 +19,7 @@ Le pipeline garde son architecture et son interface. Les scripts générés rest
 
 ## Preuves
 
-- Tests API : **209 passent**, dont parseur, pipeline, dépenses/absence de nouvel appel, compilation Luau, conservation des exigences et contexte, fournisseurs/fallback et jeux déjà pris en charge.
+- Tests API : **210 passent**, dont parseur, pipeline, dépenses/absence de nouvel appel, compilation Luau, conservation des exigences et contexte, fournisseurs/fallback et jeux déjà pris en charge.
 - Tests frontend : **69 passent**, dont transport des trois diagnostics, absence de retry, conservation des requêtes/scripts et régressions de confidentialité du scanner.
 - Les deux builds Next et contrôles TypeScript sont vérifiés avant livraison. La CI Linux Node 22.19/24 exécute les mêmes tests et un compilateur officiel Luau 0.742 avec SHA-256 vérifié ; voir les checks de la PR pour son résultat.
 - La composition corrigée localement est égale à la composition originale, son rendu Luau reste identique octet par octet, et ce script complet compile réellement. Les callbacks Luau ne sont jamais exécutés par le parseur JSON.

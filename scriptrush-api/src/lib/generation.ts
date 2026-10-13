@@ -108,7 +108,7 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
     if (missingGameEvidence && outcome.contract.fullHub) {
       const identity = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
       const missing = new Set(context.gameEvidence!.missingFeatures.map(identity));
-      if (outcome.contract.features.some(feature => missing.has(identity(feature.id)) || missing.has(identity(feature.label)))) return stopForEvidence();
+      if (outcome.contract.features.some(feature => feature.interaction && (missing.has(identity(feature.id)) || missing.has(identity(feature.label))))) return stopForEvidence();
     }
     let requirements = `${SCRIPT_UI_LANGUAGE_POLICY}\n\nREQUIREMENTS:\n${JSON.stringify(outcome.contract)}\n\n${original}`;
     const complex = outcome.contract.fullHub || outcome.contract.features.length > 2 || context.currentScript.length > 16_000;
