@@ -1,0 +1,262 @@
+{
+  "origin": "user-supplied attachment",
+  "archive": "1-ScriptRush_Knowledge_Engine_V2_78_Libs.zip",
+  "archiveSha256": "d9d3653e0b22dab55e388709a528917a8e50ff531132f292bfd2668046f8b16a",
+  "thirdPartyLicensesNotInferred": true,
+  "runtimeCodeExecuted": false,
+  "excluded": "Regenerable candidate-only SQLite seed; production index is rebuilt from metadata.",
+  "files": [
+    {
+      "path": "sources.json",
+      "sha256": "b5263d0cd73f2d3a64086c173c2f93ad22e5b7e437d64702fb417b8e0749c3b9",
+      "bytes": 35840,
+      "vendored": true
+    },
+    {
+      "path": "README.md",
+      "sha256": "9cfeeeaebaaa6e4b207d2ad4e9730507365988cadb817bca13feff23018f1f7c",
+      "bytes": 7684,
+      "vendored": true
+    },
+    {
+      "path": "recipes.json",
+      "sha256": "c620568998f9acd8297f633190b6dfbdc710de66140228c251ecffac388a3ba0",
+      "bytes": 17015,
+      "vendored": true
+    },
+    {
+      "path": "PACK_MANIFEST.json",
+      "sha256": "7ea632c4926587813e30fd99ccb031b6b30a2cf6ae50273dc0180a3f1a9c219e",
+      "bytes": 540,
+      "vendored": true
+    },
+    {
+      "path": "knowledge_seed.sqlite",
+      "sha256": "798c3ca0423659d157f53c01ad7ed40a9ec1677043cc6e1d358dbb1f734f36fb",
+      "bytes": 159744,
+      "vendored": false
+    },
+    {
+      "path": "examples/QuestStateMachineExample.luau",
+      "sha256": "9721149324c4b5edcc6050d5edf01bdbc630733458176bdfb9dd1d2085621035",
+      "bytes": 1298,
+      "vendored": true
+    },
+    {
+      "path": "examples/ReadOnlyGameProbe.luau",
+      "sha256": "351210293890a2e25cdbbf0135ff611de476f8f7c802a2fd170eab669d41b889",
+      "bytes": 2011,
+      "vendored": true
+    },
+    {
+      "path": "profiles/demo.json",
+      "sha256": "5c0e0c23bfbcc29a0bc25d58bdbf56c013b0be39baf3e949af28e83c9532e4e0",
+      "bytes": 748,
+      "vendored": true
+    },
+    {
+      "path": "tests/test_engine.py",
+      "sha256": "af1e1026c307bf6804bf7b50006c3ae067c8f7c47506004f856e3599d360ef07",
+      "bytes": 4052,
+      "vendored": true
+    },
+    {
+      "path": "scripts/knowledge_engine.py",
+      "sha256": "b856a99f359418f615febc04d03d2a82309294103c2f08648eb43cb2d9850d44",
+      "bytes": 9673,
+      "vendored": true
+    },
+    {
+      "path": "scripts/check_generated.py",
+      "sha256": "e582c0117e0dc57970981bd4550afe0ff58d1d971e0b3638939cfedda835176f",
+      "bytes": 2962,
+      "vendored": true
+    },
+    {
+      "path": "scripts/test_pack.py",
+      "sha256": "f411928e1399a2de2d8a714ecac9af841badecfaebee4e5c4fc2370755a5bd17",
+      "bytes": 852,
+      "vendored": true
+    },
+    {
+      "path": "scripts/import_sources.py",
+      "sha256": "451843226b87d3703d25717c6e7e6d1dd39ea0ce98ad4a1fcbe882d66a26d552",
+      "bytes": 8450,
+      "vendored": true
+    },
+    {
+      "path": "scripts/search_knowledge.py",
+      "sha256": "df8bfaef8ca368a0f858ed1aa55fbc8dbaa8fdf6e033fd7e5ddf324728aadb94",
+      "bytes": 1669,
+      "vendored": true
+    },
+    {
+      "path": "scripts/game_discovery.py",
+      "sha256": "901c5275669f3b61b5486d791bb93d7c8019e1818e7d7ba0d0dd5923ad088886",
+      "bytes": 4901,
+      "vendored": true
+    },
+    {
+      "path": "scripts/public_game_examples.py",
+      "sha256": "d32dc737f742c908830ac1629da9afeedb5aeb0b95c6173415be58e76de09d8b",
+      "bytes": 3422,
+      "vendored": true
+    },
+    {
+      "path": "scripts/evaluate_retrieval.py",
+      "sha256": "b2fe237575730927d389a0c7c652148b81a77aa0ccb51e9265811ea80a050f8e",
+      "bytes": 1715,
+      "vendored": true
+    },
+    {
+      "path": "fixtures/retrieval_eval.json",
+      "sha256": "f7c4ad130b2ce24035b79de327560aef3b97d89bd2c7380b5f87a901b9670905",
+      "bytes": 1553,
+      "vendored": true
+    },
+    {
+      "path": "fixtures/retrieval_eval_report.json",
+      "sha256": "1e07c0333c31f39876c5156c7cefd61fe52268865ac57cb1a2e1e8e0e0782425",
+      "bytes": 4103,
+      "vendored": true
+    },
+    {
+      "path": "fixtures/demo_plan.json",
+      "sha256": "c7744dde90db14c7bc59eb9afa49cd9cb259ec8171d8dc3926a244424541d809",
+      "bytes": 9088,
+      "vendored": true
+    },
+    {
+      "path": "fixtures/public_game_mock.json",
+      "sha256": "a4c64d58d0a7dfd5a98dc01e7d577dfaaf9594cb077b33c95e109661993af131",
+      "bytes": 275,
+      "vendored": true
+    },
+    {
+      "path": "fixtures/example_unverified_request.json",
+      "sha256": "77ddea414da8150a24fedde06115ede82e1b0e8692195f5fc6efce4abb94f87a",
+      "bytes": 256,
+      "vendored": true
+    },
+    {
+      "path": "docs/VERIFICATION_LEVELS.md",
+      "sha256": "67f518eb7813bcdbefe7e04fc3c0e0ba6323a040161e1ae4655ba4e79382b1a1",
+      "bytes": 1829,
+      "vendored": true
+    },
+    {
+      "path": "docs/GENERATOR_CONTRACT.md",
+      "sha256": "8fc5e327055770c4bb6b3a6529a027f679c07c7d17c90a2bdfa04d3014891a8c",
+      "bytes": 2559,
+      "vendored": true
+    },
+    {
+      "path": "docs/GAME_LINK_WORKFLOW.md",
+      "sha256": "77ffee8cc5340b42dfe61c850f149493294b4abae79aada93202501e1dcaaa2a",
+      "bytes": 2567,
+      "vendored": true
+    },
+    {
+      "path": "docs/CODEX_IMPLEMENTATION_V2.md",
+      "sha256": "0d808341268b664e3f29ae66580b89bc9c44005f54a77858f3ab707fea5f0f20",
+      "bytes": 6801,
+      "vendored": true
+    },
+    {
+      "path": "docs/LOW_COST_ROADMAP.md",
+      "sha256": "fdc24c7d91dc6a3a0cde1dfa3441b735fe5a3efee4adaf4ea9a12bfe2ce2f80a",
+      "bytes": 934,
+      "vendored": true
+    },
+    {
+      "path": "docs/INSTRUCTIONS_POUR_CODEX.md",
+      "sha256": "cb492d1ef231cf43c40a7244b78030d41586e8e27359f45a357d18f89e057901",
+      "bytes": 2397,
+      "vendored": true
+    },
+    {
+      "path": "docs/archive_v1/EVAL_CASES.json",
+      "sha256": "f558862ab78ffbaf6190df13b1f8bdedd4ba541006c72f5c800abb2a2642a665",
+      "bytes": 1947,
+      "vendored": true
+    },
+    {
+      "path": "docs/archive_v1/CODEX_BRIEF.md",
+      "sha256": "f5bfa04282f4acec925919ada2c19c8120889f67dce4172dc08ac1b5bd56437d",
+      "bytes": 3104,
+      "vendored": true
+    },
+    {
+      "path": "docs/archive_v1/ARCHITECTURE.md",
+      "sha256": "8404c623f30278bb9fc14234b6aedfba3cc19fb98b2501d67a73621e847ac42a",
+      "bytes": 5369,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/README.md",
+      "sha256": "e575285b4f385b841af01140c664e3a94f64bcd1f43dbbcfe9d6dd19f35dfdb8",
+      "bytes": 1213,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/JanitorLite.luau",
+      "sha256": "885d7d12637cbb081bd95c255334d643390560bd0552df5c9a1e89c3c421bf64",
+      "bytes": 920,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/EventJournal.luau",
+      "sha256": "b1e032662fada3f4b0b63cf5d1f8f0e999555b3d9b34f52111a5b20dcdf8873f",
+      "bytes": 845,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/CharacterRebinder.luau",
+      "sha256": "fa5fff0443444519ec4c88a77a605a53324b460d7a76c3a62ae3f02d7a9c5e61",
+      "bytes": 897,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/BossObservation.luau",
+      "sha256": "512d96320d52b723ec8596017c4b88aa2dff85f10aa4b09e149f3859e9b54885",
+      "bytes": 699,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/CooldownGate.luau",
+      "sha256": "16d41567d2f8ed174a5be1f6d435fe663c0edfb25fd50e952dfd40b8144d1dbb",
+      "bytes": 695,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/BoundedRetry.luau",
+      "sha256": "872faf0204aa7f2f813a23c51d9ab94f0c3754b16e199ba388660b81f7e83d5c",
+      "bytes": 662,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/TargetSelector.luau",
+      "sha256": "5f65191da450aec49a446a1dd55c7c6b3c1f2d2c2b0edcca2fb87c25d05667a6",
+      "bytes": 522,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/FiniteState.luau",
+      "sha256": "5461893ffdf40a613f65ff9d2dd7f93d49c7fbb5bf843a800c58056883f802fe",
+      "bytes": 745,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/FixedBuffer.luau",
+      "sha256": "bfe876d407032c1077f01eaf85ae2699a7a0e9e2a0aaf44e5c1f274820ee6843",
+      "bytes": 713,
+      "vendored": true
+    },
+    {
+      "path": "examples/luau_patterns/ProofDelta.luau",
+      "sha256": "2aa471b6de4c924326e174517bf0838953abf71fc826a8d78a9e39edf1e6fd19",
+      "bytes": 609,
+      "vendored": true
+    }
+  ]
+}

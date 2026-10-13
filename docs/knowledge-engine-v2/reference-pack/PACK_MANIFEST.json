@@ -1,0 +1,15 @@
+{
+  "package": "ScriptRush Knowledge Engine V2",
+  "version": "2.0.0",
+  "created_utc": "2026-10-13T03:48:08+00:00",
+  "sources": 78,
+  "engineering_recipes": 36,
+  "luau_pattern_examples": 10,
+  "python_tests_passed": 10,
+  "retrieval_eval_cases_passed": 12,
+  "retrieval_eval_total": 12,
+  "files_are_not_deployed": true,
+  "game_mechanics_proven": false,
+  "live_roblox_functionality_tested": false,
+  "license_notice": "Source code from listed repositories is not included; optional importer checks license metadata before fetching."
+}

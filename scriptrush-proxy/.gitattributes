@@ -1,0 +1,2 @@
+# Scanner bytes are reviewed and hashed after LF transport normalization.
+tests/fixtures/live-scanner-v2.lua text eol=lf

@@ -1,0 +1,77 @@
+{
+  "observedAt": "2026-10-13T06:57:33.409Z",
+  "method": "Codex in-app browser, actual local Next servers and public Roblox endpoints",
+  "origin": "http://localhost:3100/create",
+  "localApiOrigin": "http://127.0.0.1:3101",
+  "flow": [
+    "Existing Create form observed before opt-in",
+    "Optional V2 enabled",
+    "Game URL + feature request submitted with zero uploaded files and model consent unchecked",
+    "Public identity and versioned source provenance rendered",
+    "Reload restored game, request, plan and saved job",
+    "Resume stopped before model generation without consent"
+  ],
+  "stage": "generation",
+  "status": "queued",
+  "inputFileCount": 0,
+  "modelAttempts": 0,
+  "progress": [
+    {
+      "stage": "discovery",
+      "status": "passed",
+      "attempts": 1,
+      "startedAt": "2026-10-13T06:53:57.648Z",
+      "finishedAt": "2026-10-13T06:53:58.045Z"
+    },
+    {
+      "stage": "retrieval",
+      "status": "passed",
+      "attempts": 1,
+      "startedAt": "2026-10-13T06:53:58.105Z",
+      "finishedAt": "2026-10-13T06:53:58.117Z"
+    },
+    {
+      "stage": "planning",
+      "status": "passed",
+      "attempts": 1,
+      "startedAt": "2026-10-13T06:53:58.172Z",
+      "finishedAt": "2026-10-13T06:53:58.187Z"
+    },
+    {
+      "stage": "generation",
+      "status": "pending",
+      "attempts": 0
+    },
+    {
+      "stage": "validation",
+      "status": "pending",
+      "attempts": 0
+    },
+    {
+      "stage": "ready",
+      "status": "pending",
+      "attempts": 0
+    }
+  ],
+  "verification": {
+    "compilation": {
+      "status": "not_checked",
+      "executed": false
+    },
+    "mockTests": {
+      "status": "not_run",
+      "executed": false
+    },
+    "inGameTests": {
+      "status": "not_run",
+      "executed": false
+    },
+    "runtimeCompatibility": "unknown",
+    "issues": []
+  },
+  "sourceVersion": "knowledge-v2-4a8d97a38b0bbe6822d27c03",
+  "limitations": [
+    "Browser check stops at saved evidence plan; full artifact generation is separately verified with the authored offline writer fixture.",
+    "Original production user history was not opened or modified; preservation is covered by storage regression tests."
+  ]
+}

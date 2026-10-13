@@ -1,0 +1,243 @@
+{
+  "engine_version": "2.0",
+  "timestamp_utc": "2026-10-13T03:41:41+00:00",
+  "game_file_required": false,
+  "request": "auto farm quest boss",
+  "role": "executor_client",
+  "game_identity": {
+    "name": "Fictional Quest Demo (fixture)",
+    "place_id": "123456",
+    "source": "offline_fixture_not_verified",
+    "mechanics_proven_by_identity": false
+  },
+  "topics": [
+    "quests",
+    "boss"
+  ],
+  "knowledge_references": [
+    {
+      "name": "Raycast Hitbox",
+      "repo": "Swordphin/raycastHitboxRbxl",
+      "environment": "project_both",
+      "kind": "library",
+      "category": "gameplay",
+      "priority": 1,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -9.530978111481058,
+      "weight": 5,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "FastCast2",
+      "repo": "weenachuangkud/FastCast2",
+      "environment": "project_both",
+      "kind": "library",
+      "category": "gameplay",
+      "priority": 1,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -4.028381502232542,
+      "weight": 5,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "Replica",
+      "repo": "MadStudioRoblox/Replica",
+      "environment": "project_both",
+      "kind": "library",
+      "category": "network",
+      "priority": 1,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -2.1016474304475437,
+      "weight": 5,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "Charm",
+      "repo": "littensy/charm",
+      "environment": "project_both",
+      "kind": "library",
+      "category": "architecture",
+      "priority": 1,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -2.0663366148768634,
+      "weight": 5,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "Reflex",
+      "repo": "littensy/reflex",
+      "environment": "project_both",
+      "kind": "library",
+      "category": "architecture",
+      "priority": 2,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -2.1760176540675746,
+      "weight": 4,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "Fishing minigame example",
+      "repo": "littensy/fishing-minigame",
+      "environment": "project_both",
+      "kind": "example",
+      "category": "gameplay",
+      "priority": 2,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -1.8771073714568225,
+      "weight": 4,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "Charm game example",
+      "repo": "littensy/charm-example",
+      "environment": "project_both",
+      "kind": "example",
+      "category": "gameplay",
+      "priority": 2,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -1.8771073714568225,
+      "weight": 4,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    },
+    {
+      "name": "ReplicaService",
+      "repo": "MadStudioRoblox/ReplicaService",
+      "environment": "project_both",
+      "kind": "library",
+      "category": "network",
+      "priority": 3,
+      "license": null,
+      "import_status": "catalog_only",
+      "path": "_catalog.txt",
+      "bm": -2.0321927418036223,
+      "weight": 3,
+      "code_imported": false,
+      "usable_in_script_without_server_access": false,
+      "compatibility_warning": "A full game/framework library is not automatically callable from a client executor"
+    }
+  ],
+  "engineering_recipes": [
+    {
+      "id": "quest_state_machine",
+      "title": "Quête : machine à états",
+      "topic": "quests",
+      "environment": "project_client",
+      "expected_observable_success": "accepted quest flag / observed objective progress",
+      "common_failure_modes": "duplicate requests; missing target; reconnect; death",
+      "do_not_assume": "Never assume the quest remote name or acceptance result",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code"
+    },
+    {
+      "id": "quest_progress_delta",
+      "title": "Quête : preuve de progression",
+      "topic": "quests",
+      "environment": "project_client",
+      "expected_observable_success": "objective count increases after a valid action",
+      "common_failure_modes": "quest UI desync; quest cancel; server rollback",
+      "do_not_assume": "UI text alone may be stale",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code"
+    },
+    {
+      "id": "boss_spawn_detection",
+      "title": "Boss : apparition et disparition",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "boss instance appears with confirmed identity",
+      "common_failure_modes": "absent boss; duplicate names; streamed-out NPC",
+      "do_not_assume": "Do not assume all NPCs are replicated",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code"
+    },
+    {
+      "id": "boss_respawn_timer",
+      "title": "Boss : timer de réapparition",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "observed death and later respawn, measured delay",
+      "common_failure_modes": "timer drift; server restart; missing spawn",
+      "do_not_assume": "Do not invent exact respawn delay",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code"
+    },
+    {
+      "id": "boss_loot_confirmation",
+      "title": "Boss : attendre le butin",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "inventory delta / reward UI / stable loot state",
+      "common_failure_modes": "early boss switching; delayed replication",
+      "do_not_assume": "Do not declare loot picked without observable state",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code"
+    },
+    {
+      "id": "boss_target_selection",
+      "title": "Boss : sélection des cibles",
+      "topic": "boss",
+      "environment": "project_client",
+      "expected_observable_success": "chosen target is alive and eligible",
+      "common_failure_modes": "unspawned targets; stale references",
+      "do_not_assume": "Client does not dictate server NPC behavior",
+      "requires_evidence": true,
+      "type": "design_recipe_not_game_specific_code"
+    }
+  ],
+  "evidence_levels": {
+    "public_metadata": "game title/description only",
+    "library_pattern": "generic reusable implementation, not game-specific",
+    "runtime_observation": "when explicitly provided and attributable",
+    "game_verified": "requires successful in-game test"
+  },
+  "mechanics_verified": [],
+  "unknowns": [
+    "Game-specific remotes",
+    "Which mechanics are available client-side",
+    "Server-side validation rules",
+    "Game-specific expected success/failure signals"
+  ],
+  "generation_policy": "Use validated public data and available sources. Never fabricate game APIs. If a mechanism is unknown, generate a parameterized adapter with clear TODOs or explain what cannot be proven; do not claim the script is fully functional.",
+  "validation_required": [
+    "syntax_and_typecheck_if_available",
+    "smoke_test_or_mocks",
+    "in_game_feedback_for_real_functionality"
+  ],
+  "can_claim_100_percent_functionality": false,
+  "status": "GAME_RUNTIME_NOT_TESTED",
+  "diagnostic_notes": [
+    "Public metadata and code libraries do not reveal private server-side APIs.",
+    "A remotes name, damage rule or quest system must NOT be invented.",
+    "A library example does not prove it works in this specific game.",
+    "A generated script is NOT game-verified until a runtime test produces observable evidence.",
+    "Do not assume server ownership or permissions unavailable to a client."
+  ]
+}

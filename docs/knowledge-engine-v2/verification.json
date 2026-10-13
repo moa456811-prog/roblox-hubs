@@ -1,0 +1,44 @@
+{
+  "measuredAt": "2026-10-13T07:02:00.474339+00:00",
+  "environment": {
+    "os": "Windows",
+    "node": "v24.19.0",
+    "luau": "0.742"
+  },
+  "local": [
+    {
+      "application": "scriptrush-api",
+      "tests": 268,
+      "passed": 268,
+      "failed": 0,
+      "skipped": 0,
+      "typecheck": "passed",
+      "build": "passed",
+      "testLogSha256": "82350a4d0f30ccde0fccf7604b4ec321a12af94dc8524aff82692f716fc34a5d",
+      "buildLogSha256": "a81d680fba4d623e210117142ca4336c0363ee6d65b44ff9fd1761118785a2ea"
+    },
+    {
+      "application": "scriptrush-proxy",
+      "tests": 85,
+      "passed": 85,
+      "failed": 0,
+      "skipped": 0,
+      "typecheck": "passed",
+      "build": "passed",
+      "testLogSha256": "846c6c3e8aa97d890d2f98d7defb9e30e944f2cb8a6533b3b7c67714e1d672e1",
+      "buildLogSha256": "ea4befa22c3014299205e2dc5aa1e8a3f4089a0b981356c6de51daccae15ad69"
+    }
+  ],
+  "totalPassed": 353,
+  "baseApiPassed": 194,
+  "remoteCi": "see pull request checks; pending at report creation",
+  "gameObservation": {
+    "executed": false,
+    "compatibility": "unknown"
+  },
+  "modelProviderRequestsForV2Validation": 0,
+  "limitations": [
+    "Local logs are ignored; their hashes and summaries are versioned here.",
+    "No actual AI model quality, production storage or live game validation was measured."
+  ]
+}

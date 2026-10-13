@@ -1,0 +1,181 @@
+{
+  "passed": 12,
+  "total": 12,
+  "hit_at_k": 1.0,
+  "game_functionality_tested": false,
+  "cases": [
+    {
+      "request": "NPC pathfinding waypoint",
+      "pass": true,
+      "selected": [
+        "ahmicy/simplepath",
+        "DanCodesRBX/agentpath"
+      ],
+      "expected_any": [
+        "ahmicy/simplepath",
+        "DanCodesRBX/agentpath"
+      ]
+    },
+    {
+      "request": "Optimiser serialization network packets",
+      "pass": true,
+      "selected": [
+        "ffrostfall/ByteNet",
+        "1Axen/Blink",
+        "MadStudioRoblox/Sera",
+        "rbxts-flamework/networking",
+        "red-blox/Red"
+      ],
+      "expected_any": [
+        "ffrostfall/ByteNet",
+        "1Axen/Blink"
+      ]
+    },
+    {
+      "request": "UI mobile reactive components",
+      "pass": true,
+      "selected": [
+        "centau/vide",
+        "dphfox/Fusion",
+        "sinlerdev/Magma",
+        "littensy/charm",
+        "littensy/charm-example"
+      ],
+      "expected_any": [
+        "dphfox/Fusion",
+        "centau/vide"
+      ]
+    },
+    {
+      "request": "Sauvegarder profils inventaire datastore",
+      "pass": true,
+      "selected": [
+        "MadStudioRoblox/Replica",
+        "MadStudioRoblox/ProfileStore",
+        "evaera/Cmdr",
+        "jsdotlua/jest-lua",
+        "MadStudioRoblox/ReplicaService"
+      ],
+      "expected_any": [
+        "MadStudioRoblox/ProfileStore",
+        "MadStudioRoblox/ProfileService"
+      ]
+    },
+    {
+      "request": "rbxl parser binary",
+      "pass": true,
+      "selected": [
+        "rojo-rbx/rbx-dom",
+        "1Axen/Blink",
+        "rojo-rbx/rojo",
+        "luau-lang/luau",
+        "red-blox/zap"
+      ],
+      "expected_any": [
+        "rojo-rbx/rbx-dom"
+      ]
+    },
+    {
+      "request": "Luau unit test testing",
+      "pass": true,
+      "selected": [
+        "Roblox/jest-roblox",
+        "Roblox/testez",
+        "l3dotdev/EzSpec",
+        "jsdotlua/jest-lua",
+        "Data-Oriented-House/LemonSignal"
+      ],
+      "expected_any": [
+        "Roblox/testez",
+        "l3dotdev/EzSpec",
+        "jsdotlua/jest-lua"
+      ]
+    },
+    {
+      "request": "Code formatting Luau",
+      "pass": true,
+      "selected": [
+        "JohnnyMorganz/StyLua",
+        "JohnnyMorganz/luau-lsp",
+        "luau-lang/luau",
+        "tree-sitter-grammars/tree-sitter-luau",
+        "Roblox/react-luau"
+      ],
+      "expected_any": [
+        "JohnnyMorganz/StyLua"
+      ]
+    },
+    {
+      "request": "Signal events Luau",
+      "pass": true,
+      "selected": [
+        "Data-Oriented-House/LemonSignal",
+        "stravant/goodsignal",
+        "seaofvoices/luau-signal",
+        "overworded/Luau-Signal",
+        "Sleitnick/RbxUtil"
+      ],
+      "expected_any": [
+        "Data-Oriented-House/LemonSignal",
+        "stravant/goodsignal"
+      ]
+    },
+    {
+      "request": "React UI",
+      "pass": true,
+      "selected": [
+        "Roblox/react-luau",
+        "dphfox/Fusion",
+        "centau/vide",
+        "sinlerdev/Magma",
+        "Roblox/roact"
+      ],
+      "expected_any": [
+        "Roblox/react-luau"
+      ]
+    },
+    {
+      "request": "Roblox studio build source sync",
+      "pass": true,
+      "selected": [
+        "rojo-rbx/rojo",
+        "MadStudioRoblox/Replica",
+        "evaera/roblox-lua-promise",
+        "MadStudioRoblox/Sera",
+        "rbxts-flamework/core"
+      ],
+      "expected_any": [
+        "rojo-rbx/rojo"
+      ]
+    },
+    {
+      "request": "Roblox physics character prediction networking",
+      "pass": true,
+      "selected": [
+        "easy-games/chickynoid",
+        "ffrostfall/ByteNet",
+        "1Axen/Blink",
+        "rbxts-flamework/networking",
+        "red-blox/Red"
+      ],
+      "expected_any": [
+        "easy-games/chickynoid"
+      ]
+    },
+    {
+      "request": "Roblox admin commands framework",
+      "pass": true,
+      "selected": [
+        "l3dotdev/EzSpec",
+        "evaera/Cmdr",
+        "rbxts-flamework/core",
+        "paradoxuum/centurion",
+        "Roblox/testez"
+      ],
+      "expected_any": [
+        "evaera/Cmdr",
+        "paradoxuum/centurion"
+      ]
+    }
+  ]
+}
