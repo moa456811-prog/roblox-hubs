@@ -77,6 +77,73 @@ def mounted_adapter(config, model, revision):
     return matches[0]
 
 
+def checkpoint_safe_trainer(trainer_type):
+    """Synchronize the pinned Trainer's rank-local best-checkpoint discovery.
+
+    Transformers 4.51.3 calls _save_checkpoint on every rank. Its rank-zero-only
+    save can race another rank's exists() check, leaving that rank with no best
+    checkpoint and therefore skipping the conditional end-of-training barrier.
+    Keep the original save/rotation and validated best_global_step selection;
+    all ranks synchronize before reconstructing the same saved adapter path.
+    """
+    class CheckpointSafeTrainer(trainer_type):
+        def _save_checkpoint(self, model, trial):
+            super()._save_checkpoint(model, trial)
+            self.accelerator.wait_for_everyone()
+            best_step = self.state.best_global_step
+            if best_step is None:
+                if self.state.best_metric is not None:
+                    raise RuntimeError("VALIDATED_BEST_CHECKPOINT_STEP_MISSING")
+                return
+            if type(best_step) is not int or not 1 <= best_step <= self.state.global_step:
+                raise RuntimeError("INVALID_VALIDATED_BEST_CHECKPOINT_STEP")
+            best_path = Path(self._get_output_dir(trial=trial)) / f"checkpoint-{best_step}"
+            if (not best_path.is_dir() or not (best_path / "adapter_config.json").is_file()
+                    or not any((best_path / name).is_file() for name in ("adapter_model.safetensors", "adapter_model.bin"))):
+                raise RuntimeError("SHARED_VALIDATED_ADAPTER_CHECKPOINT_MISSING")
+            self.state.best_model_checkpoint = str(best_path)
+
+    return CheckpointSafeTrainer
+
+
+def write_json_atomic(path, value):
+    """Keep a complete previous receipt if serialization or replacement fails."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    try:
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(value, handle, indent=2, allow_nan=False)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def persist_fit_summary(output_directory, summary):
+    """Commit fitting proof before optional autoregressive development work."""
+    value = {**summary, "fitStatus": "complete",
+             "developmentStatus": "skipped" if summary.get("developmentSkipped", False) else "pending"}
+    output_directory = Path(output_directory)
+    # The separate fit receipt remains immutable when the DEV summary changes.
+    write_json_atomic(output_directory / "fit-summary.json", value)
+    write_json_atomic(output_directory / "training-summary.json", value)
+    return value
+
+
+def development_policy(config):
+    """Only an explicitly diagnostic pipeline smoke may omit the DEV outputs."""
+    skip = config.get("skipDevelopment", False)
+    if not isinstance(skip, bool):
+        raise RuntimeError("INVALID_SKIP_DEVELOPMENT_FLAG")
+    if skip and config.get("runPurpose") != "pipeline-smoke":
+        raise RuntimeError("DEVELOPMENT_SKIP_REQUIRES_DIAGNOSTIC_PIPELINE_SMOKE")
+    return skip
+
+
 def checkpoint(phase, **fields):
     if int(os.environ.get("RANK", "0")) != 0:
         return
@@ -122,6 +189,7 @@ def main():
     random.seed(SEED)
     bundle = json.loads(zlib.decompress(base64.b64decode(SCRIPTRUSH_DATA_BUNDLE)))
     config = bundle.get("run", {})
+    skip_development = development_policy(config)
     steps = int(config.get("steps", STEPS))
     max_context = int(config.get("maxContext", MAX_CONTEXT))
     assistant_logits_only = config.get("assistantLogitsOnly", False)
@@ -234,7 +302,7 @@ def main():
         greater_is_better=False, report_to=[], optim="adamw_torch", seed=SEED, data_seed=SEED,
         remove_unused_columns=False, dataloader_num_workers=0, disable_tqdm=True,
         per_device_eval_batch_size=1, label_names=["labels"], ddp_find_unused_parameters=False, prediction_loss_only=True)
-    trainer = Trainer(model=model, args=args, train_dataset=Rows(train_rows), eval_dataset=Rows(val_rows[:8]), data_collator=collate)
+    trainer = checkpoint_safe_trainer(Trainer)(model=model, args=args, train_dataset=Rows(train_rows), eval_dataset=Rows(val_rows[:8]), data_collator=collate)
     trainer.model_accepts_loss_kwargs = False
     before_training = time.perf_counter()
     result = trainer.train()
@@ -246,6 +314,32 @@ def main():
     model.forward = original_forward
     model.save_pretrained(OUT / "adapter", safe_serialization=True)
     tokenizer.save_pretrained(OUT / "tokenizer")
+    summary = {"model": MODEL, "revision": REVISION, "method": "QLoRA-NF4", "seed": SEED, "steps": steps,
+        "maxContext": max_context, "assistantLogitsOnly": assistant_logits_only, "learningRate": learning_rate,
+        "evaluationSteps": evaluation_steps,
+        "initialAdapterSha256": config.get("initialAdapterSha256"),
+        "initialSummarySha256": config.get("initialSummarySha256"), "initialManifestSha256": config.get("initialManifestSha256"),
+        "gradientAccumulationPerDevice": 4 // world_size, "acceleratorCount": world_size, "effectiveBatchSize": 4,
+        "trainableParameters": trainable, "trainExamples": len(train_rows),
+        "trainEpochs": steps * 4 / len(train_rows), "trainOversizeSkipped": train_skipped,
+        "validationExamples": min(8, len(val_rows)), "validationLoss": validation.get("eval_loss"),
+        "bestValidationLoss": trainer.state.best_metric, "selectedCheckpoint": trainer.state.best_model_checkpoint,
+        "trainingSeconds": round(training_seconds, 2), "trainingLoss": result.training_loss,
+        "loss": "Shifted assistant-only token CE, chunked before float32 upcast; per-example mean with gradient accumulation",
+        "developmentIds": [row["id"] for row in bundle["dev"]], "maxNewTokens": MAX_NEW_TOKENS,
+        "datasetManifestSha256": bundle["manifestSha256"],
+        "adapterSha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (OUT / "adapter").iterdir() if path.is_file()},
+        "scriptSha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "developmentSkipped": skip_development, "diagnosticOnly": config.get("runPurpose") == "pipeline-smoke",
+        "runPurpose": config.get("runPurpose", "development-training"),
+        "totalSeconds": round(time.perf_counter() - start, 2), "gpu": torch.cuda.get_device_name(0),
+        "peakMemoryGb": round(torch.cuda.max_memory_allocated() / 2**30, 3), "torch": torch.__version__, "packages": dependencies,
+        "scope": "Development only; final held-out test remains local; no public serving from Kaggle."}
+    summary = persist_fit_summary(OUT, summary)
+    checkpoint("fit_complete", **summary)
+    if skip_development:
+        checkpoint("complete", **summary)
+        return
     model.gradient_checkpointing_disable()
     model.config.use_cache = True
     model.eval()
@@ -274,25 +368,9 @@ def main():
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
                 handle.flush()
                 checkpoint("development_comparison", case=index + 1, variant=variant, outputTokens=record.get("outputTokens", 0))
-    summary = {"model": MODEL, "revision": REVISION, "method": "QLoRA-NF4", "seed": SEED, "steps": steps,
-        "maxContext": max_context, "assistantLogitsOnly": assistant_logits_only, "learningRate": learning_rate,
-        "evaluationSteps": evaluation_steps,
-        "initialAdapterSha256": config.get("initialAdapterSha256"),
-        "initialSummarySha256": config.get("initialSummarySha256"), "initialManifestSha256": config.get("initialManifestSha256"),
-        "gradientAccumulationPerDevice": 4 // world_size, "acceleratorCount": world_size, "effectiveBatchSize": 4,
-        "trainableParameters": trainable, "trainExamples": len(train_rows),
-        "trainEpochs": steps * 4 / len(train_rows), "trainOversizeSkipped": train_skipped,
-        "validationExamples": min(8, len(val_rows)), "validationLoss": validation.get("eval_loss"),
-        "bestValidationLoss": trainer.state.best_metric, "selectedCheckpoint": trainer.state.best_model_checkpoint,
-        "trainingSeconds": round(training_seconds, 2), "trainingLoss": result.training_loss,
-        "loss": "Shifted assistant-only token CE, chunked before float32 upcast; per-example mean with gradient accumulation",
-        "developmentIds": [row["id"] for row in bundle["dev"]], "maxNewTokens": MAX_NEW_TOKENS,
-        "datasetManifestSha256": bundle["manifestSha256"],
-        "adapterSha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (OUT / "adapter").iterdir() if path.is_file()},
-        "totalSeconds": round(time.perf_counter() - start, 2), "gpu": torch.cuda.get_device_name(0),
-        "peakMemoryGb": round(torch.cuda.max_memory_allocated() / 2**30, 3), "torch": torch.__version__, "packages": dependencies,
-        "scope": "Development only; final held-out test remains local; no public serving from Kaggle."}
-    (OUT / "training-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    summary.update(developmentStatus="complete", totalSeconds=round(time.perf_counter() - start, 2),
+                   peakMemoryGb=round(torch.cuda.max_memory_allocated() / 2**30, 3))
+    write_json_atomic(OUT / "training-summary.json", summary)
     checkpoint("complete", **summary)
 
 

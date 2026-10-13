@@ -4,6 +4,19 @@ Private, reproducible model experiment. Nothing in this directory changes the
 production provider chain, deploys an endpoint or activates the candidate model.
 The current production generator remains the baseline to beat.
 
+Measured status at **2026-10-13 04:03 UTC** is recorded in [RESULTS.md](RESULTS.md).
+The utility development comparison accepts 4/4 specialist hubs versus 0/4 base
+hubs; the base still passes 23/39 individual feature instances. The original
+production continuation ended in ERROR on a rank-1 NCCL ALLGATHER timeout after
+step 32. Its exact checkpoint was recovered with verified raw hashes and 392
+finite tensors (40,370,176 parameters), without inventing a completed training
+summary. The corrected pipeline separately completed its diagnostic on two T4s.
+The first production DEV inference attempt failed before model loading because
+the errored source could not be mounted, producing zero quality outputs. A
+private dataset transfer of the recovered weights is being prepared, not yet
+uploaded, so inference can be retried without retraining. No production quality
+qualification, usable hosted GPU endpoint or model activation is established.
+
 ## Model and fitting
 
 The candidate is `Qwen/Qwen2.5-Coder-7B-Instruct`, revision
@@ -63,7 +76,13 @@ loss and gradients. The original utility submission remains frozen.
    final production cases; its results can never qualify a production model.
 6. Compare the same inputs with the actual APInex baseline using
    [api_benchmark.py](api_benchmark.py). Quota exhaustion stops this comparison;
-   missing or failed API outputs do not establish superiority.
+   missing or failed API outputs do not establish superiority. Utility inputs
+   retain the controlled 4,096-token/temperature-0/240-second settings. Production
+   API inputs use the actual site writer's 14,000-token cap, temperature 0.1 and
+   120-second timeout, verified by an offline captured-parameter sidecar linked
+   to the frozen prompts and twelve source hashes. No API request has been made.
+   The candidate retains 4,096 tokens, greedy decoding and 240 seconds; production
+   timing and decoding budgets are therefore not controlled across variants.
 7. Activate only after complete final acceptance, a strictly better measured
    result than the production API, production-prompt compatibility and an
    authorized usable inference endpoint. The experiment does not authorize
@@ -96,17 +115,23 @@ From `scriptrush-api`:
 node --experimental-strip-types --test experiments/specialist-v2/dataset/build-dataset.test.ts experiments/specialist-v2/evaluation.test.ts experiments/specialist-v2/runtime/runtime.test.ts
 python experiments/specialist-v2/test_masked_loss.py
 python experiments/specialist-v2/api_benchmark.py --self-test
+node --experimental-strip-types experiments/specialist-v2/production/capture-api-parameters.ts
+node --experimental-strip-types --test experiments/specialist-v2/production/api-parameters.test.ts
 ```
 
 These validate the experiment tools and reference fixtures. Only the separate
 measured generation report can say whether the trained model succeeds.
+The latest root rerun at 04:02 UTC passed 68 Node tests and TypeScript checking;
+the API helper passes 17 offline tests. The latest reported inference-helper set
+passes 42 tests, while additional transport-hardening checks remain in progress.
+These counts concern tooling and can overlap; they are not model acceptance rates.
 
 Credentials enter non-echoing TTY prompts, stay in process memory and are never
 included in notebook code, datasets, receipts, logs or repository files. Weights,
 raw generations and downloaded evidence stay under ignored
 `test-results/specialist-v2/`. `experiments` is excluded from Vercel deployments.
 Generated production teaching/benchmark artifacts are also ignored locally.
-The Kaggle control and log helpers accept `--stage utility|production|dev-inference|inference`,
+The Kaggle control and log helpers accept `--stage utility|production|dev-inference|pipeline-smoke|inference`,
 with separate fixed input/output folders for each job. Use Python `-X utf8` on
 Windows when retrieving SDK logs.
 
@@ -118,6 +143,14 @@ works. A two-token generation smoke test now runs before fitting. A private
 adapter without repeating training or exposing any final test inputs. Generated
 files use explicit LF newlines so manifest hashes match their actual bytes on
 Windows as well as Linux.
+
+Future training saves synchronize all ranks before resolving the best validated
+adapter checkpoint. The fitting receipt is written atomically before development
+generation, so a later generation failure does not erase fitting evidence.
+`skipDevelopment:true` is accepted only with `runPurpose:"pipeline-smoke"`; such
+an output is explicitly diagnostic and cannot qualify a model for activation.
+The [checkpoint recovery probe](inference/README-checkpoint-recovery.md) retains
+actual checkpoint provenance without inventing a completed fitting summary.
 
 ## Primary references
 

@@ -23,10 +23,14 @@ MODEL = "free/gpt-6-luna"
 MANIFEST_SHA256 = "73dab1baacae753eb01c1b6dd41033b0bc84d3220f54c7b8cca213e581cef053"
 MAX_TOKENS = 4096
 TIMEOUT_SECONDS = 240
+PRODUCTION_MAX_TOKENS = 14000
+PRODUCTION_TIMEOUT_SECONDS = 120
+PRODUCTION_TEMPERATURE = 0.1
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 CASE_COUNTS = {"dev": 4, "test": 12, "production": 8}
 PRODUCTION = HERE / "production" / "artifacts"
 SOURCE_ROOT = HERE.parents[1] / "src" / "lib"
+PRODUCTION_PARAMETERS = WORK / "production-api-parameters.json"
 PRODUCTION_SOURCE_FILES = (
     "generation.ts", "generation-contract.ts", "hub-spec.ts", "hub-composer.ts",
     "provider-client.ts", "provider-config.ts", "ui-language.ts", "a7dev-generation-guide.ts",
@@ -176,7 +180,7 @@ def response_lines(response, deadline, raw_parts):
         if remaining <= 0:
             raise TimeoutError("BENCHMARK_TIMEOUT")
         # urllib's HTTPResponse exposes the TLS socket here. Set each read to the
-        # remaining total budget rather than restarting a fresh 240-second wait.
+        # remaining total budget rather than restarting a full request wait.
         sock = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
         if sock is not None:
             sock.settimeout(remaining)
@@ -220,7 +224,7 @@ def inference_messages(row, *, production=False):
     return clean
 
 
-def load_production_cases(directory=None, source_root=None):
+def load_production_cases(directory=None, source_root=None, parameters_file=None):
     directory = PRODUCTION if directory is None else Path(directory)
     source_root = SOURCE_ROOT if source_root is None else Path(source_root)
     manifest_raw = (directory / "manifest.json").read_bytes()
@@ -244,17 +248,38 @@ def load_production_cases(directory=None, source_root=None):
     selected = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
     if len(selected) != CASE_COUNTS["production"] or any(not isinstance(row, dict) for row in selected) or [row.get("id") for row in selected] != ids:
         raise ValueError("INVALID_PRODUCTION_CASE_COUNT_OR_IDS")
+    parameters_raw = (PRODUCTION_PARAMETERS if parameters_file is None else Path(parameters_file)).read_bytes()
+    parameters = json.loads(parameters_raw)
+    if (not isinstance(parameters, dict) or parameters.get("schemaVersion") != 1
+            or parameters.get("benchmark") != "production-composer-v1"
+            or parameters.get("capture") != "generateCompleteScript callback budget + createProviderRunner inert body"
+            or parameters.get("networkCalls") != 0 or parameters.get("sourceSha256") != source_hashes
+            or parameters.get("promptsSha256") != digest(raw)
+            or parameters.get("productionManifestSha256") != digest(manifest_raw)):
+        raise ValueError("PRODUCTION_PARAMETER_PROVENANCE_CHANGED")
+    captured_parameters = parameters.get("cases")
+    if (not isinstance(captured_parameters, list) or len(captured_parameters) != len(ids)
+            or any(not isinstance(row, dict) for row in captured_parameters)
+            or [row.get("id") for row in captured_parameters] != ids):
+        raise ValueError("INVALID_PRODUCTION_PARAMETER_CASES")
     cases = []
-    for row in selected:
+    for index, row in enumerate(selected):
         if set(row) != {"id", "benchmark", "messages", "promptSha256"} or row.get("benchmark") != "production-composer-v1":
             raise ValueError("PRODUCTION_PROMPT_FILE_HAS_UNEXPECTED_FIELDS")
         messages = inference_messages(row, production=True)
         prompt_hash = digest(compact(messages))
         if row.get("promptSha256") != prompt_hash:
             raise ValueError("PRODUCTION_PROMPT_HASH_CHANGED")
+        capture = captured_parameters[index]
+        expected_provider = {key: value for key, value in request_body(messages, split="production").items() if key not in ("model", "messages")}
+        if (set(capture) != {"id", "promptSha256", "writerBudget", "providerParameters"}
+                or capture.get("promptSha256") != prompt_hash
+                or capture.get("writerBudget") != {"maxTokens": PRODUCTION_MAX_TOKENS, "timeoutMs": PRODUCTION_TIMEOUT_SECONDS * 1000, "attempts": 1}
+                or capture.get("providerParameters") != expected_provider):
+            raise ValueError("PRODUCTION_WRITER_PARAMETERS_CHANGED")
         cases.append({"id": row["id"], "messages": messages, "promptSha256": prompt_hash,
                       "productionManifestSha256": digest(manifest_raw), "productionCasesSha256": manifest["caseSha256"],
-                      "sourceSha256": source_hashes})
+                      "sourceSha256": source_hashes, "productionParametersSha256": digest(parameters_raw)})
     return cases, digest(raw)
 
 
@@ -287,22 +312,33 @@ def load_cases(split):
     return cases, digest(raw)
 
 
-def request_body(messages):
-    return {"model": MODEL, "temperature": 0, "max_tokens": MAX_TOKENS,
+def request_settings(split):
+    if split not in CASE_COUNTS:
+        raise ValueError("INVALID_CASE_SPLIT")
+    return {"maxOutputTokens": PRODUCTION_MAX_TOKENS if split == "production" else MAX_TOKENS,
+            "temperature": PRODUCTION_TEMPERATURE if split == "production" else 0,
+            "requestTimeoutSeconds": PRODUCTION_TIMEOUT_SECONDS if split == "production" else TIMEOUT_SECONDS}
+
+
+def request_body(messages, *, split="dev"):
+    settings = request_settings(split)
+    return {"model": MODEL, "temperature": settings["temperature"], "max_tokens": settings["maxOutputTokens"],
             "stream": True, "thinking": {"type": "disabled"},
             "response_format": {"type": "json_object"}, "messages": messages}
 
 
-def request_once(case, key, opener):
-    body = compact(request_body(case["messages"])).encode("utf-8")
+def request_once(case, key, opener, *, split="dev"):
+    settings = request_settings(split)
+    timeout = settings["requestTimeoutSeconds"]
+    body = compact(request_body(case["messages"], split=split)).encode("utf-8")
     record = {"id": case["id"], "variant": "api", "provider": "apinex", "model": MODEL,
-              "origin": "model-inference", "endpoint": ENDPOINT, "promptSha256": case["promptSha256"], "requestSha256": digest(body)}
+              "origin": "model-inference", "endpoint": ENDPOINT, "promptSha256": case["promptSha256"], "requestSha256": digest(body), **settings}
     request = urllib.request.Request(ENDPOINT, data=body, method="POST", headers={"Content-Type": "application/json", "Accept": "text/event-stream, application/json", "Authorization": "Bearer " + key})
     started = time.monotonic()
     raw_parts = []
     try:
-        with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
-            completion = parse_response(response.headers.get("Content-Type", ""), response_lines(response, started + TIMEOUT_SECONDS, raw_parts))
+        with opener.open(request, timeout=timeout) as response:
+            completion = parse_response(response.headers.get("Content-Type", ""), response_lines(response, started + timeout, raw_parts))
         raw = b"".join(raw_parts).decode("utf-8")
         if key in raw or key in completion.output:
             raise ProviderResponseError()
@@ -355,10 +391,10 @@ def benchmark(split):
                     current_cases, current_hash = load_cases(split)
                     if current_hash != file_hash or current_cases != cases:
                         raise ValueError("PRODUCTION_CHANGED_DURING_BENCHMARK")
-                result = request_once(case, key, opener)
+                result = request_once(case, key, opener, split=split)
                 provenance = {"caseFileSha256": file_hash}
                 if split == "production":
-                    provenance.update({name: case[name] for name in ("productionManifestSha256", "productionCasesSha256", "sourceSha256")})
+                    provenance.update({name: case[name] for name in ("productionManifestSha256", "productionCasesSha256", "sourceSha256", "productionParametersSha256")})
                 else:
                     provenance["datasetManifestSha256"] = MANIFEST_SHA256
                 result.update(provenance)
@@ -382,11 +418,12 @@ def benchmark(split):
                "missingOutputs": len(cases) - len(records), "notAttemptedIds": [case["id"] for case in cases if case["id"] not in attempted],
                "failures": sum("error" in record for record in records),
                "confirmedEos": sum(record.get("stoppedWithEos") is True for record in records),
-               "maxOutputTokens": MAX_TOKENS, "requestTimeoutSeconds": TIMEOUT_SECONDS,
+               **request_settings(split),
                "caseFileSha256": file_hash,
-               "comparisonScope": ("Same captured production writer system/user messages; fixed reference planner, Blox Fruits source-backed fixtures only." if split == "production" else "Same frozen specialist-v2 system/user messages.") + " Provider JSON mode and greedy temperature 0; no response repair or reference answer injection. Costs are unknown and omitted."}
+               "comparisonScope": ("Same captured production writer system/user messages; fixed reference planner, Blox Fruits source-backed fixtures only. API follows the captured site writer: max 14000 output tokens, temperature 0.1, JSON mode, 120-second timeout. Specialist/base use max 4096 tokens, greedy decoding and 240 seconds: production latency and decoding budgets are not controlled across variants." if split == "production" else "Same frozen specialist-v2 system/user messages; controlled max 4096 output tokens, greedy temperature 0, JSON mode and 240-second timeout.") + " No response repair or reference answer injection. Costs are unknown and omitted."}
     if split == "production":
-        summary.update({name: cases[0][name] for name in ("productionManifestSha256", "productionCasesSha256", "sourceSha256")})
+        summary.update({name: cases[0][name] for name in ("productionManifestSha256", "productionCasesSha256", "sourceSha256", "productionParametersSha256")})
+        summary["latencyControlledAcrossVariants"] = False
     else:
         summary["datasetManifestSha256"] = MANIFEST_SHA256
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
@@ -420,10 +457,27 @@ class ParserTests(unittest.TestCase):
                     "caseIds": [row["id"] for row in rows], "sourceSha256": source_hashes,
                     "promptsSha256": digest(raw), "caseSha256": digest(labelled)}
         (directory / "manifest.json").write_text(compact(manifest), encoding="utf-8")
+        parameters = {"schemaVersion": 1, "benchmark": "production-composer-v1",
+                      "capture": "generateCompleteScript callback budget + createProviderRunner inert body",
+                      "networkCalls": 0, "promptsSha256": digest(raw),
+                      "productionManifestSha256": digest((directory / "manifest.json").read_bytes()),
+                      "sourceSha256": source_hashes,
+                      "cases": [{"id": row["id"], "promptSha256": row["promptSha256"],
+                                 "writerBudget": {"maxTokens": 14000, "timeoutMs": 120000, "attempts": 1},
+                                 "providerParameters": {"temperature": 0.1, "max_tokens": 14000, "stream": True,
+                                                        "thinking": {"type": "disabled"}, "response_format": {"type": "json_object"}}} for row in rows]}
+        (directory / "api-parameters.json").write_text(compact(parameters), encoding="utf-8")
         return directory, source_root, rows, manifest
 
     def test_fixed_development_and_final_call_budgets(self):
         self.assertEqual(CASE_COUNTS, {"dev": 4, "test": 12, "production": 8})
+
+    def test_utility_settings_are_unchanged_and_production_matches_writer(self):
+        for split in ("dev", "test"):
+            self.assertEqual(request_settings(split), {"maxOutputTokens": 4096, "temperature": 0, "requestTimeoutSeconds": 240})
+            self.assertEqual(request_body([], split=split)["max_tokens"], 4096)
+            self.assertEqual(request_body([], split=split)["temperature"], 0)
+        self.assertEqual(request_settings("production"), {"maxOutputTokens": 14000, "temperature": 0.1, "requestTimeoutSeconds": 120})
 
     def test_production_preserves_exact_freeform_messages_and_v2_json_guard(self):
         messages = [{"role": "system", "content": "  Original system\nJSON only  "},
@@ -443,14 +497,14 @@ class ParserTests(unittest.TestCase):
     def test_production_loads_only_exact_inputs_with_source_and_file_hashes(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory, source_root, rows, _manifest = self.production_fixture(Path(temporary))
-            cases, file_hash = load_production_cases(directory, source_root)
+            cases, file_hash = load_production_cases(directory, source_root, directory / "api-parameters.json")
             self.assertEqual(len(cases), 8)
             self.assertEqual(file_hash, digest((directory / "prompts.jsonl").read_bytes()))
             self.assertEqual([case["messages"] for case in cases], [row["messages"] for row in rows])
             self.assertNotIn("LOCAL_ANSWER", compact(cases))
             (source_root / PRODUCTION_SOURCE_FILES[0]).write_text("// changed application source", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "PRODUCTION_SOURCE_CHANGED"):
-                load_production_cases(directory, source_root)
+                load_production_cases(directory, source_root, directory / "api-parameters.json")
 
     def test_production_rejects_changed_artifacts_and_duplicate_ids(self):
         for changed in ("prompts", "cases", "ids"):
@@ -465,7 +519,29 @@ class ParserTests(unittest.TestCase):
                         stream.write(b" ")
                     error = "PRODUCTION_ARTIFACT_HASH_CHANGED"
                 with self.assertRaisesRegex(ValueError, error):
-                    load_production_cases(directory, source_root)
+                    load_production_cases(directory, source_root, directory / "api-parameters.json")
+
+    def test_production_rejects_unproven_or_changed_writer_parameters(self):
+        for changed in ("source", "temperature", "timeout", "tokens"):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as temporary:
+                directory, source_root, _rows, _manifest = self.production_fixture(Path(temporary))
+                path = directory / "api-parameters.json"
+                receipt = json.loads(path.read_bytes())
+                if changed == "source":
+                    receipt["sourceSha256"][PRODUCTION_SOURCE_FILES[0]] = "0" * 64
+                    error = "PRODUCTION_PARAMETER_PROVENANCE_CHANGED"
+                else:
+                    capture = receipt["cases"][0]
+                    if changed == "temperature":
+                        capture["providerParameters"]["temperature"] = 0
+                    elif changed == "timeout":
+                        capture["writerBudget"]["timeoutMs"] = 240000
+                    else:
+                        capture["providerParameters"]["max_tokens"] = 4096
+                    error = "PRODUCTION_WRITER_PARAMETERS_CHANGED"
+                path.write_text(compact(receipt), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, error):
+                    load_production_cases(directory, source_root, path)
 
     def test_production_budget_eight_no_retry_and_quota_stop_without_network(self):
         class FakeResponse:
@@ -495,7 +571,7 @@ class ParserTests(unittest.TestCase):
                 root = Path(temporary)
                 directory, source_root, rows, _manifest = self.production_fixture(root)
                 opener = FakeOpener(quota)
-                with mock.patch.dict(globals(), {"PRODUCTION": directory, "SOURCE_ROOT": source_root, "WORK": root / "results"}), \
+                with mock.patch.dict(globals(), {"PRODUCTION": directory, "SOURCE_ROOT": source_root, "PRODUCTION_PARAMETERS": directory / "api-parameters.json", "WORK": root / "results"}), \
                      mock.patch.object(sys.stdin, "isatty", return_value=True), \
                      mock.patch.object(getpass, "getpass", return_value="offline-test-credential"), \
                      mock.patch.object(urllib.request, "build_opener", return_value=opener), \
@@ -509,11 +585,15 @@ class ParserTests(unittest.TestCase):
                 self.assertEqual(summary["automaticRetries"], 0)
                 self.assertEqual(summary["missingOutputs"], 8 - expected_calls)
                 self.assertEqual(summary["stopReason"], "quota-stop" if quota else None)
+                self.assertEqual(summary["maxOutputTokens"], 14000)
+                self.assertEqual(summary["temperature"], 0.1)
+                self.assertEqual(summary["requestTimeoutSeconds"], 120)
+                self.assertFalse(summary["latencyControlledAcrossVariants"])
                 for index, (request, timeout) in enumerate(opener.requests):
                     payload = json.loads(request.data)
-                    self.assertEqual(payload, request_body(rows[index]["messages"]))
+                    self.assertEqual(payload, request_body(rows[index]["messages"], split="production"))
                     self.assertEqual(request.full_url, ENDPOINT)
-                    self.assertEqual(timeout, TIMEOUT_SECONDS)
+                    self.assertEqual(timeout, 120)
                     self.assertNotIn("LOCAL_ANSWER", compact(payload))
                 predictions = [json.loads(line) for line in (root / "results" / "api-production" / "predictions.jsonl").read_text(encoding="utf-8").splitlines()]
                 self.assertEqual(len(predictions), expected_calls)

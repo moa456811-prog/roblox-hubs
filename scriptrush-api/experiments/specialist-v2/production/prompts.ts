@@ -16,37 +16,51 @@ export async function sourceSnapshot(): Promise<Record<string, string>> {
   return Object.fromEntries(entries);
 }
 
-export async function captureComposerMessages(fixture: ProductionFixture): Promise<ProductionMessage[]> {
+export type ComposerRequestCapture = {
+  messages: ProductionMessage[];
+  writerBudget: { maxTokens: number; timeoutMs: number; attempts: number };
+  providerParameters: { temperature: number; max_tokens: number; stream: boolean; thinking: { type: string }; response_format: { type: string } };
+};
+
+export async function captureComposerRequest(fixture: ProductionFixture): Promise<ComposerRequestCapture> {
   let captured: ProductionMessage[] | undefined;
+  let writerBudget: ComposerRequestCapture["writerBudget"] | undefined;
   let calls = 0;
   const controller = new AbortController();
   try {
-    await generateCompleteScript({ ...fixture.context, signal: controller.signal }, async (system, user) => {
+    await generateCompleteScript({ ...fixture.context, signal: controller.signal }, async (system, user, maxTokens, budget) => {
       calls++;
       if (calls === 1 && system === PLANNER_SYSTEM) return { content: JSON.stringify(fixture.expected.contract), model: "local-reference-planner", incomplete: false };
       if (calls !== 2 || system !== HUB_COMPOSER_SYSTEM) throw new Error("Unexpected production stage during prompt capture");
       captured = [{ role: "system", content: system }, { role: "user", content: user }];
+      writerBudget = { maxTokens, timeoutMs: budget.timeoutMs, attempts: budget.attempts };
       controller.abort(new DOMException("Writer capture complete; inference intentionally omitted", "AbortError"));
       controller.signal.throwIfAborted();
       throw new Error("Unreachable capture state");
-    }, Date.now() + 30_000);
+    }, Date.now() + 300_000);
   } catch (error) {
     if (!controller.signal.aborted || !captured || !(error instanceof Error) || error.name !== "AbortError") throw error;
   }
-  if (!captured || calls !== 2) throw new Error("Request bypassed the production composer; it cannot serve as a writer benchmark");
+  if (!captured || !writerBudget || calls !== 2) throw new Error("Request bypassed the production composer; it cannot serve as a writer benchmark");
   // The actual provider adds its JSON-value reminder. Capture that transformation
   // through its injected inert transport instead of reimplementing it here.
   let wireMessages: ProductionMessage[] | undefined;
+  let providerParameters: ComposerRequestCapture["providerParameters"] | undefined;
   let inertCalls = 0;
   const runModel = createProviderRunner({ providers: () => [{ name: "apinex", endpoint: "https://benchmark.invalid/no-network", model: "local-prompt-capture", key: "inert-fixture-only" }], fetch: async (_input, init) => {
     inertCalls++;
     const body = JSON.parse(String(init?.body));
     wireMessages = body.messages;
+    providerParameters = { temperature: body.temperature, max_tokens: body.max_tokens, stream: body.stream, thinking: body.thinking, response_format: body.response_format };
     return new Response(JSON.stringify({ choices: [{ message: { content: "{}" }, finish_reason: "stop" }], model: "local-prompt-capture" }), { status: 200, headers: { "Content-Type": "application/json" } });
   } });
-  await runModel(captured[0].content, captured[1].content, 14_000, { attempts: 1, timeoutMs: 5000, deadlineMs: Date.now() + 10_000 });
-  if (inertCalls !== 1 || !wireMessages || wireMessages.length !== 2) throw new Error("Inert production transport did not capture one writer message pair");
-  return wireMessages;
+  await runModel(captured[0].content, captured[1].content, writerBudget.maxTokens, { attempts: writerBudget.attempts, timeoutMs: writerBudget.timeoutMs, deadlineMs: Date.now() + writerBudget.timeoutMs + 1000 });
+  if (inertCalls !== 1 || !wireMessages || wireMessages.length !== 2 || !providerParameters) throw new Error("Inert production transport did not capture one writer message pair");
+  return { messages: wireMessages, writerBudget, providerParameters };
+}
+
+export async function captureComposerMessages(fixture: ProductionFixture): Promise<ProductionMessage[]> {
+  return (await captureComposerRequest(fixture)).messages;
 }
 
 export async function buildProductionCases(): Promise<ProductionCase[]> {

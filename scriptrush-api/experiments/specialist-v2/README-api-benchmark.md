@@ -34,8 +34,23 @@ The existing specialist-v2 JSON user-input guard remains unchanged for `dev`/`te
 Production capture uses a fixed local reference planner inventory; this benchmark
 evaluates the composer and its callbacks, not planning or live game behavior.
 
-Transport settings are JSON object mode, streaming, `thinking.type=disabled`,
-temperature 0, 4,096 maximum output tokens and a 240-second request budget. TLS
+An additional ignored `test-results/specialist-v2/production-api-parameters.json`
+receipt captures the real `generateCompleteScript` callback's max-token and
+timeout budget, followed by the real provider client's body through an inert
+local transport. It must match all eight frozen messages, the prompt/manifest
+hashes and the same twelve application source hashes. The benchmark verifies
+this receipt before credential entry and every request; it never rewrites the
+frozen prompts, answers or manifest.
+
+Transport settings always include JSON object mode, streaming and
+`thinking.type=disabled`. Utility `dev`/`test` comparisons retain temperature 0,
+4,096 maximum output tokens and a 240-second request budget. `production` follows
+the captured site writer: temperature 0.1, **14,000 maximum output tokens** and a
+**120-second timeout**. This cap does not require a long answer. Specialist/base
+production inference still uses greedy decoding, a 4,096-token cap and 240 seconds;
+decoding budgets and latency are therefore **not controlled across production
+variants**, and a production timing difference must not be attributed solely to
+the model. The API has the larger token allowance. TLS
 certificate verification stays enabled. Redirects are refused before credentials
 can be forwarded. There is exactly one attempt per selected case, no automatic
 retry, no model substitution, no fallback provider and no paid route.
@@ -62,7 +77,11 @@ python experiments/specialist-v2/api_benchmark.py --self-test
 python experiments/specialist-v2/api_benchmark.py --split dev
 # After final blind cases have been frozen locally:
 python experiments/specialist-v2/api_benchmark.py --split test
-# After production prompt capture and source hashes have been verified:
+# Offline only: capture budgets/body from the real writer and inert provider;
+# this does not modify the frozen production artifacts or contact APInex.
+node --experimental-strip-types experiments/specialist-v2/production/capture-api-parameters.ts
+node --experimental-strip-types --test experiments/specialist-v2/production/api-parameters.test.ts
+# Parent-agent controlled, after capture and source verification:
 python experiments/specialist-v2/api_benchmark.py --split production
 ```
 
@@ -89,7 +108,8 @@ valid numeric nonnegative integral observations. Unknown usage and costs are
 omitted. The record includes measured latency, requested/reported model identity,
 model-identity hash, exact prompt/request hashes and frozen dataset/case-file
 hashes. Production records instead carry the production manifest, prompt-file,
-labelled case-file and current application source hashes. A provider-reported identity is metadata, not independent verification of
+labelled case-file, captured-parameter receipt and current application source
+hashes, plus the actual requested temperature/token cap/timeout. A provider-reported identity is metadata, not independent verification of
 its upstream model weights.
 
 The embedded offline tests cover ordinary JSON, multiline SSE, comments, stop and
@@ -98,4 +118,7 @@ usage, split UTF-8, label exclusion and blocked redirects. Production checks als
 cover exact freeform preservation, rejected assistant/expected labels, changed
 source and artifact hashes, duplicate IDs, eight simulated requests without
 retries, refusal to repeat a run and quota stop after one simulated request.
+Tests reject changed writer parameters/provenance and check the production
+request body and transport timeout, while preserving utility settings. The
+TypeScript capture test checks all eight real writer fixtures with inert fetch.
 No real API request is made by `--self-test`.
