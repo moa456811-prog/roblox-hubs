@@ -18,7 +18,13 @@ function CFrame.lookAt(position, target)
     return setmetatable({ Position=position, LookVector=(target-position)/(target-position).Magnitude, _target=target }, { __type="CFrame" })
 end
 function CFrame.new(x,y,z)
-    return CFrame.lookAt(type(x)=="table" and x or Vector3.new(x or 0,y or 0,z or 0), Vector3.new(0,0,-10))
+    if __typeof(x)=="Vector3" then
+        assert(z==nil and (y==nil or __typeof(y)=="Vector3"), "Unsupported CFrame constructor overload")
+        return CFrame.lookAt(x,y or x+Vector3.new(0,0,-1))
+    end
+    assert(x==nil and y==nil and z==nil or type(x)=="number" and type(y)=="number" and type(z)=="number", "Unsupported CFrame constructor overload")
+    local position=Vector3.new(x or 0,y or 0,z or 0)
+    return CFrame.lookAt(position,position+Vector3.new(0,0,-1))
 end
 __camera.FieldOfView = 70
 __camera.CFrame = CFrame.new(2,5,7)
@@ -52,9 +58,17 @@ local __lighting = Instance.new("Lighting")
 __lighting.Name = "Lighting"
 __lighting.Brightness = 1.5
 __services.Lighting = __lighting
-function __workspaceProxy:FindFirstChild(name, recursive) return __Workspace:FindFirstChild(name, recursive) end
-function __workspaceProxy:GetChildren() return __Workspace:GetChildren() end
-function __workspaceProxy:GetDescendants() return __Workspace:GetDescendants() end
+-- Match valid Roblox service aliases and Instance child access. The admitted
+-- service set stays closed; this does not add HttpService or any network API.
+setmetatable(__game,{__index=function(_,name)
+    local service=__services[name]
+    assert(service~=nil,"Service is outside the permitted isolated UI QA API set: "..tostring(name))
+    return service
+end})
+__classProps.Workspace={CurrentCamera=true}
+__Workspace.CurrentCamera=__camera
+__services.Workspace=__Workspace
+__sandbox.workspace=__Workspace
 
 local __fixtureObjects = {}
 local function __fixturePath(path, finalClass)

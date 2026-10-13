@@ -1,5 +1,12 @@
 -- No reflection/raw instance access, while the audited controller can require
 -- only the explicit inert ModuleScript fixtures admitted by the original mock.
+-- Direct game.ServiceName is a valid alias for the already admitted service.
+-- Workspace is already the canonical mock Instance in game-adapter-mock.luau.
+setmetatable(__game,{__index=function(_,name)
+    local service=__services[name]
+    assert(service~=nil,"Service is outside the permitted isolated UI QA API set: "..tostring(name))
+    return service
+end})
 local function __guard(value)
     assert(type(value)~="table" or getmetatable(value)~=__instanceMt,"Raw mock Instance access is unavailable")
 end
