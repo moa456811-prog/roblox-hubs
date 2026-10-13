@@ -288,9 +288,10 @@ test("actual provider fallback completes three generation stages with four HTTP 
   assert.equal(outcome.usage.outputCharacters, JSON.stringify(plan).length + ("```lua\n" + goodScript + "\n```").length + JSON.stringify(implementedReview).length);
   assert.deepEqual(sent.map(request => request.url), [transportRoutes[0].endpoint, transportRoutes[1].endpoint, transportRoutes[1].endpoint, transportRoutes[1].endpoint]);
   assert.ok(sent[0].messages[0].content.startsWith(PLANNER_SYSTEM));
-  assert.equal(sent[1].messages[0].content, PLANNER_SYSTEM);
+  assert.equal(sent[1].messages[0].content, sent[0].messages[0].content);
   assert.equal(sent[2].messages[0].content, GENERATOR_SYSTEM);
-  assert.equal(sent[3].messages[0].content, REVIEW_SYSTEM);
+  assert.ok(sent[3].messages[0].content.startsWith(REVIEW_SYSTEM));
+  assert.match(sent[3].messages[0].content, /Return the actual value object/);
   assert.equal(sent[0].messages[1].content, sent[1].messages[1].content);
   assert.ok(sent[1].messages[1].content.includes(input.prompt));
   assert.ok(sent[1].messages[1].content.includes("FULL CURRENT SCRIPT:\n" + goodScript));

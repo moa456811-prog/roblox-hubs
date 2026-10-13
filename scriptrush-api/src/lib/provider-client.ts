@@ -1,5 +1,5 @@
 import { generationResponseFormat } from "./generation-contract.ts";
-import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema } from "./hub-spec.ts";
+import { HUB_COMPOSER_SYSTEM } from "./hub-spec.ts";
 import { type ProviderConfig } from "./provider-config.ts";
 import { readProviderCompletion } from "./provider-response.ts";
 import { providerDelay, throwIfCallerAborted, withProviderAbort } from "./provider-abort.ts";
@@ -24,12 +24,11 @@ function compactStage(system: string) {
 async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderConfig, system: string, user: string, maxTokens: number, timeoutMs: number, callerSignal: AbortSignal) {
   try {
     return await withProviderAbort(timeoutMs, callerSignal, async signal => {
-      const schemaFormat = system.startsWith(HUB_COMPOSER_SYSTEM)
-        ? { type: "json_schema", json_schema: { name: "hub_composition", strict: true, schema: hubCompositionJsonSchema } }
-        : generationResponseFormat(system);
-      // APInex supports portable JSON mode; validate the actual values locally.
-      const responseFormat = schemaFormat && provider.name === "apinex" ? { type: "json_object" } : schemaFormat || (compactStage(system) ? { type: "json_object" } : null);
-      const instructions = system + (responseFormat && provider.name === "apinex" ? "\nReturn the actual value object in the exact shape shown above. Never return a JSON schema or wrap the values in properties/type/required." : "");
+      // Both routes support JSON mode. Novita rejects parts of the full Zod
+      // schemas in strict mode; keep their authoritative validation locally.
+      const responseFormat = system.startsWith(HUB_COMPOSER_SYSTEM) || generationResponseFormat(system) || compactStage(system)
+        ? { type: "json_object" } : null;
+      const instructions = system + (responseFormat ? "\nReturn the actual value object in the exact shape shown above. Never return a JSON schema or wrap the values in properties/type/required." : "");
       let response: Response;
       try {
         response = await fetcher(provider.endpoint, {
@@ -58,6 +57,20 @@ async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderC
           const quota = /per.day|daily|day limit|monthly|month limit/i.test(description);
           const resetAtMs = parseProviderResetAt(response.headers.get("x-ratelimit-reset"), Date.now());
           throw new ProviderUnavailableError(quota ? "quota" : "capacity", { status: 429, retryAfter: response.headers.get("retry-after"), resetAtMs });
+        }
+        if (response.status === 400 || response.status === 422) {
+          const data = await response.json().catch(() => null) as { error?: { message?: string; metadata?: { raw?: string } } } | null;
+          const description = `${data?.error?.message || ""} ${data?.error?.metadata?.raw || ""}`;
+          // Record only fixed diagnostic flags, never provider text, credentials,
+          // headers or request content. Format failures must still stop here.
+          console.warn("[provider-request-format]", JSON.stringify({
+            provider: provider.name, status: response.status,
+            reasoning: /reasoning|thinking/i.test(description), schema: /schema|json/i.test(description),
+            routing: /provider|routing|endpoint/i.test(description), parameters: /param|argument|field/i.test(description),
+            model: /model/i.test(description), price: /price|credit|payment/i.test(description),
+            unsupported: /support|invalid|not.allowed|not.available/i.test(description),
+          }));
+          throw new Error(`AI_ERROR_${response.status}`);
         }
         await response.body?.cancel().catch(() => {});
         if (response.status === 402) {

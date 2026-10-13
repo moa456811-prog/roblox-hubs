@@ -27,6 +27,8 @@ The provider-chain primitive is integrated for the two explicitly configured and
 - If both configured routes are limited or unavailable, the stage fails with a structured error. It does not loop indefinitely, replay completed stages, or present a partial result as success.
 - The existing single-provider minute-limit recovery is retained: a non-daily HTTP 429 with an explicit `Retry-After` of at most 60 seconds may resume that stage once if the original deadline permits. Daily/monthly limits, missing reset headers, and a chain with alternatives do not cause this same-provider wait/retry. Both actual requests are counted.
 
+Both providers use portable `json_object` mode for planning, composition and review. The real Novita endpoint rejected the generated strict JSON schema with HTTP 400 despite catalog support; its documented schema subset is narrower than the application's full Zod schemas. The complete Zod constraints, feature coverage, UI checks and source-evidence validation remain authoritative on the server. A format error stops the stage rather than triggering another provider request. Diagnostics contain only fixed boolean categories, never upstream error text or request content.
+
 The existing provider-response validation and generation acceptance checks still apply after a switch. Actual transport requests, including failed attempts, are counted; a cooldown rejection before a request counts as zero transport attempts. Character counts remain diagnostic estimates rather than provider token or billing measurements.
 
 ## OpenRouter model selection

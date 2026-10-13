@@ -320,9 +320,30 @@ test("the actual configured chain enables the free Novita route only after an AP
   assert.equal(result.attempts, 2);
   assert.equal(transport.requests[1].body.model, "apodex/apodex-1.1-mini:free");
   assert.deepEqual(transport.requests[1].body.provider, { only: ["novita"], require_parameters: true, allow_fallbacks: false, max_price: { prompt: 0, completion: 0 } });
-  assert.equal((transport.requests[1].body.response_format as { type: string }).type, "json_schema");
+  assert.deepEqual(transport.requests[1].body.response_format, { type: "json_object" });
+  assert.match((transport.requests[1].body.messages as Array<{ content: string }>)[0].content, /Return the actual value object/);
   assert.equal(transport.requests[1].body.models, undefined);
   assert.equal(transport.requests[1].body.plugins, undefined);
+});
+
+test("request-format diagnostics contain fixed flags and never upstream text or credentials", async context => {
+  const diagnostic = context.mock.method(console, "warn", () => {});
+  const transport = mockTransport(() => Response.json({ error: {
+    message: "Model does not support json_schema private-user-prompt dummy-secondary-key",
+    metadata: { raw: "private-provider-response dummy-primary-key" },
+  } }, { status: 400 }));
+  const run = createProviderRunner({ providers: () => [routes[1]], fetch: transport.fetcher });
+  const error = await rejected(run(PLANNER_SYSTEM, "private-user-prompt", 8000, { timeoutMs: 4000 }));
+  assert.equal(providerAttemptCount(error), 1);
+  assert.equal(transport.requests.length, 1);
+  assert.equal(diagnostic.mock.callCount(), 1);
+  const [label, flags] = diagnostic.mock.calls[0].arguments;
+  assert.equal(label, "[provider-request-format]");
+  assert.deepEqual(JSON.parse(String(flags)), {
+    provider: "openrouter", status: 400, reasoning: false, schema: true, routing: true,
+    parameters: false, model: true, price: false, unsupported: true,
+  });
+  assert.doesNotMatch(JSON.stringify(diagnostic.mock.calls[0].arguments), /private-|dummy-/);
 });
 
 test("a paid OpenRouter model is refused before making an HTTP request", async () => {
