@@ -161,7 +161,7 @@ def validate_completed_production_summary(summary, bundle):
                 "fitStatus": "complete", "developmentStatus": "external-pending", "developmentMode": "external",
                 "developmentSkipped": False, "diagnosticOnly": False, "productionPromotionEligible": False,
                 "runPurpose": "production-continuation-fit", "maxContext": 8192, "assistantLogitsOnly": True,
-                "evaluationSteps": 16, "trainExamples": 144, "validationExamples": 8, "trainOversizeSkipped": 0,
+                "evaluationSteps": 16, "trainExamples": 144, "validationExamples": 8, "trainOversizeSkipped": [],
                 "effectiveBatchSize": 4, "initialProductionSteps": 32, "additionalProductionSteps": 64,
                 "cumulativeProductionSteps": 96, "optimizerStateResumed": False,
                 "datasetManifestSha256": bundle["datasetManifestSha256"], "initialManifestSha256": PRODUCTION_MANIFEST,

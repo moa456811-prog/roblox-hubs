@@ -3,8 +3,11 @@ import ast
 import base64
 import copy
 import json
+import hashlib
+import importlib.util
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zlib
@@ -95,7 +98,7 @@ def fixture(root):
     summary = {"model": runner.MODEL, "revision": runner.REVISION, "method": "QLoRA-NF4", **prepare_dev.RECIPE,
                "fitStatus": "complete", "developmentStatus": "external-pending", "developmentSkipped": False,
                "diagnosticOnly": False, "productionPromotionEligible": False, "trainExamples": 144, "validationExamples": 8,
-               "trainOversizeSkipped": 0, "effectiveBatchSize": 4, "initialProductionSteps": 32, "additionalProductionSteps": 64,
+               "trainOversizeSkipped": [], "effectiveBatchSize": 4, "initialProductionSteps": 32, "additionalProductionSteps": 64,
                "cumulativeProductionSteps": 96, "optimizerStateResumed": False, "datasetManifestSha256": manifest_sha,
                "initialManifestSha256": runner.PRODUCTION_MANIFEST, "scriptSha256": receipt["scriptSha256"],
                "adapterSha256": {path.name: runner.file_digest(path) for path in adapter.iterdir()},
@@ -158,6 +161,55 @@ class CompletedProductionDevelopmentTests(unittest.TestCase):
             self.assertEqual([{row["id"] for _, row in rows} for rows in assignments], [{cases[0]["id"], cases[2]["id"]}, {cases[1]["id"], cases[3]["id"]}])
             for rows in assignments:
                 self.assertEqual([runner.variant_order(index, 2) for index, _ in rows], [("base", "specialist"), ("specialist", "base")])
+
+    def test_actual_trainer_summary_expression_matches_completed_loader(self):
+        """Evaluate the real export expression with inert CPU-only runtime values."""
+        source = Path(__file__).resolve().parents[1] / "kaggle_train.py"
+        spec = importlib.util.spec_from_file_location("offline_summary_training", source)
+        training = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(training)
+        main = next(node for node in ast.parse(source.read_text(encoding="utf-8")).body if isinstance(node, ast.FunctionDef) and node.name == "main")
+        expressions = [node.value for node in ast.walk(main) if isinstance(node, ast.Assign)
+                       and any(isinstance(target, ast.Name) and target.id == "summary" for target in node.targets)
+                       and isinstance(node.value, ast.Dict)]
+        self.assertEqual(len(expressions), 1)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); cases, summary_path = fixture(root)
+            bundle = prepare_dev.encoded_bundle((root / "production-retry-kaggle-run" / "train.py").read_bytes())
+            config = bundle["run"]
+            state = SimpleNamespace(best_metric=0.1, best_global_step=48,
+                                    best_model_checkpoint="/kaggle/working/scriptrush-specialist-v2/training/checkpoint-48")
+            runtime = {"MODEL": runner.MODEL, "REVISION": runner.REVISION, "seed": 39119, "steps": 64,
+                       "max_context": 8192, "assistant_logits_only": True, "learning_rate": 2e-5,
+                       "evaluation_steps": 16, "config": config, "world_size": 2, "trainable": 1,
+                       "train_rows": [None] * 144, "val_rows": [None] * 8, "train_skipped": [],
+                       "validation": {"eval_loss": 0.1}, "trainer": SimpleNamespace(state=state),
+                       "training_seconds": 1.0, "result": SimpleNamespace(training_loss=0.2),
+                       "bundle": bundle, "MAX_NEW_TOKENS": 4096, "OUT": summary_path.parent,
+                       "hashlib": hashlib, "Path": Path, "__file__": str(root / "production-retry-kaggle-run" / "train.py"),
+                       "skip_development": False, "time": SimpleNamespace(perf_counter=lambda: 2.0), "start": 0.0,
+                       "dependencies": {}, "torch": SimpleNamespace(__version__="inert-cpu-test", cuda=SimpleNamespace(get_device_name=lambda _: "inert", max_memory_allocated=lambda: 0)),
+                       "selected_training_lineage": training.selected_training_lineage}
+            exported = eval(compile(ast.Expression(expressions[0]), "actual-trainer-summary", "eval"), runtime)
+            self.assertEqual(exported["trainOversizeSkipped"], [])
+            self.assertNotIn("validationOversizeSkipped", exported)
+            summary = training.persist_fit_summary(summary_path.parent, exported)
+            self.assertEqual(summary["selectedCheckpointStep"], 48)
+            self.assertEqual(summary["selectedCumulativeProductionSteps"], 80)
+            self.assertEqual(summary["cumulativeProductionSteps"], 96)
+            with self.scope(root, cases):
+                checked = prepare_dev.build_bundle(summary_path)
+            self.assertEqual(runner.validate_completed_production_summary(summary, checked), summary)
+
+    def test_oversize_rows_must_be_exact_empty_list_not_zero_or_other_types(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); cases, summary_path = fixture(root)
+            original = json.loads(summary_path.read_bytes())
+            for value in [0, None, True, {}, "", ["skipped-teaching-example"]]:
+                with self.subTest(value=value):
+                    write_json(summary_path, {**original, "trainOversizeSkipped": value})
+                    with self.scope(root, cases), self.assertRaisesRegex(ValueError, "FIT_LINEAGE_OR_RECIPE_MISMATCH"):
+                        prepare_dev.build_bundle(summary_path)
 
     def test_incomplete_diagnostic_old_recipe_wrong_initial_or_false_summary_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
