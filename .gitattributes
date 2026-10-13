@@ -1,4 +1,4 @@
 # Keep provenance and artifact bytes identical across Windows/Linux checkouts.
-docs/knowledge-engine-v2/reference-pack/** -text
+docs/knowledge-engine-v2/reference-pack/** -text -whitespace
 docs/knowledge-engine-v2/demo/project/** -text
 scriptrush-api/knowledge-v2/*.json -text
