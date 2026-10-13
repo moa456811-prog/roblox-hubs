@@ -1,0 +1,115 @@
+import { generationResponseFormat } from "./generation-contract.ts";
+import { HUB_COMPOSER_SYSTEM, hubCompositionJsonSchema } from "./hub-spec.ts";
+import { type ProviderConfig } from "./provider-config.ts";
+import { readProviderCompletion } from "./provider-response.ts";
+import { providerDelay, throwIfCallerAborted, withProviderAbort } from "./provider-abort.ts";
+import { capacityRetryDelay } from "./provider-capacity.ts";
+import { executeProviderChain, MAX_PROVIDER_HOPS, ProviderCooldowns, ProviderUnavailableError } from "./provider-failover.ts";
+
+export type ProviderResult = { content: string; model: string; incomplete: boolean; provider: string; attempts: number };
+export type RequestBudget = { timeoutMs?: number; deadlineMs?: number; attempts?: number; signal?: AbortSignal };
+const attemptCounts = new WeakMap<object, number>();
+
+/** Transport attempts, including zero when every route is cooling down; never a token/billing estimate. */
+export function providerAttemptCount(error: unknown): number | undefined {
+  return error !== null && (typeof error === "object" || typeof error === "function") ? attemptCounts.get(error) : undefined;
+}
+
+function compactStage(system: string) {
+  const value = system.toLowerCase();
+  return /\b(plan|planner|review|reviewer|critic|audit|json only|analyse|analyze)\b/.test(value)
+    && !/fenced lua|executor-ready|full corrected script|one self-contained|luau script/.test(value);
+}
+
+async function requestOnce(fetcher: typeof globalThis.fetch, provider: ProviderConfig, system: string, user: string, maxTokens: number, timeoutMs: number, callerSignal: AbortSignal) {
+  try {
+    return await withProviderAbort(timeoutMs, callerSignal, async signal => {
+      const schemaFormat = system.startsWith(HUB_COMPOSER_SYSTEM)
+        ? { type: "json_schema", json_schema: { name: "hub_composition", strict: true, schema: hubCompositionJsonSchema } }
+        : generationResponseFormat(system);
+      // APInex supports portable JSON mode; validate the actual values locally.
+      const responseFormat = schemaFormat && provider.name === "apinex" ? { type: "json_object" } : schemaFormat || (compactStage(system) ? { type: "json_object" } : null);
+      const instructions = system + (responseFormat && provider.name === "apinex" ? "\nReturn the actual value object in the exact shape shown above. Never return a JSON schema or wrap the values in properties/type/required." : "");
+      let response: Response;
+      try {
+        response = await fetcher(provider.endpoint, {
+          method: "POST", signal, redirect: "error",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}`, ...(provider.name === "openrouter" ? { "X-Title": "ScriptRush" } : {}) },
+          body: JSON.stringify({ model: provider.model, temperature: responseFormat ? 0.1 : 0.25, max_tokens: maxTokens, ...(provider.name === "apinex" ? { stream: true, thinking: { type: "disabled" } } : { reasoning: { enabled: false } }), ...(responseFormat ? { response_format: responseFormat } : {}), messages: [{ role: "system", content: instructions }, { role: "user", content: user }] }),
+        });
+      } catch (error) {
+        // Only transport failures from fetch are classified as network failures.
+        // Malformed output/JSON is never a reason for a hidden second request.
+        if (signal.aborted) throw error;
+        if (error instanceof TypeError) throw new ProviderUnavailableError("network", { cause: error });
+        throw error;
+      }
+      if (!response.ok) {
+        if (response.status === 429) {
+          const data = await response.json().catch(() => null) as { error?: { message?: string; metadata?: { raw?: string } } } | null;
+          const description = `${data?.error?.message || ""} ${data?.error?.metadata?.raw || ""}`;
+          const quota = /per.day|daily|day limit|monthly|month limit/i.test(description);
+          throw new ProviderUnavailableError(quota ? "quota" : "capacity", { status: 429, retryAfter: response.headers.get("retry-after") });
+        }
+        await response.body?.cancel().catch(() => {});
+        if (response.status === 402) {
+          throw new ProviderUnavailableError("quota", { status: response.status, retryAfter: response.headers.get("retry-after") });
+        }
+        if (response.status >= 500) throw new ProviderUnavailableError("upstream", { status: response.status, retryAfter: response.headers.get("retry-after") });
+        throw new Error(`AI_ERROR_${response.status}`);
+      }
+      return await readProviderCompletion(response, provider.model);
+    });
+  } catch (error) {
+    // A per-provider timeout leaves the remaining stage deadline to its successor.
+    throwIfCallerAborted(callerSignal);
+    if (error instanceof Error && error.message === "AI_TIMEOUT") throw new ProviderUnavailableError("timeout", { cause: error });
+    throw error;
+  }
+}
+
+/** Providers are explicitly supplied by server configuration, never by a visitor or an error payload. */
+export function createProviderRunner(options: {
+  providers: () => readonly ProviderConfig[];
+  fetch?: typeof globalThis.fetch;
+  cooldowns?: ProviderCooldowns;
+}) {
+  const cooldowns = options.cooldowns ?? new ProviderCooldowns();
+  return async function runModel(system: string, user: string, maxTokens = 8000, budget: RequestBudget = {}): Promise<ProviderResult> {
+    let attempts = 0;
+    try {
+      throwIfCallerAborted(budget.signal);
+      const providers = options.providers();
+      const now = Date.now();
+      const timeoutMs = budget.timeoutMs ?? (compactStage(system) ? 40_000 : 170_000);
+      const stageDeadline = Math.min(budget.deadlineMs ?? Infinity, now + timeoutMs);
+      const chain = providers.map(provider => ({ ...provider, id: provider.name }));
+      const eligibleCount = Math.min(MAX_PROVIDER_HOPS, new Set(chain.filter(provider => !cooldowns.availableAt(provider.id, now)).map(provider => provider.id)).size);
+      const execute = () => executeProviderChain(chain, {
+        signal: budget.signal, deadlineMs: stageDeadline, cooldowns,
+        onAttempt: () => { attempts++; },
+        operation: async (provider, operationBudget) => {
+          const remainingProviders = Math.max(1, eligibleCount - operationBudget.attempt + 1);
+          const timeout = Math.floor(operationBudget.remainingMs / remainingProviders);
+          return requestOnce(options.fetch ?? globalThis.fetch, provider, system, user, Math.min(maxTokens, 24_000), timeout, operationBudget.signal);
+        },
+      });
+      let result;
+      try { result = await execute(); }
+      catch (error) {
+        // Preserve the existing single-provider minute-limit recovery. A
+        // configured alternative is tried immediately by the chain instead.
+        const delay = chain.length === 1 && error instanceof ProviderUnavailableError && error.reason === "capacity" && error.status === 429
+          ? capacityRetryDelay(error.retryAfter ?? null, Date.now(), stageDeadline, false) : null;
+        if (delay === null) throw error;
+        await providerDelay(delay, budget.signal);
+        cooldowns.clear(chain[0].id);
+        result = await execute();
+      }
+      return { ...result.value, provider: result.providerId, attempts };
+    } catch (error) {
+      if (error !== null && (typeof error === "object" || typeof error === "function")) attemptCounts.set(error, attempts);
+      throw error;
+    }
+  };
+}

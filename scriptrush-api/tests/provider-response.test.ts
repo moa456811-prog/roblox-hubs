@@ -21,8 +21,8 @@ test("a disconnected or token-limited stream cannot claim a complete script", as
 });
 
 test("stream errors and malformed events reject plausible preceding code", async () => {
-  for (const ending of [event({ error: { code: 429 } }), 'data: invalid\n\n', event({ choices: [{ finish_reason: "error" }] })]) {
-    await assert.rejects(readProviderCompletion(stream(event({ choices: [{ delta: { content: "local code=true" } }] }) + ending), "free/test"), /RATE_LIMITED|AI_RETRYABLE_502/);
+  for (const [ending, reason] of [[event({ error: { code: 429 } }), /RATE_LIMITED/], ['data: invalid\n\n', /AI_RETRYABLE_502/], [event({ choices: [{ finish_reason: "error" }] }), /AI_ERROR_502/]] as const) {
+    await assert.rejects(readProviderCompletion(stream(event({ choices: [{ delta: { content: "local code=true" } }] }) + ending), "free/test"), reason);
   }
 });
 
@@ -32,7 +32,7 @@ test("non-streaming provider JSON remains supported with truncation metadata", a
 });
 
 test("a JSON provider error cannot accept a preceding plausible script", async () => {
-  await assert.rejects(readProviderCompletion(Response.json({ choices: [{ message: { content: 'local ui=Instance.new("ScreenGui")' }, finish_reason: "error" }] }), "default"), /AI_RETRYABLE_502/);
+  await assert.rejects(readProviderCompletion(Response.json({ choices: [{ message: { content: 'local ui=Instance.new("ScreenGui")' }, finish_reason: "error" }] }), "default"), /AI_ERROR_502/);
   await assert.rejects(readProviderCompletion(Response.json({ error: { code: 429 } }), "default"), /RATE_LIMITED/);
 });
 

@@ -7,8 +7,9 @@ import { applyEnglishUiLabels, englishUiIssues, SCRIPT_UI_LANGUAGE_POLICY, trans
 import { buildLocalFullHub } from "./local-full-hub.ts";
 import { adapterGenerationContext, gameAdapterFor, gameplayBindingIssues } from "./game-adapters/catalog.ts";
 import { compositionUsesGameplay } from "./game-actions.ts";
+import { providerAttemptCount } from "./provider-client.ts";
 
-export type ModelCall = (system: string, user: string, maxTokens: number, budget: { timeoutMs: number; deadlineMs: number; attempts: number; signal?: AbortSignal }) => Promise<{ content: string; model: string; incomplete: boolean }>;
+export type ModelCall = (system: string, user: string, maxTokens: number, budget: { timeoutMs: number; deadlineMs: number; attempts: number; signal?: AbortSignal }) => Promise<{ content: string; model: string; incomplete: boolean; attempts?: number }>;
 export type GenerationContext = {
   prompt: string; currentScript: string; patch: boolean; game: Record<string, unknown>;
   supportedFeatures: string[]; ledger: string; sources: string; diagnostic: string; signal?: AbortSignal; researchContext?: string;
@@ -52,12 +53,22 @@ export async function generateCompleteScript(context: GenerationContext, modelCa
   const outcome: GenerationOutcome = { script: "", model: "", incomplete: false, issues: [], reason: "", contract: null, coverage: null, repaired: false, strategy: "requirements-coverage-review", usage: { modelCalls: 0, inputCharacters: 0, outputCharacters: 0 } };
   const call: ModelCall = async (system, user, tokens, budget) => {
     context.signal?.throwIfAborted();
-    outcome.usage.modelCalls++;
-    outcome.usage.inputCharacters += system.length + user.length;
-    const result = await modelCall(system, user, tokens, { ...budget, ...(context.signal ? { signal: context.signal } : {}) });
-    outcome.usage.outputCharacters += result.content.length;
-    context.signal?.throwIfAborted();
-    return result;
+    let accounted = false;
+    const count = (attempts: number) => {
+      outcome.usage.modelCalls += attempts;
+      outcome.usage.inputCharacters += attempts * (system.length + user.length);
+      accounted = true;
+    };
+    try {
+      const result = await modelCall(system, user, tokens, { ...budget, ...(context.signal ? { signal: context.signal } : {}) });
+      count(result.attempts ?? 1);
+      outcome.usage.outputCharacters += result.content.length;
+      context.signal?.throwIfAborted();
+      return result;
+    } catch (error) {
+      if (!accounted) count(providerAttemptCount(error) ?? 1);
+      throw error;
+    }
   };
   let stage = "plan";
   const gamePack = gameAdapterFor(context.game);

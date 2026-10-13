@@ -3,6 +3,8 @@ import test from "node:test";
 import { generateCompleteScript } from "../src/lib/generation.ts";
 import type { GenerationContext, ModelCall } from "../src/lib/generation.ts";
 import { GENERATOR_SYSTEM, PLANNER_SYSTEM, REVIEW_SYSTEM } from "../src/lib/generation-contract.ts";
+import { createProviderRunner } from "../src/lib/provider-client.ts";
+import type { ProviderConfig } from "../src/lib/provider-config.ts";
 
 const speedCallback = `speed.Activated:Connect(function()
     local character = player.Character
@@ -252,4 +254,87 @@ test("planner correction does not retry semantic omissions, provider errors or c
   const rejected = await generateCompleteScript(context(), shortDeadline.call, Date.now() + 180000);
   assert.equal(accepted(rejected), false);
   assert.equal(shortDeadline.calls.length, 1);
+});
+
+const transportRoutes: ProviderConfig[] = [
+  { name: "apinex", endpoint: "https://api.apinex.bond/v1/chat/completions", model: "free/mock-primary", key: "dummy-primary" },
+  { name: "openrouter", endpoint: "https://openrouter.ai/api/v1/chat/completions", model: "mock/secondary:free", key: "dummy-secondary" },
+];
+const transportCompletion = (content: string) => Response.json({ model: "mock-transport-model", choices: [{ message: { content }, finish_reason: "stop" }] });
+
+test("actual provider fallback completes three generation stages with four HTTP calls and never restarts the completed plan", async () => {
+  const replies = [
+    Response.json({ error: { message: "quota exhausted" } }, { status: 429, headers: { "retry-after": "60" } }),
+    transportCompletion(JSON.stringify(plan)),
+    transportCompletion("```lua\n" + goodScript + "\n```"),
+    transportCompletion(JSON.stringify(implementedReview)),
+  ];
+  const sent: Array<{ url: string; model: string; max_tokens: number; messages: Array<{ role: string; content: string }> }> = [];
+  const fetcher: typeof globalThis.fetch = async (url, init) => {
+    sent.push({ url: String(url), ...JSON.parse(String(init?.body)) });
+    const response = replies.shift();
+    assert.ok(response, "Only the quota fallback, writer and independent reviewer may request output.");
+    return response;
+  };
+  const run = createProviderRunner({ providers: () => transportRoutes, fetch: fetcher });
+  const input = context();
+  const outcome = await generateCompleteScript(input, run, Date.now() + 300_000);
+  assert.equal(accepted(outcome), true);
+  assert.equal(outcome.script, goodScript);
+  assert.equal(outcome.repaired, false);
+  assert.equal(sent.length, 4);
+  assert.equal(outcome.usage.modelCalls, 4, "count HTTP attempts rather than three logical pipeline stages");
+  assert.ok(outcome.usage.inputCharacters > 0);
+  assert.equal(outcome.usage.outputCharacters, JSON.stringify(plan).length + ("```lua\n" + goodScript + "\n```").length + JSON.stringify(implementedReview).length);
+  assert.deepEqual(sent.map(request => request.url), [transportRoutes[0].endpoint, transportRoutes[1].endpoint, transportRoutes[1].endpoint, transportRoutes[1].endpoint]);
+  assert.ok(sent[0].messages[0].content.startsWith(PLANNER_SYSTEM));
+  assert.equal(sent[1].messages[0].content, PLANNER_SYSTEM);
+  assert.equal(sent[2].messages[0].content, GENERATOR_SYSTEM);
+  assert.equal(sent[3].messages[0].content, REVIEW_SYSTEM);
+  assert.equal(sent[0].messages[1].content, sent[1].messages[1].content);
+  assert.ok(sent[1].messages[1].content.includes(input.prompt));
+  assert.ok(sent[1].messages[1].content.includes("FULL CURRENT SCRIPT:\n" + goodScript));
+  assert.equal(sent[0].max_tokens, sent[1].max_tokens);
+  assert.ok(sent[2].max_tokens >= 14_000);
+  assert.equal(replies.length, 0);
+});
+
+test("a warm provider quota cooldown rejects the next generation with zero HTTP calls and zero sent characters", async () => {
+  let requests = 0;
+  const fetcher: typeof globalThis.fetch = async () => {
+    requests++;
+    return Response.json({ error: { message: "daily quota exhausted" } }, { status: 429, headers: { "retry-after": "60" } });
+  };
+  const run = createProviderRunner({ providers: () => [transportRoutes[0]], fetch: fetcher });
+  const first = await generateCompleteScript(context(), run, Date.now() + 300_000);
+  assert.equal(first.reason, "RATE_LIMITED");
+  assert.equal(first.usage.modelCalls, 1);
+  assert.ok(first.usage.inputCharacters > 0);
+  const next = await generateCompleteScript(context(), run, Date.now() + 300_000);
+  assert.equal(accepted(next), false);
+  assert.equal(next.reason, "RATE_LIMITED");
+  assert.equal(next.script, "");
+  assert.equal(next.contract, null);
+  assert.deepEqual(next.usage, { modelCalls: 0, inputCharacters: 0, outputCharacters: 0 });
+  assert.equal(requests, 1, "the warm cooldown must not probe the exhausted provider again");
+});
+
+test("a failed generation accounts for both actual provider quota attempts without a formatting retry or accepted output", async () => {
+  const prompts: string[] = [];
+  const fetcher: typeof globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content: string }> };
+    prompts.push(body.messages[1].content);
+    return Response.json({ error: { message: "quota exhausted" } }, { status: 429, headers: { "retry-after": "60" } });
+  };
+  const run = createProviderRunner({ providers: () => transportRoutes, fetch: fetcher });
+  const outcome = await generateCompleteScript(context(), run, Date.now() + 300_000);
+  assert.equal(accepted(outcome), false);
+  assert.equal(outcome.reason, "RATE_LIMITED");
+  assert.equal(outcome.script, "");
+  assert.equal(outcome.contract, null);
+  assert.equal(outcome.usage.modelCalls, 2);
+  assert.ok(outcome.usage.inputCharacters > 0);
+  assert.equal(outcome.usage.outputCharacters, 0);
+  assert.equal(prompts.length, 2);
+  assert.equal(prompts[0], prompts[1]);
 });
