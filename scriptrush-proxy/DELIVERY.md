@@ -2,7 +2,25 @@
 
 Live site: https://scriptrush.vercel.app
 
-## Current release — provider limits, truthful accounting and Kaggle verification
+## Current release — free OpenRouter backup activated with APInex
+
+The user authorized a suitable free alternative and automatic switching. Production now prioritizes APInex `free/gpt-6-luna`, with OpenRouter `apodex/apodex-1.1-mini:free` as its configured backup. OpenRouter is pinned to Novita, required response parameters, no internal provider fallback, and zero prompt/completion price ceilings. Both credentials remain Sensitive server-side Vercel variables; no value was retrieved, printed or placed in source. Kaggle remains inactive.
+
+A classified quota/capacity or transient failure repeats only the current stage on the eligible alternative, preserving the complete request, prior script, requirements, output budget and original deadline. Warm-instance cooldowns reduce exhausted-provider probes and restore APInex priority after expiry. They are per-process, not a global quota ledger. Both providers being unavailable still returns an explicit failure. Invalid requests/credentials, malformed responses and incomplete output do not trigger hidden provider replacement.
+
+Actual OpenRouter verification exposed and fixed a protocol incompatibility: Novita rejected the full strict JSON schema with HTTP 400. Structured stages now use documented portable JSON mode on both routes, while full Zod constraints, feature coverage, source evidence and UI acceptance remain enforced locally. Fixed diagnostic flags expose no upstream text or credentials. Known terminal HTTP statuses remain terminal even if reading their diagnostic body times out; caller cancellation still takes priority.
+
+Validation: **194 backend + 67 frontend = 261 tests passed**, both TypeScript checks passed, and the final backend production build passed. Mocked transport/integration verifies APInex quota → the exact free OpenRouter route, preserved stages/output budgets, recovery/cooldown, bounded requests, cancellation and actual usage counting. A real OpenRouter-only three-stage correction returned HTTP 200 in 7.76 seconds: both requested controls implemented, requested UI verified, three model calls, no repair. No claim of a live APInex quota event is made; that switch is exercised with mocked quota responses rather than exhausting its account.
+
+A server-only limits check confirmed a valid OpenRouter free-tier key with 50/50 requests available at that point. Subsequent verification used seven inference HTTP attempts in total: two strict-schema rejections, one transient limit rejection, one eight-token connectivity probe, and the three accepted generation stages. Failed attempts are not described as zero usage. The selected endpoint's advertised token prices are zero; free quotas and upstream capacity still apply. The temporary quota/probe route was removed before the final build, and its isolated deployments were deleted after verification.
+
+Backend source `f1b7c387c1f5fb55e7d98a5373cb0bc457a1a2c9` is READY as `dpl_6ZNK4rbWLJDH7zCC4Zy6fLYEAaHC`, immutable URL https://scriptrush-6fw2f0pwc-ahmed-601f.vercel.app. The canonical alias was verified against that exact ID at 00:54 UTC on 2026-10-13. Canonical site health reports `configuredProviders: ["apinex/free", "openrouter/free"]` and `automaticProviderSwitch: true`. The frontend is unchanged.
+
+Staged and canonical Full Hub POST checks pass with all nine implemented coverage entries and zero AI calls. The canonical 70,550-character script remains byte-identical to the preceding release (SHA256 `80c01bdfb00249fdc1177545361d5773514dd651cd1cb959a0d67cd4791e5f21`). Nine canonical HTTP checks pass; the removed diagnostic route returns 404. These checks do not establish current public Roblox gameplay. Rollback: backend `dpl_4hhcZL9CEgvPrTRs7U95Q3T6cJPy`, https://scriptrush-wzbktk65l-ahmed-601f.vercel.app.
+
+Ignored evidence: backend `test-results/free-provider/` (catalog snapshots, unit/build/deploy logs, sanitized quota/access summaries, accepted model response/summary, alias/health and diagnostic cleanup); frontend `test-results/free-provider-{unit,http}.log`, `test-results/full-hub/source-backed-free-provider-{staged,canonical}/` and `final-http-free-provider-canonical/`. Provider selection, terms, limits and protocol details are in `scriptrush-api/docs/providers.md`.
+
+## Historical release — provider limits, truthful accounting and Kaggle verification
 
 Kaggle was investigated through its official Terms, CLI, SDK and Harbor documentation. It has a technically compatible inference proxy, but the standard [Kaggle Terms](https://www.kaggle.com/terms) limit service use to the account holder's personal/internal/noncommercial use and exclude serving third parties. No public Benchmarks exception permitting ScriptRush visitor generations was found. **The requested Kaggle/APInex production switch is not activated.** No Kaggle token was used, persisted, added to Vercel, exchanged for a proxy key, or sent in any network request. Its claimed account allowance and access have not been verified. Personal benchmark evaluation is distinct from public visitor traffic. Full findings and pinned official sources are in `scriptrush-api/docs/providers.md`.
 
